@@ -894,7 +894,9 @@ gl.bindVertexArray(null);
 // Render targets. cw x ch: the scene render size; ow x oh: the output size.
 // The wave is drawn into its own buffer at ss times the render size.
 let RT = null;
+const MAX_TEX = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 function ensureTargets(cw, ch, ow, oh, ss) {
+  ss = Math.min(ss, MAX_TEX / Math.max(cw, ch)); // the wave buffer must fit the GPU's texture size limit
   const ww = Math.round(cw * ss), wh = Math.round(ch * ss);
   const key = [ww, wh, ow, oh].join('x');
   if (RT && RT.key === key) return;
