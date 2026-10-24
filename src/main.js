@@ -135,7 +135,7 @@ const WAVE = {
   threads: 400,                         // thread periods across the sheet
   fadeEnds: 0.10, fadeEdges: 0.12,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
-  filterSpread: 1.6,                    // width of the down-filter over the wave buffer, in output pixels
+  filterSpread: 2.0,                    // width of the down-filter over the wave buffer, in output pixels
   tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
 };
 const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
@@ -441,8 +441,10 @@ function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(
 function bindTarget(t) { gl.bindFramebuffer(gl.FRAMEBUFFER, t ? t.fb : null); }
 
 // Background images: day and night for each month, stacked in one texture.
+let bgImageData = null;
 function makeBackgroundImages() {
   const tiles = 24, data = new Float32Array(BG_W * BG_H * tiles * 4);
+  bgImageData = data;
   const put = (tile, x, y, c) => { const o = ((tile * BG_H + y) * BG_W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 1; };
   PALETTES.forEach((P, m) => {
     for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
@@ -465,6 +467,23 @@ function makeBackgroundImages() {
   return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
 }
 const bgImages = makeBackgroundImages();
+// Peak luminance of the background for this frame's blend (the glare keeps only
+// what exceeds the background itself, so a bright palette never blooms into a haze).
+function bgPeak(sc) {
+  let peak = 0; const n = BG_W * BG_H;
+  const a = sc.monA * 2 * n * 4, b = sc.monB * 2 * n * 4, na = a + n * 4, nb = b + n * 4, f = sc.monF, k = sc.night;
+  for (let i = 0; i < n * 4; i += 4) {
+    let l = 0;
+    for (let c = 0; c < 3; c++) {
+      const w = [0.299, 0.587, 0.114][c];
+      const day = bgImageData[a + i + c] + (bgImageData[b + i + c] - bgImageData[a + i + c]) * f;
+      const night = bgImageData[na + i + c] + (bgImageData[nb + i + c] - bgImageData[na + i + c]) * f;
+      l += w * (day * (1 + BG_HL * 0.65) * (1 - k) + night * k);
+    }
+    if (l > peak) peak = l;
+  }
+  return peak;
+}
 
 // Control nets: two float textures (previous and current step).
 const netTex = [0, 1].map(() => makeTex(NN, NN, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST, null));
@@ -566,7 +585,7 @@ function renderFrame(st, outTarget) {
 
   // 3. glare from the background and wave
   let glareT = null, glareK = 0;
-  if (L.glare && (L.bg || L.wave)) { glareT = buildGlare(m, bgT, L.bg, L.wave); glareK = RT.glareScale; }
+  if (L.glare && (L.bg || L.wave)) { glareT = buildGlare(m, bgT, L.bg, L.wave, L.bg ? bgPeak(sc) : 0); glareK = RT.glareScale; }
 
   // 4. final pass at the output size
   {
@@ -605,13 +624,14 @@ function renderFrame(st, outTarget) {
   }
 }
 
-function buildGlare(m, bgT, bgOn, waveOn) {
+function buildGlare(m, bgT, bgOn, waveOn, peak) {
   const lv = RT.levels;
   // bright-pass at quarter size
   let pr = PR.bright; gl.useProgram(pr.p);
   bindTarget(lv[0].a); gl.viewport(0, 0, lv[0].w, lv[0].h);
   setBgAndWave(pr, bgT, bgOn, waveOn, lv[0].w, lv[0].h);
-  gl.uniform1f(pr.u.uExposure, m.exposure); gl.uniform1f(pr.u.uWhite, m.white); gl.uniform1f(pr.u.uThr, m.glareThr);
+  gl.uniform1f(pr.u.uExposure, m.exposure); gl.uniform1f(pr.u.uWhite, m.white);
+  gl.uniform1f(pr.u.uThr, Math.max(m.glareThr, Math.min(0.97, peak * m.exposure + 0.06)));
   gl.uniform1f(pr.u.uDesat, GLARE_DESAT);
   gl.activeTexture(gl.TEXTURE0);
   quad();
