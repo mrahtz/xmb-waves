@@ -9,13 +9,15 @@ function XMBW_SIM() {
 
   // ---- tunables (all original design values) ----
   const NET = {
-    kStruct: 4.0, kBend: 10.0,     // spring constants (unit masses)
+    kStruct: 4.0, kBend: 10.0,     // spring constants along the length (unit masses)
+    acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
     damping: 0.006,                 // fraction of velocity removed per step
     noise: 0.0012,                  // velocity kick per step (std dev)
     push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.035, driveW1: 0.58,   // driven end: height amplitude, angular frequency
-    driveB: 0.060, driveW2: 0.37,   // driven end: depth amplitude, angular frequency
-    drivePhase1: 0.18, drivePhase2: 0.13, // phase change per row
+    driveA: 0.035, driveW1: 0.50,   // driven end: height amplitude, angular frequency
+    driveB: 0.050, driveW2: 0.32,   // driven end: depth amplitude, angular frequency
+    drivePhase1: 0.70, drivePhase2: -0.45, // phase change per row: the driven edge is pleated across its width; the two
+                                          // families run opposite ways across, so their fold lines cross
     driveEase: 0.02,                // easing of the driving clock towards sim time
     envLow: 0.22, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
     warm: 1500,                     // warm-up steps before frame 0
@@ -27,7 +29,7 @@ function XMBW_SIM() {
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 8.4, wid: 1.9, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 8.4, wid: 1.5, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
@@ -79,9 +81,9 @@ function XMBW_SIM() {
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const a = j * N + i;
       if (i + 1 < N) springs.push([a, a + 1, H, NET.kStruct]);
-      if (j + 1 < N) springs.push([a, a + N, H, NET.kStruct]);
+      if (j + 1 < N) springs.push([a, a + N, H, NET.kStruct * NET.acrossK]);
       if (i + 2 < N) springs.push([a, a + 2, 2 * H, NET.kBend]);
-      if (j + 2 < N) springs.push([a, a + 2 * N, 2 * H, NET.kBend]);
+      if (j + 2 < N) springs.push([a, a + 2 * N, 2 * H, NET.kBend * NET.acrossK]);
     }
     const SA = Int32Array.from(springs.map(s => s[0])), SB = Int32Array.from(springs.map(s => s[1]));
     const SR = Float64Array.from(springs.map(s => s[2])), SK = Float64Array.from(springs.map(s => s[3]));

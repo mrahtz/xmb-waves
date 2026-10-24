@@ -58,13 +58,15 @@ function XMBW_SIM() {
 
   // ---- tunables (all original design values) ----
   const NET = {
-    kStruct: 4.0, kBend: 10.0,     // spring constants (unit masses)
+    kStruct: 4.0, kBend: 10.0,     // spring constants along the length (unit masses)
+    acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
     damping: 0.006,                 // fraction of velocity removed per step
     noise: 0.0012,                  // velocity kick per step (std dev)
     push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.035, driveW1: 0.58,   // driven end: height amplitude, angular frequency
-    driveB: 0.060, driveW2: 0.37,   // driven end: depth amplitude, angular frequency
-    drivePhase1: 0.18, drivePhase2: 0.13, // phase change per row
+    driveA: 0.035, driveW1: 0.50,   // driven end: height amplitude, angular frequency
+    driveB: 0.050, driveW2: 0.32,   // driven end: depth amplitude, angular frequency
+    drivePhase1: 0.70, drivePhase2: -0.45, // phase change per row: the driven edge is pleated across its width; the two
+                                          // families run opposite ways across, so their fold lines cross
     driveEase: 0.02,                // easing of the driving clock towards sim time
     envLow: 0.22, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
     warm: 1500,                     // warm-up steps before frame 0
@@ -76,7 +78,7 @@ function XMBW_SIM() {
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 8.4, wid: 1.9, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 8.4, wid: 1.5, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
@@ -128,9 +130,9 @@ function XMBW_SIM() {
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const a = j * N + i;
       if (i + 1 < N) springs.push([a, a + 1, H, NET.kStruct]);
-      if (j + 1 < N) springs.push([a, a + N, H, NET.kStruct]);
+      if (j + 1 < N) springs.push([a, a + N, H, NET.kStruct * NET.acrossK]);
       if (i + 2 < N) springs.push([a, a + 2, 2 * H, NET.kBend]);
-      if (j + 2 < N) springs.push([a, a + 2 * N, 2 * H, NET.kBend]);
+      if (j + 2 < N) springs.push([a, a + 2 * N, 2 * H, NET.kBend * NET.acrossK]);
     }
     const SA = Int32Array.from(springs.map(s => s[0])), SB = Int32Array.from(springs.map(s => s[1]));
     const SR = Float64Array.from(springs.map(s => s[2])), SK = Float64Array.from(springs.map(s => s[3]));
@@ -420,26 +422,26 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 // Moods: complete parameter sets, blended linearly with one shared factor.
 // ---------------------------------------------------------------------------
 const MOOD_KEYS = [
-  'waveBright', 'base', 'basePow', 'fresnel', 'fresnelPow', 'proj', 'threadAmp', 'streakAmp',
+  'waveBright', 'base', 'baseC', 'edge', 'edgeC', 'threadAmp',
   'latX', 'latY', 'latZ', 'envCross', 'camPitch',
   'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.80, base: 0.14, basePow: 0.5, fresnel: 0.60, fresnelPow: 2.5, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 8.5,
+  night: { waveBright: 0.80, base: 0.16, baseC: 0.40, edge: 0.35, edgeC: 0.07, threadAmp: 0.0,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 9,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
     focusFar: 3.6, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
-  dawn: { waveBright: 0.68, base: 0.17, basePow: 0.5, fresnel: 1.05, fresnelPow: 2.5, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+  dawn: { waveBright: 0.68, base: 0.20, baseC: 0.40, edge: 0.55, edgeC: 0.07, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 10,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 3.8, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
-  day: { waveBright: 0.70, base: 0.16, basePow: 0.5, fresnel: 0.90, fresnelPow: 2.5, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+  day: { waveBright: 0.70, base: 0.20, baseC: 0.40, edge: 0.55, edgeC: 0.07, threadAmp: 0.0,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 10,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 4.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.75, base: 0.18, basePow: 0.5, fresnel: 1.15, fresnelPow: 2.5, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 9.5,
+  dusk: { waveBright: 0.75, base: 0.22, baseC: 0.40, edge: 0.60, edgeC: 0.07, threadAmp: 0.0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 10,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 3.8, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
 };
@@ -518,7 +520,7 @@ function cameraFor(pitchDeg, aspect) {
 // Wave, glare, sparkle and output settings (original design)
 // ---------------------------------------------------------------------------
 const WAVE = {
-  samplesAlong: 24, samplesAcross: 6,   // per patch (16 x 16 patches)
+  samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
   threads: 400,                         // thread periods across the sheet
   fadeEnds: 0.10, fadeEdges: 0.12,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
@@ -623,14 +625,16 @@ void main(){
   clip.xy = p / (0.5 * uRes) * clip.w;
   gl_Position = clip;
 }`;
-// Per fragment: c = cosine between the normal and the line of sight. The light of a
-// bit of sheet is a sheen term plus a grazing (Fresnel-like) term, times a soft
-// projected-size factor (dark exactly edge-on, so the glow sits beside the fold),
-// times the cell's true size where it was widened (see the vertex shader).
+// Per fragment: c = cosine between the normal and the line of sight. A translucent
+// sheet is brighter the more obliquely it is seen, so the faces get a sheen that
+// grows smoothly towards grazing (broad light and dark bands across each pleat),
+// and where a layer turns edge-on a thin crisp line is added. Both are bounded;
+// the cell's true size scales the light where it was widened (see the vertex
+// shader), so overlapping layers add up to the right total.
 const FS_WAVE = `#version 300 es
 precision highp float;
 in vec3 vP; in vec3 vN; in vec2 vST; in float vWidth;
-uniform vec3 uCam; uniform float uBright, uBase, uBasePow, uFres, uFresPow, uProj, uThreads, uThreadAmp, uStreakAmp, uFadeEnds, uFadeEdges;
+uniform vec3 uCam; uniform float uBright, uBase, uBaseC, uEdge, uEdgeC, uThreads, uThreadAmp, uFadeEnds, uFadeEdges;
 out vec4 o;
 float band(float x, float amp){ // a periodic profile, pre-filtered by its on-screen density
   float w = fwidth(x);
@@ -639,15 +643,13 @@ float band(float x, float amp){ // a periodic profile, pre-filtered by its on-sc
 void main(){
   vec3 V = normalize(uCam - vP);
   float c = abs(dot(normalize(vN), V));
-  float sheen = uBase * (1.0 - (1.0 - uBasePow) * c);      // slightly stronger away from face-on
-  float fres = uFres * pow(1.0 - c, uFresPow);
-  float proj = (c + uProj) / (1.0 + uProj);
+  float sheen = uBase * uBaseC / (c + uBaseC);
+  float edge = uEdge * exp(-c / uEdgeC);
   float t = vST.y;
-  float pat = 1.0 + band(t * uThreads, uThreadAmp)
-            + band(t * 37.0 + 0.3, uStreakAmp * 0.5) + band(t * 61.0 + 0.7, uStreakAmp * 0.3) + band(t * 97.0 + 0.1, uStreakAmp * 0.2);
+  float pat = 1.0 + band(t * uThreads, uThreadAmp);
   float fade = smoothstep(0.0, uFadeEnds, vST.x) * smoothstep(1.0, 1.0 - uFadeEnds, vST.x)
              * smoothstep(0.0, uFadeEdges, t) * smoothstep(1.0, 1.0 - uFadeEdges, t);
-  o = vec4(uBright * (sheen + fres) * proj * pat * fade * vWidth, 0.0, 0.0, 1.0);
+  o = vec4(uBright * (sheen + edge) * pat * fade * vWidth, 0.0, 0.0, 1.0);
 }`;
 
 // B-spline filtered upscale of the small background image (four bilinear taps).
@@ -963,9 +965,9 @@ function renderFrame(st, outTarget) {
     const SA = 16 * WAVE.samplesAlong, SV = 16 * WAVE.samplesAcross;
     gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV); gl.uniform2f(pr.u.uRes, ww, wh); gl.uniform1f(pr.u.uMinW, WAVE.minWidth);
     gl.uniform3fv(pr.u.uCam, cam.pos);
-    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uBasePow, m.basePow);
-    gl.uniform1f(pr.u.uFres, m.fresnel); gl.uniform1f(pr.u.uFresPow, m.fresnelPow); gl.uniform1f(pr.u.uProj, m.proj);
-    gl.uniform1f(pr.u.uThreads, WAVE.threads); gl.uniform1f(pr.u.uThreadAmp, m.threadAmp); gl.uniform1f(pr.u.uStreakAmp, m.streakAmp);
+    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uBaseC, m.baseC);
+    gl.uniform1f(pr.u.uEdge, m.edge); gl.uniform1f(pr.u.uEdgeC, m.edgeC);
+    gl.uniform1f(pr.u.uThreads, WAVE.threads); gl.uniform1f(pr.u.uThreadAmp, m.threadAmp);
     gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
     gl.bindVertexArray(emptyVao);
     gl.drawArrays(gl.TRIANGLES, 0, 6 * SA * SV);
