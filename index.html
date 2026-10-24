@@ -63,7 +63,7 @@ function XMBW_SIM() {
     noise: 0.0012,                  // velocity kick per step (std dev)
     push: 0.10,                     // steady pull on the free end, along the length
     driveA: 0.035, driveW1: 0.58,   // driven end: height amplitude, angular frequency
-    driveB: 0.045, driveW2: 0.37,   // driven end: depth amplitude, angular frequency
+    driveB: 0.060, driveW2: 0.37,   // driven end: depth amplitude, angular frequency
     drivePhase1: 0.14, drivePhase2: 0.11, // phase change per row
     driveEase: 0.02,                // easing of the driving clock towards sim time
     envLow: 0.22, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
@@ -76,7 +76,7 @@ function XMBW_SIM() {
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 8.4, wid: 1.5, height: 8.4, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 8.4, wid: 1.7, height: 6.5, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2400,
@@ -422,26 +422,26 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 const MOOD_KEYS = [
   'waveBright', 'base', 'basePow', 'fresnel', 'fresnelPow', 'proj', 'threadAmp', 'streakAmp',
   'latX', 'latY', 'latZ', 'envCross', 'camPitch',
-  'exposure', 'white', 'glareSigma', 'glareRatio', 'glareStrength',
+  'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.80, base: 0.10, basePow: 0.5, fresnel: 0.80, fresnelPow: 3.0, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+  night: { waveBright: 0.80, base: 0.10, basePow: 0.5, fresnel: 0.70, fresnelPow: 2.5, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 8.5,
-    exposure: 1.0, white: 2.2, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.0,
-    focusFar: 4.4, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
-  dawn: { waveBright: 0.50, base: 0.06, basePow: 0.5, fresnel: 1.40, fresnelPow: 3.0, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+    exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
+    focusFar: 3.6, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
+  dawn: { waveBright: 0.68, base: 0.11, basePow: 0.5, fresnel: 1.25, fresnelPow: 2.5, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 10,
-    exposure: 1.0, white: 1.6, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.35,
-    focusFar: 4.6, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
-  day: { waveBright: 0.60, base: 0.06, basePow: 0.5, fresnel: 1.50, fresnelPow: 3.0, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+    exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
+    focusFar: 3.8, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
+  day: { waveBright: 0.70, base: 0.10, basePow: 0.5, fresnel: 1.05, fresnelPow: 2.5, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 10,
-    exposure: 1.0, white: 1.3, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.55,
-    focusFar: 4.8, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.52, base: 0.06, basePow: 0.5, fresnel: 1.40, fresnelPow: 3.0, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+    exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
+    focusFar: 4.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+  dusk: { waveBright: 0.75, base: 0.12, basePow: 0.5, fresnel: 1.35, fresnelPow: 2.5, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 9.5,
-    exposure: 1.0, white: 1.5, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.40,
-    focusFar: 4.6, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
+    exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
+    focusFar: 3.8, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -527,9 +527,10 @@ const WAVE = {
 };
 const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
 const BG_HL = 0.12; // strength of the drifting daytime highlight
-const SPARKR = { size: 2.4, blur: 6.0, nearSoft: 1.2, farSoft: 2.2, focusNear: 2.6, camFade: [0.6, 1.4],
-  bright: 0.9, dimPow: 2.0, iri: 0.35, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10 };
+const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 1.2, farSoft: 1.5, focusNear: 2.6, camFade: [0.6, 1.4],
+  bright: 0.65, dimPow: 3.5, iri: 0.35, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10 };
 const DITHER = 0.85; // output levels, peak
+const GLARE_DESAT = 0.6; // how far the halo is pulled towards white
 
 // ---------------------------------------------------------------------------
 // WebGL setup
@@ -681,14 +682,16 @@ precision highp float;
 in vec2 vUv; out vec4 o;
 ${GLSL_BG}
 ${GLSL_WAVEBOX}
-uniform int uBgOn, uWaveOn; uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uExposure, uWhite;
+uniform int uBgOn, uWaveOn; uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uExposure, uWhite, uThr, uDesat;
 void main(){
   vec3 c = vec3(0.0);
   if (uBgOn == 1) c += bicubicBg(vUv) * mix(uTintBot, uTintTop, vUv.y);
   if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);
   c *= uExposure;
   vec3 tone = c * (1.0 + c / (uWhite * uWhite)) / (1.0 + c); // soft curve with a white point
-  o = vec4(max(tone - vec3(0.5), vec3(0.0)) * 2.0, 1.0);    // keep only what exceeds it
+  vec3 b = max(tone - vec3(uThr), vec3(0.0)) / (1.0 - uThr);     // keep only what exceeds the threshold
+  float l = dot(b, vec3(0.299, 0.587, 0.114));
+  o = vec4(mix(b, vec3(l), uDesat), 1.0);                          // the halo is mostly white
 }`;
 const FS_DOWN = `#version 300 es
 precision highp float;
@@ -736,7 +739,7 @@ precision highp float;
 layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
 uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uPxScale, uSize, uBlur;
-uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uIri, uIriExp, uFlare, uDimPow;
+uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uIri, uIriExp, uFlare, uDimPow, uDofPow;
 uniform float uGlint, uExt; uniform vec2 uRes;
 out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
 vec3 ramp(float x){ return 0.5 + 0.5 * cos(6.2831853 * (x + vec3(0.0, 0.33, 0.67))); }
@@ -749,7 +752,7 @@ void main(){
   float sizePx = (base + uBlur * out_) * uPxScale, sharpPx = base * uPxScale;
   // a wide spread of brightness: most sparkles are faint, a few are bright
   float dim = pow(fract(aRnd * 7.31), uDimPow);
-  float I = uBright * aOp * dim * (sharpPx * sharpPx) / (sizePx * sizePx) * smoothstep(uCamFade0, uCamFade1, z);
+  float I = uBright * aOp * dim * pow(sharpPx / sizePx, uDofPow) * smoothstep(uCamFade0, uCamFade1, z);
   vec3 V = normalize(-d);
   float a = pow(abs(dot(aF, V)), uIriExp);
   vec3 L1 = normalize(vec3(0.4, 0.8, -0.45)), L2 = normalize(vec3(-0.7, 0.3, -0.6)), L3 = normalize(vec3(0.1, -0.5, -0.85));
@@ -758,7 +761,6 @@ void main(){
   vI = I * (0.55 + uFlare * fl) * uGlint;
   vSoft = clamp(out_, 0.0, 1.0);
   float r = max(sizePx, 0.7) * uExt;
-  if (uExt > 1.5) vSoft = 1.0;
   vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)) * 2.0 - 1.0;
   vec4 clip = uVP * vec4(P, 1.0);
   if (z < 0.05) clip = vec4(2.0, 2.0, 2.0, 1.0);
@@ -775,7 +777,12 @@ void main(){
   float r2 = dot(vQ, vQ);
   float sharp = exp(-r2 * 2.2);
   float soft = smoothstep(1.0, 0.55, sqrt(r2)) * 0.6 + exp(-r2 * 1.5) * 0.4;
-  float k = uExt > 1.5 ? exp(-r2 * 1.1 / (uExt * uExt / 4.0)) : mix(sharp, soft, vSoft);
+  float k;
+  if (uExt > 1.5) { // glint pass: a soft four-ray star
+    vec2 q = abs(vQ) / uExt;
+    float star = exp(-q.x * 3.0) * exp(-q.y * q.y * 40.0) + exp(-q.y * 3.0) * exp(-q.x * q.x * 40.0);
+    k = 0.3 * star * (1.0 - vSoft) + 0.45 * exp(-dot(q, q) * 6.0);
+  } else k = mix(sharp, soft, vSoft);
   o = vec4(vC * vI * k, 1.0);
 }`;
 
@@ -975,6 +982,7 @@ function renderFrame(st, outTarget) {
     gl.uniform1f(pr.u.uCamFade0, SPARKR.camFade[0]); gl.uniform1f(pr.u.uCamFade1, SPARKR.camFade[1]);
     gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uIri, SPARKR.iri);
     gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare); gl.uniform1f(pr.u.uDimPow, SPARKR.dimPow);
+    gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow);
     gl.uniform2f(pr.u.uRes, ow, oh);
     gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.6);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
@@ -990,7 +998,8 @@ function buildGlare(m, bgT, bgOn, waveOn) {
   let pr = PR.bright; gl.useProgram(pr.p);
   bindTarget(lv[0].a); gl.viewport(0, 0, lv[0].w, lv[0].h);
   setBgAndWave(pr, bgT, bgOn, waveOn, lv[0].w, lv[0].h);
-  gl.uniform1f(pr.u.uExposure, m.exposure); gl.uniform1f(pr.u.uWhite, m.white);
+  gl.uniform1f(pr.u.uExposure, m.exposure); gl.uniform1f(pr.u.uWhite, m.white); gl.uniform1f(pr.u.uThr, m.glareThr);
+  gl.uniform1f(pr.u.uDesat, GLARE_DESAT);
   gl.activeTexture(gl.TEXTURE0);
   quad();
   // mip pyramid
