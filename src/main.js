@@ -814,7 +814,7 @@ function workerMain(SIMF) {
     let n = 0;
     while (acc >= M.DT && n < 8) { sim.step(); acc -= M.DT; n++; }
     if (n) send(acc / M.DT);
-    setTimeout(loop, 4);
+    setTimeout(loop, Math.max(1, Math.floor((M.DT - acc) * 1000))); // sleep until the next step is due
   }
   onmessage = e => {
     const d = e.data;
