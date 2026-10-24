@@ -83,13 +83,14 @@ same browser and GPU; `layers=bg,wave,glare,sparkles,dither` picks layers.
 
 Verified side by side against public recordings (see `docs/REFERENCES.md`):
 the wave's shape, taper, placement, folds, brightness, translucency and pace;
-the night look; the palettes for February, May, August, October/November and
-September (purple); the sparkle population and look; the glare's subtlety.
+the night look; the palettes for February, April (through a late-March
+capture), May, August, October/November and September (purple); the sparkle
+population and look; the glare's subtlety.
 
 Not verifiable from the references available so far: the palettes for
-January, March, April, June, July and December (and theme 1, silver), the
-look in the small hours and at dawn, and the exact month-to-month blend in
-the middle of a month. These are design guesses that follow the spec.
+January, March, June, July and December (and theme 1, silver), the look in
+the small hours and at dawn, and the exact month-to-month blend in the
+middle of a month. These are design guesses that follow the spec.
 
 Performance has been checked only in a software renderer; the 60 fps target
 on an iPad has not been measured on a device yet.
