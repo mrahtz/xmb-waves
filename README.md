@@ -67,6 +67,18 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 - Everything is tuned by comparing deterministic renders (`mode=score`) side
   by side with public recordings of the original; see `docs/REFERENCES.md`.
 
+## Building and testing
+
+`index.html` is assembled from `src/` by `python3 tools/build.py` (no
+dependencies); the committed `index.html` is that output. Deterministic
+frames for side-by-side comparison come from `tools/render.js` (needs
+Playwright with Chromium), for example:
+
+    node tools/render.js frame.png '{"time":"2026-10-15T12:00:00","seed":1,"frames":300,"w":1280,"h":720}'
+
+The same URL and `seed`, `frames`, `w`, `h` always give the same image on the
+same browser and GPU; `layers=bg,wave,glare,sparkles,dither` picks layers.
+
 ## Status
 
 Verified side by side against public recordings (see `docs/REFERENCES.md`):
