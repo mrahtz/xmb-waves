@@ -79,9 +79,9 @@ function XMBW_SIM() {
   const SCENE = { len: 8.4, wid: 1.7, height: 6.5, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
-    pool: 2400,
-    burstP: 0.45, burstMin: 1, burstMax: 9,        // per step
-    walkers: 4, walkerP: 0.04, walkMin: 30, walkMax: 140, walkStep: 0.045, // patches per step
+    pool: 2000,
+    burstP: 0.30, burstMin: 1, burstMax: 9,        // per step
+    walkers: 6, walkerP: 0.05, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 0.35, reverseP: 0.12,
     speedK: 0.32, speedPow: 0.5, speedMin: 0.035, // scene units / s
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
