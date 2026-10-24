@@ -170,6 +170,24 @@ function sheetPos(u, x, v) {
   // cross direction (0, sin p, cos p); normal (0, cos p, -sin p)
   return [x, c + s * sp + rr * cp, z + s * cp - rr * sp];
 }
+// Same as sheetPos(waveUniforms(ws, t), x, v), without allocating; writes into out.
+function sheetPosAt(ws, t, x, v, out) {
+  t += ws.tOff;
+  const sum = (comps, phs, vv) => {
+    let acc = 0;
+    for (let k = 0; k < comps.length; k++) {
+      const c = comps[k], ph = phs[k];
+      const a = c[0] * (1 + c[3] * Math.sin(c[4] * t + ph[1]));
+      acc += a * Math.sin(c[1] * x + ((c[2] * t + ph[0]) % TAU) + (vv ? c[5] * v : 0));
+    }
+    return acc;
+  };
+  const c = WAVE.c0 + sum(WAVE.C, ws.C), z = sum(WAVE.Z, ws.Z), w = 1 + sum(WAVE.W, ws.W);
+  const p = WAVE.p0 + sum(WAVE.P, ws.P), rr = sum(WAVE.R, ws.R, true);
+  const sw = (v - 0.5) * WAVE.w0 * w, sp = Math.sin(p), cp = Math.cos(p);
+  out[0] = x; out[1] = c + sw * sp + rr * cp; out[2] = z + sw * cp - rr * sp;
+  return out;
+}
 // Camera basis and projection to screen-height units (origin at centre, Y up).
 const CAM = (() => {
   const d2r = Math.PI / 180, p = CAMERA.pitch * d2r, y = CAMERA.yaw * d2r;
@@ -250,6 +268,7 @@ function makeSparkSlots(seed) {
   }
   return slots;
 }
+const SP_TMP = [0, 0, 0];
 function gauss(r) { return Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
 function sparkles(seed, slots, ws, t, out) {
   let n = 0;
@@ -279,11 +298,12 @@ function sparkles(seed, slots, ws, t, out) {
     // Follow the sheet point for a while after birth, then let go (time warp).
     const tb = t - age;
     const tf = SPARK.follow * (0.5 + r());
-    const S = sheetPos(waveUniforms(ws, tb + tf * (1 - Math.exp(-age / tf))), x0, v0);
+    const S = sheetPosAt(ws, tb + tf * (1 - Math.exp(-age / tf)), x0, v0, SP_TMP);
     const wob = Math.sin(wf * age + wp) - Math.sin(wp), wob2 = Math.cos(wf * 1.3 * age + wp) - Math.cos(wp);
-    const q = project([S[0] + off[0] + dv[0] * age + wa * wob,
-                       S[1] + off[1] + dv[1] * age + wa * wob2,
-                       S[2] + off[2] + dv[2] * age + wa * 0.5 * wob]);
+    S[0] += off[0] + dv[0] * age + wa * wob;
+    S[1] += off[1] + dv[1] * age + wa * wob2;
+    S[2] += off[2] + dv[2] * age + wa * 0.5 * wob;
+    const q = project(S);
     if (!q) continue;
     const fade = Math.min(1, age / SPARK.fadeIn) * Math.min(1, (life - age) / SPARK.fadeOut);
     const f2 = fade * fade * (3 - 2 * fade);
@@ -680,7 +700,8 @@ function render(opts) {
   return { width: o.w, height: o.h, data };
 }
 window.XMBW = { ready: Promise.resolve(), render,
-  _internals: { MONTHS, THEMES, MOOD, WAVE, SPARK, GLARE, CAMERA } };
+  _internals: { MONTHS, THEMES, MOOD, WAVE, SPARK, GLARE, CAMERA,
+    sparkles: t => sparkles(1, getSlots(1), getWaveState(1), t, sparkData) } };
 
 if (SCORE) { canvas.style.width = canvas.style.height = 'auto'; return; }
 
