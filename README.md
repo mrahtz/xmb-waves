@@ -43,17 +43,29 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 
 ## How it works (short)
 
-- A 19 x 19 mass-spring net, driven at one end and pulled gently at the other,
-  is simulated at 60 fixed steps per second in a Web Worker, passed through a
-  slow free-form deformation lattice, and used as the control net of a bicubic
-  B-spline surface evaluated on the GPU and seen through a perspective camera.
-- The sheet is shaded by the angle between its normal and the line of sight,
-  drawn additively into a supersampled single-channel buffer, and composited
-  over a small, smoothly upscaled background made from per-month day and night
-  images; a bright-pass bloom pyramid adds the glare.
+- A 19 x 19 mass-spring net, driven at the far end and pulled gently at the
+  near end, is simulated at 60 fixed steps per second in a Web Worker, passed
+  through a slow free-form deformation lattice, and used as the control net of
+  a bicubic B-spline surface evaluated on the GPU and seen through an oblique
+  perspective camera.
+- The sheet is lit by the angle between its normal and the line of sight (a
+  faint sheen on the faces, a glow that grows towards grazing angles, dark
+  exactly edge-on so the glow sits beside each fold). Every surface cell is
+  drawn as its own small quad into a supersampled single-channel buffer with
+  additive blending; cells thinner than a pixel are widened to a pixel and
+  their light scaled by their true size, so silhouettes never shimmer. The
+  buffer is filtered down in the final pass.
+- The background is a small image per month and per day/night, blended by
+  the day of the month and by the hour, upscaled with a B-spline filter and
+  eased from frame to frame. A bright-pass bloom pyramid of background plus
+  wave adds the glare.
 - About 2,000 sparkles are flung off the moving sheet by bursts and trail
   walkers, drift with Brownian jitter, spin, and are drawn as billboards with
-  depth of field and an iridescent tint, plus a glint pass.
+  depth of field and an iridescent tint, plus a glint pass. They are drawn
+  straight onto the output after the final pass (the dither is applied just
+  before them), which saves a full-resolution colour buffer.
+- Everything is tuned by comparing deterministic renders (`mode=score`) side
+  by side with public recordings of the original; see `docs/REFERENCES.md`.
 
 ## Licence
 

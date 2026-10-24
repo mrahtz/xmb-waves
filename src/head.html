@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Waves">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>xmb-waves</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; -webkit-user-select: none; user-select: none; }
+  canvas { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  #gear { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom));
+    width: 36px; height: 36px; border-radius: 18px; border: 0; background: rgba(0,0,0,.35); color: #fff; font-size: 20px;
+    opacity: 0; transition: opacity .4s; cursor: pointer; }
+  body.active #gear, #panel.open ~ #gear { opacity: .8; }
+  #panel { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: calc(max(10px, env(safe-area-inset-bottom)) + 44px);
+    font: 13px/1.5 system-ui, sans-serif; color: #fff; background: rgba(0,0,0,.6); padding: 10px 12px; border-radius: 10px;
+    display: none; min-width: 220px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  #panel.open { display: block; }
+  #panel label { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin: 3px 0; }
+  #panel .row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  #panel .row label { margin: 0; }
+  #panel input, #panel select, #panel button { font: inherit; }
+  #fps { position: fixed; left: max(8px, env(safe-area-inset-left)); top: max(8px, env(safe-area-inset-top));
+    font: 12px/1 ui-monospace, monospace; color: #fff; background: rgba(0,0,0,.45); padding: 4px 6px; border-radius: 4px; display: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="fps"></div>
+<div id="panel">
+  <label>theme <select id="pTheme"></select></label>
+  <label><span><input id="pFixed" type="checkbox"> fixed time</span> <input id="pTime" type="datetime-local"></label>
+  <label>time speed <select id="pSpeed"><option value="1">1x</option><option value="60">60x</option><option value="600">600x</option><option value="3600">3600x</option></select></label>
+  <label>render scale <span><input id="pScale" type="range" min="0" max="4" step="0.25"> <span id="pScaleV"></span></span></label>
+  <div class="row"><button id="pPause">pause</button><button id="pStep">step</button>
+    <label><input id="pFps" type="checkbox"> fps</label></div>
+  <div class="row">
+    <label><input id="pL_bg" type="checkbox">bg</label><label><input id="pL_wave" type="checkbox">wave</label>
+    <label><input id="pL_glare" type="checkbox">glare</label><label><input id="pL_sparkles" type="checkbox">sparkles</label>
+    <label><input id="pL_dither" type="checkbox">dither</label></div>
+</div>
+<button id="gear" aria-label="settings">&#9881;</button>
+<script>

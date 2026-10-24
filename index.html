@@ -58,15 +58,15 @@ function XMBW_SIM() {
 
   // ---- tunables (all original design values) ----
   const NET = {
-    kStruct: 6.0, kBend: 14.0,     // spring constants (unit masses)
-    damping: 0.004,                 // fraction of velocity removed per step
-    noise: 0.0016,                  // velocity kick per step (std dev)
+    kStruct: 4.0, kBend: 10.0,     // spring constants (unit masses)
+    damping: 0.006,                 // fraction of velocity removed per step
+    noise: 0.0012,                  // velocity kick per step (std dev)
     push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.060, driveW1: 0.83,   // driven end: height amplitude, angular frequency
-    driveB: 0.030, driveW2: 0.53,   // driven end: depth amplitude, angular frequency
-    drivePhase1: 0.22, drivePhase2: 0.15, // phase change per row
+    driveA: 0.035, driveW1: 0.58,   // driven end: height amplitude, angular frequency
+    driveB: 0.045, driveW2: 0.37,   // driven end: depth amplitude, angular frequency
+    drivePhase1: 0.14, drivePhase2: 0.11, // phase change per row
     driveEase: 0.02,                // easing of the driving clock towards sim time
-    envLow: 0.60, envWidth: 0.25,   // envelope along the length: subdued level, transition half-width
+    envLow: 0.22, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
     warm: 1500,                     // warm-up steps before frame 0
   };
   // Free-form deformation lattice: more cells along the length than across or in depth.
@@ -76,7 +76,7 @@ function XMBW_SIM() {
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 8.4, wid: 1.75, height: 8.4, y0: 0.25, z0: 0.0 };
+  const SCENE = { len: 8.4, wid: 1.5, height: 8.4, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2400,
@@ -204,7 +204,7 @@ function XMBW_SIM() {
         const u = (x + 0.1) / 1.2, v = (y + 0.5), w = (z + 0.1) / 1.2;
         const dy = ffd(u, v, w);
         out[k] = (x - 0.5) * SCENE.len * ls[0];
-        out[k + 1] = (y + dy) * SCENE.height * ls[1] + SCENE.y0;
+        out[k + 1] = (y + dy) * SCENE.height * ls[1] + SCENE.y0 + SCENE.tilt * out[k];
         out[k + 2] = (z - 0.5) * SCENE.wid * ls[2] + SCENE.z0;
       }
     }
@@ -219,7 +219,7 @@ function XMBW_SIM() {
         acc[a] += f * dx; acc[a + 1] += f * dy; acc[a + 2] += f * dz;
         acc[b] -= f * dx; acc[b + 1] -= f * dy; acc[b + 2] -= f * dz;
       }
-      for (let j = 0; j < N; j++) acc[(j * N) * 3] -= NET.push; // free end i = 0, pulled outwards
+      for (let j = 0; j < N; j++) acc[(j * N + N - 1) * 3] += NET.push; // free end i = N-1, pulled outwards
       for (let p = 0; p < N * N; p++) {
         const k = p * 3;
         vel[k] += acc[k] * DT + NET.noise * gauss();
@@ -228,10 +228,10 @@ function XMBW_SIM() {
         pos[k] += vel[k] * DT; pos[k + 1] += vel[k + 1] * DT; pos[k + 2] += vel[k + 2] * DT;
         vel[k] *= 1 - NET.damping; vel[k + 1] *= 1 - NET.damping; vel[k + 2] *= 1 - NET.damping;
       }
-      // driven end i = N-1, placed kinematically
+      // driven end i = 0 (the far end), placed kinematically
       driveT += (simTime - driveT) * NET.driveEase;
       for (let j = 0; j < N; j++) {
-        const k = (j * N + N - 1) * 3;
+        const k = (j * N) * 3;
         pos[k] = rest[k];
         pos[k + 1] = NET.driveA * Math.sin(NET.driveW1 * driveT + j * NET.drivePhase1);
         pos[k + 2] = rest[k + 2] + NET.driveB * Math.sin(NET.driveW2 * driveT + j * NET.drivePhase2 + 1.3);
@@ -420,26 +420,26 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 // Moods: complete parameter sets, blended linearly with one shared factor.
 // ---------------------------------------------------------------------------
 const MOOD_KEYS = [
-  'waveBright', 'sheenBase', 'sheenPow', 'fresnel', 'fresnelPow', 'eps', 'threadAmp', 'streakAmp',
+  'waveBright', 'base', 'basePow', 'fresnel', 'fresnelPow', 'proj', 'threadAmp', 'streakAmp',
   'latX', 'latY', 'latZ', 'envCross', 'camPitch',
   'exposure', 'white', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.024, sheenBase: 0.55, sheenPow: 2.0, fresnel: 0.060, fresnelPow: 4.0, eps: 0.16, threadAmp: 0.10, streakAmp: 0.25,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 13.5,
+  night: { waveBright: 0.80, base: 0.10, basePow: 0.5, fresnel: 0.80, fresnelPow: 3.0, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 8.5,
     exposure: 1.0, white: 2.2, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.0,
-    focusFar: 4.4, sparkSize: 1.0, sparkBright: 0.55, glint: 0.10 },
-  dawn: { waveBright: 0.054, sheenBase: 0.55, sheenPow: 2.0, fresnel: 0.090, fresnelPow: 4.0, eps: 0.16, threadAmp: 0.10, streakAmp: 0.25,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 15,
+    focusFar: 4.4, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
+  dawn: { waveBright: 0.50, base: 0.06, basePow: 0.5, fresnel: 1.40, fresnelPow: 3.0, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 10,
     exposure: 1.0, white: 1.6, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.35,
     focusFar: 4.6, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
-  day: { waveBright: 0.076, sheenBase: 0.55, sheenPow: 2.0, fresnel: 0.108, fresnelPow: 4.0, eps: 0.16, threadAmp: 0.10, streakAmp: 0.25,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 15,
+  day: { waveBright: 0.60, base: 0.06, basePow: 0.5, fresnel: 1.50, fresnelPow: 3.0, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 10,
     exposure: 1.0, white: 1.3, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.55,
     focusFar: 4.8, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.059, sheenBase: 0.55, sheenPow: 2.0, fresnel: 0.096, fresnelPow: 4.0, eps: 0.16, threadAmp: 0.10, streakAmp: 0.25,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 14.5,
+  dusk: { waveBright: 0.52, base: 0.06, basePow: 0.5, fresnel: 1.40, fresnelPow: 3.0, proj: 0.15, threadAmp: 0.08, streakAmp: 0.22,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 9.5,
     exposure: 1.0, white: 1.5, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.40,
     focusFar: 4.6, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
 };
@@ -495,7 +495,7 @@ function partsOf(d) {
 // Camera (original design): looks across the sheet from in front, yawed so the
 // sheet is seen obliquely and pitched down a little; the pitch follows the mood.
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 38, yaw: 11, dist: 3.4, target: [0.0, 0.10, 0.0], near: 0.1, far: 40 };
+const CAMERA = { fovY: 38, yaw: -26, dist: 2.6, target: [0.8, 0.10, 0.0], near: 0.1, far: 40 };
 function cameraFor(pitchDeg, aspect) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
@@ -521,11 +521,14 @@ const WAVE = {
   samplesAlong: 32, samplesAcross: 8,   // per patch (16 x 16 patches)
   threads: 400,                         // thread periods across the sheet
   fadeEnds: 0.10, fadeEdges: 0.12,      // fraction of the sheet over which it fades out
+  minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
+  filterSpread: 1.6,                    // width of the down-filter over the wave buffer, in output pixels
   tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
 };
 const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
-const SPARKR = { size: 1.6, blur: 6.0, nearSoft: 1.2, farSoft: 2.2, focusNear: 2.6, camFade: [0.6, 1.4],
-  bright: 0.28, iri: 0.35, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10 };
+const BG_HL = 0.12; // strength of the drifting daytime highlight
+const SPARKR = { size: 2.4, blur: 6.0, nearSoft: 1.2, farSoft: 2.2, focusNear: 2.6, camFade: [0.6, 1.4],
+  bright: 0.9, dimPow: 2.0, iri: 0.35, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10 };
 const DITHER = 0.85; // output levels, peak
 
 // ---------------------------------------------------------------------------
@@ -568,20 +571,29 @@ void main(){
 }`;
 
 // Wave: bicubic B-spline surface over the control net, shaded by view angle.
+// Every surface cell is drawn as its own small quad (six vertices), so its corners
+// are free to move. Where a cell would be thinner on screen than one pixel in some
+// direction (folds seen edge-on, the far end), its corners are pushed apart to one
+// pixel in that direction and its light is scaled by the true size: every cell then
+// covers whole pixels, overlapping cells add up to the right total, and nothing is
+// lost to pixel centres falling between slivers (no dotted or crawling lines).
 const VS_WAVE = `#version 300 es
 precision highp float;
 uniform highp sampler2D uNet0, uNet1; uniform float uAlpha;
-uniform mat4 uVP; uniform int uSA, uSV; // total samples along / across
-out vec3 vP; out vec3 vN; out vec2 vST;
+uniform mat4 uVP; uniform int uSA, uSV; uniform vec2 uRes; uniform float uMinW;
+out vec3 vP; out vec3 vN; out vec2 vST; out float vWidth;
 vec3 cp(ivec2 ij){ return mix(texelFetch(uNet0, ij, 0).xyz, texelFetch(uNet1, ij, 0).xyz, uAlpha); }
 void basis(float t, out vec4 b, out vec4 d){
   float t2 = t * t, t3 = t2 * t, u = 1.0 - t;
   b = vec4(u * u * u, 3.0 * t3 - 6.0 * t2 + 4.0, -3.0 * t3 + 3.0 * t2 + 3.0 * t + 1.0, t3) / 6.0;
   d = vec4(-u * u, 3.0 * t2 - 4.0 * t, -3.0 * t2 + 2.0 * t + 1.0, t2) * 0.5;
 }
+vec2 toPx(vec4 clip){ return clip.xy / max(clip.w, 1e-4) * 0.5 * uRes; }
 void main(){
-  int i = gl_VertexID >> 1, row = gl_InstanceID + (gl_VertexID & 1);
-  float s = float(i) / float(uSA) * ${NN - 3}.0, t = float(row) / float(uSV) * ${NN - 3}.0;
+  int cell = gl_VertexID / 6, v = gl_VertexID - cell * 6;
+  int i = cell % uSA, row = cell / uSA;
+  int cs = (v == 1 || v == 3 || v == 4) ? 1 : 0, ct = (v == 2 || v == 4 || v == 5) ? 1 : 0;
+  float s = float(i + cs) / float(uSA) * ${NN - 3}.0, t = float(row + ct) / float(uSV) * ${NN - 3}.0;
   int is_ = min(int(floor(s)), ${NN - 4}), it = min(int(floor(t)), ${NN - 4});
   vec4 bs, ds, bt, dt; basis(s - float(is_), bs, ds); basis(t - float(it), bt, dt);
   vec3 P = vec3(0.0), Ps = vec3(0.0), Pt = vec3(0.0);
@@ -591,12 +603,33 @@ void main(){
     P += bt[b] * rb; Ps += bt[b] * rd; Pt += dt[b] * rb;
   }
   vP = P; vN = cross(Ps, Pt); vST = vec2(s, t) / ${NN - 3}.0;
-  gl_Position = uVP * vec4(P, 1.0);
+  vec4 clip = uVP * vec4(P, 1.0);
+  // the cell's other corners, linearised from the derivatives
+  float dsv = (cs == 0 ? 1.0 : -1.0) * ${NN - 3}.0 / float(uSA), dtv = (ct == 0 ? 1.0 : -1.0) * ${NN - 3}.0 / float(uSV);
+  vec2 p = toPx(clip);
+  vec2 a = toPx(uVP * vec4(P + Ps * dsv, 1.0)) - p;   // towards the neighbour along the length
+  vec2 b = toPx(uVP * vec4(P + Pt * dtv, 1.0)) - p;   // towards the neighbour across
+  float la = length(a), lb = length(b);
+  vec2 ua = la > 1e-4 ? a / la : vec2(1.0, 0.0);
+  vec2 ub = lb > 1e-4 ? b / lb : vec2(-ua.y, ua.x);
+  float wt = abs(b.x * ua.y - b.y * ua.x);               // across width, perpendicular to the length
+  float ws = abs(a.x * ub.y - a.y * ub.x);               // along length, perpendicular to the width
+  vec2 nt = vec2(-ua.y, ua.x); nt *= (dot(nt, b) < 0.0) ? -1.0 : 1.0;
+  vec2 ns = vec2(-ub.y, ub.x); ns *= (dot(ns, a) < 0.0) ? -1.0 : 1.0;
+  if (wt < uMinW) p -= nt * (uMinW - wt) * 0.5;
+  if (ws < uMinW) p -= ns * (uMinW - ws) * 0.5;
+  vWidth = min(1.0, wt / uMinW) * min(1.0, ws / uMinW);
+  clip.xy = p / (0.5 * uRes) * clip.w;
+  gl_Position = clip;
 }`;
+// Per fragment: c = cosine between the normal and the line of sight. The light of a
+// bit of sheet is a sheen term plus a grazing (Fresnel-like) term, times a soft
+// projected-size factor (dark exactly edge-on, so the glow sits beside the fold),
+// times the cell's true size where it was widened (see the vertex shader).
 const FS_WAVE = `#version 300 es
 precision highp float;
-in vec3 vP; in vec3 vN; in vec2 vST;
-uniform vec3 uCam; uniform float uBright, uSheenBase, uSheenPow, uFres, uFresPow, uEps, uThreads, uThreadAmp, uStreakAmp, uFadeEnds, uFadeEdges;
+in vec3 vP; in vec3 vN; in vec2 vST; in float vWidth;
+uniform vec3 uCam; uniform float uBright, uBase, uBasePow, uFres, uFresPow, uProj, uThreads, uThreadAmp, uStreakAmp, uFadeEnds, uFadeEdges;
 out vec4 o;
 float band(float x, float amp){ // a periodic profile, pre-filtered by its on-screen density
   float w = fwidth(x);
@@ -605,24 +638,21 @@ float band(float x, float amp){ // a periodic profile, pre-filtered by its on-sc
 void main(){
   vec3 V = normalize(uCam - vP);
   float c = abs(dot(normalize(vN), V));
-  float g = sqrt(1.0 + uEps * uEps) * inversesqrt(c * c + uEps * uEps); // capped thin-sheet gain
-  float sheen = uSheenBase + (1.0 - uSheenBase) * pow(1.0 - c, uSheenPow);
+  float sheen = uBase * (1.0 - (1.0 - uBasePow) * c);      // slightly stronger away from face-on
   float fres = uFres * pow(1.0 - c, uFresPow);
+  float proj = (c + uProj) / (1.0 + uProj);
   float t = vST.y;
   float pat = 1.0 + band(t * uThreads, uThreadAmp)
             + band(t * 37.0 + 0.3, uStreakAmp * 0.5) + band(t * 61.0 + 0.7, uStreakAmp * 0.3) + band(t * 97.0 + 0.1, uStreakAmp * 0.2);
   float fade = smoothstep(0.0, uFadeEnds, vST.x) * smoothstep(1.0, 1.0 - uFadeEnds, vST.x)
              * smoothstep(0.0, uFadeEdges, t) * smoothstep(1.0, 1.0 - uFadeEdges, t);
-  o = vec4(uBright * (sheen + fres) * g * pat * fade, 0.0, 0.0, 1.0);
+  o = vec4(uBright * (sheen + fres) * proj * pat * fade * vWidth, 0.0, 0.0, 1.0);
 }`;
 
-// Composite: background (smooth upscale) plus wave light.
-const FS_COMP = `#version 300 es
-precision highp float;
-in vec2 vUv; out vec4 o;
-uniform sampler2D uBg, uWave; uniform int uBgOn, uWaveOn;
-uniform vec2 uBgSize, uWaveTexel; uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uExposure;
-vec3 bicubicBg(vec2 uv){ // B-spline filtered upscale from four bilinear taps
+// B-spline filtered upscale of the small background image (four bilinear taps).
+const GLSL_BG = `
+uniform sampler2D uBg; uniform vec2 uBgSize;
+vec3 bicubicBg(vec2 uv){
   vec2 st = uv * uBgSize - 0.5, i = floor(st), f = st - i;
   vec2 f2 = f * f, f3 = f2 * f, u = 1.0 - f;
   vec2 w0 = u * u * u / 6.0, w1 = (3.0 * f3 - 6.0 * f2 + 4.0) / 6.0, w2 = (-3.0 * f3 + 3.0 * f2 + 3.0 * f + 1.0) / 6.0, w3 = f3 / 6.0;
@@ -630,27 +660,33 @@ vec3 bicubicBg(vec2 uv){ // B-spline filtered upscale from four bilinear taps
   vec2 p0 = (h0 + 0.5) / uBgSize, p1 = (h1 + 0.5) / uBgSize;
   return g0.y * (g0.x * texture(uBg, vec2(p0.x, p0.y)).rgb + g1.x * texture(uBg, vec2(p1.x, p0.y)).rgb)
        + g1.y * (g0.x * texture(uBg, vec2(p0.x, p1.y)).rgb + g1.x * texture(uBg, vec2(p1.x, p1.y)).rgb);
-}
-void main(){
-  vec3 col = vec3(0.0);
-  if (uBgOn == 1) col += bicubicBg(vUv) * mix(uTintBot, uTintTop, vUv.y);
-  if (uWaveOn == 1) {
-    vec2 d = uWaveTexel;
-    float w = 0.25 * (texture(uWave, vUv + vec2(-d.x, -d.y)).r + texture(uWave, vUv + vec2(d.x, -d.y)).r
-                    + texture(uWave, vUv + vec2(-d.x, d.y)).r + texture(uWave, vUv + vec2(d.x, d.y)).r);
-    col += w * mix(uTintL, uTintR, vUv.x);
-  }
-  o = vec4(col * uExposure, 1.0);
+}`;
+// Smoothing filter over the supersampled wave buffer: n x n bilinear taps spread
+// over one destination pixel (uWTexel = destination pixel size in uv) times
+// uWSpread (1 = a plain box; wider softens the sharpest silhouettes a little).
+const GLSL_WAVEBOX = `
+uniform sampler2D uWave; uniform vec2 uWTexel; uniform int uWTaps; uniform float uWSpread;
+float waveBox(vec2 uv){
+  float s = 0.0, n = float(uWTaps);
+  for (int j = 0; j < 4; j++) { if (j >= uWTaps) break;
+    for (int i = 0; i < 4; i++) { if (i >= uWTaps) break;
+      vec2 off = ((vec2(float(i), float(j)) + 0.5) / n - 0.5) * uWSpread;
+      s += texture(uWave, uv + off * uWTexel).r; } }
+  return s / (n * n);
 }`;
 
-// Glare chain.
+// Glare chain. Bright-pass at quarter size from the composited background and wave.
 const FS_BRIGHT = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
-uniform sampler2D uT; uniform vec2 uTexel; uniform float uExposure, uWhite;
+${GLSL_BG}
+${GLSL_WAVEBOX}
+uniform int uBgOn, uWaveOn; uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uExposure, uWhite;
 void main(){
-  vec3 c = 0.25 * (texture(uT, vUv + uTexel * vec2(-1, -1)).rgb + texture(uT, vUv + uTexel * vec2(1, -1)).rgb
-                 + texture(uT, vUv + uTexel * vec2(-1, 1)).rgb + texture(uT, vUv + uTexel * vec2(1, 1)).rgb) * uExposure;
+  vec3 c = vec3(0.0);
+  if (uBgOn == 1) c += bicubicBg(vUv) * mix(uTintBot, uTintTop, vUv.y);
+  if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);
+  c *= uExposure;
   vec3 tone = c * (1.0 + c / (uWhite * uWhite)) / (1.0 + c); // soft curve with a white point
   o = vec4(max(tone - vec3(0.5), vec3(0.0)) * 2.0, 1.0);    // keep only what exceeds it
 }`;
@@ -675,13 +711,32 @@ precision highp float;
 in vec2 vUv; out vec4 o; uniform sampler2D uT, uCoarse; uniform float uRatio;
 void main(){ o = vec4(texture(uT, vUv).rgb + uRatio * texture(uCoarse, vUv).rgb, 1.0); }`;
 
-// Sparkles: camera-facing quads with depth of field and an iridescent tint.
+// Final: background, filtered wave light, glare and dither, written at the output size.
+const FS_FINAL = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+${GLSL_BG}
+${GLSL_WAVEBOX}
+uniform sampler2D uGlare; uniform int uBgOn, uWaveOn, uGlareOn, uDither;
+uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uGlareK, uDitherAmp, uFrame;
+float h12(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+void main(){
+  vec3 c = vec3(0.0);
+  if (uBgOn == 1) c += bicubicBg(vUv) * mix(uTintBot, uTintTop, vUv.y);
+  if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);
+  if (uGlareOn == 1) c += uGlareK * texture(uGlare, vUv).rgb;
+  if (uDither == 1) c += uDitherAmp / 255.0 * (h12(gl_FragCoord.xy + uFrame * vec2(37.0, 17.0)) * 2.0 - 1.0);
+  o = vec4(clamp(c, 0.0, 1.0), 1.0);
+}`;
+
+// Sparkles: camera-facing quads with depth of field and an iridescent tint, drawn
+// additively straight onto the output after the final pass.
 const VS_SPARK = `#version 300 es
 precision highp float;
 layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
-uniform mat4 uVP; uniform vec3 uCam, uCamFwd, uCamR, uCamU; uniform float uAlpha, uPxScale, uFocal, uSize, uBlur;
-uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uIri, uIriExp, uFlare;
+uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uPxScale, uSize, uBlur;
+uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uIri, uIriExp, uFlare, uDimPow;
 uniform float uGlint, uExt; uniform vec2 uRes;
 out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
 vec3 ramp(float x){ return 0.5 + 0.5 * cos(6.2831853 * (x + vec3(0.0, 0.33, 0.67))); }
@@ -690,10 +745,11 @@ void main(){
   vec3 d = P - uCam; float z = dot(d, uCamFwd);
   float out_ = clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0) + clamp((z - uFocusFar) / uFarSoft, 0.0, 1.0);
   out_ = min(out_, 1.5);
-  float sizePx = (uSize * (0.75 + 0.5 * aRnd) + uBlur * out_) * uPxScale;
-  float sharpPx = uSize * (0.75 + 0.5 * aRnd) * uPxScale;
-  float I = uBright * aOp * (sharpPx * sharpPx) / (sizePx * sizePx) * smoothstep(uCamFade0, uCamFade1, z);
-  // iridescent tint and flare from the sparkle's orientation
+  float base = uSize * (0.75 + 0.5 * aRnd);
+  float sizePx = (base + uBlur * out_) * uPxScale, sharpPx = base * uPxScale;
+  // a wide spread of brightness: most sparkles are faint, a few are bright
+  float dim = pow(fract(aRnd * 7.31), uDimPow);
+  float I = uBright * aOp * dim * (sharpPx * sharpPx) / (sizePx * sizePx) * smoothstep(uCamFade0, uCamFade1, z);
   vec3 V = normalize(-d);
   float a = pow(abs(dot(aF, V)), uIriExp);
   vec3 L1 = normalize(vec3(0.4, 0.8, -0.45)), L2 = normalize(vec3(-0.7, 0.3, -0.6)), L3 = normalize(vec3(0.1, -0.5, -0.85));
@@ -723,25 +779,6 @@ void main(){
   o = vec4(vC * vI * k, 1.0);
 }`;
 
-// Final: average down to the output size, add glare and dither.
-const FS_FINAL = `#version 300 es
-precision highp float;
-in vec2 vUv; out vec4 o;
-uniform sampler2D uC, uGlare; uniform vec2 uCTexel; uniform int uTaps, uGlareOn, uDither; uniform float uGlareK, uDitherAmp, uFrame;
-float h12(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
-void main(){
-  vec3 c = vec3(0.0);
-  float n = float(uTaps);
-  for (int j = 0; j < 4; j++) { if (j >= uTaps) break;
-    for (int i = 0; i < 4; i++) { if (i >= uTaps) break;
-      vec2 off = (vec2(float(i), float(j)) + 0.5) / n - 0.5;
-      c += texture(uC, vUv + off * uCTexel).rgb; } }
-  c /= n * n;
-  if (uGlareOn == 1) c += uGlareK * texture(uGlare, vUv).rgb;
-  if (uDither == 1) c += uDitherAmp / 255.0 * (h12(gl_FragCoord.xy + uFrame * vec2(37.0, 17.0)) * 2.0 - 1.0);
-  o = vec4(clamp(c, 0.0, 1.0), 1.0);
-}`;
-
 function compile(vs, fs) {
   const p = gl.createProgram();
   for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
@@ -757,7 +794,7 @@ function compile(vs, fs) {
   return { p, u };
 }
 const PR = {
-  bgGen: compile(VS_QUAD, FS_BGGEN), wave: compile(VS_WAVE, FS_WAVE), comp: compile(VS_QUAD, FS_COMP),
+  bgGen: compile(VS_QUAD, FS_BGGEN), wave: compile(VS_WAVE, FS_WAVE),
   bright: compile(VS_QUAD, FS_BRIGHT), down: compile(VS_QUAD, FS_DOWN), blur: compile(VS_QUAD, FS_BLUR),
   combine: compile(VS_QUAD, FS_COMBINE), spark: compile(VS_SPARK, FS_SPARK), final: compile(VS_QUAD, FS_FINAL),
 };
@@ -828,15 +865,16 @@ gl.bufferData(gl.ARRAY_BUFFER, 4096 * SPARK_STRIDE * 4, gl.DYNAMIC_DRAW);
 }
 gl.bindVertexArray(null);
 
-// Render targets for a given render size.
+// Render targets. cw x ch: the scene render size; ow x oh: the output size.
+// The wave is drawn into its own buffer at ss times the render size.
 let RT = null;
-function ensureTargets(cw, ch, ow, oh, waveSS) {
-  const key = [cw, ch, ow, oh, waveSS].join('x');
+function ensureTargets(cw, ch, ow, oh, ss) {
+  const ww = Math.round(cw * ss), wh = Math.round(ch * ss);
+  const key = [ww, wh, ow, oh].join('x');
   if (RT && RT.key === key) return;
-  if (RT) { [RT.c, RT.wave, RT.bgA, RT.bgB, RT.out].forEach(freeTarget); RT.levels.forEach(l => { freeTarget(l.a); freeTarget(l.b); freeTarget(l.c); }); }
-  RT = { key, cw, ch, ow, oh, waveSS };
-  RT.c = makeTarget(cw, ch, 'rgba16f');
-  RT.wave = makeTarget(Math.round(cw * waveSS), Math.round(ch * waveSS), 'r16f');
+  if (RT) { [RT.wave, RT.bgA, RT.bgB, RT.out].forEach(freeTarget); RT.levels.forEach(l => { freeTarget(l.a); freeTarget(l.b); freeTarget(l.c); }); }
+  RT = { key, ww, wh, ow, oh };
+  RT.wave = makeTarget(ww, wh, 'r16f');
   RT.bgA = makeTarget(64, 36, 'rgba16f'); RT.bgB = makeTarget(64, 36, 'rgba16f'); RT.bgFresh = true;
   RT.levels = [];
   let lw = Math.max(1, Math.ceil(ow / 4)), lh = Math.max(1, Math.ceil(oh / 4));
@@ -851,10 +889,23 @@ function ensureTargets(cw, ch, ow, oh, waveSS) {
 // ---------------------------------------------------------------------------
 // Frame rendering
 // ---------------------------------------------------------------------------
-// st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease, sparkAlpha }
+function setBgAndWave(pr, bgT, bgOn, waveOn, dstW, dstH) {
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bgT.tex); gl.uniform1i(pr.u.uBg, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, RT.wave.tex); gl.uniform1i(pr.u.uWave, 1);
+  gl.uniform2f(pr.u.uBgSize, bgT.w, bgT.h);
+  gl.uniform1i(pr.u.uBgOn, bgOn ? 1 : 0); gl.uniform1i(pr.u.uWaveOn, waveOn ? 1 : 0);
+  // wave taps: bilinear taps at the centres of 2 x 2 blocks, so the box over
+  // one destination pixel is exact when the ratio is a power of two
+  const taps = Math.max(1, Math.min(4, Math.ceil(RT.ww / dstW / 2 * WAVE.filterSpread - 1e-3)));
+  gl.uniform1i(pr.u.uWTaps, taps); gl.uniform2f(pr.u.uWTexel, 1 / dstW, 1 / dstH); gl.uniform1f(pr.u.uWSpread, WAVE.filterSpread);
+  gl.uniform3fv(pr.u.uTintTop, BG_TINT.top); gl.uniform3fv(pr.u.uTintBot, BG_TINT.bottom);
+  gl.uniform3fv(pr.u.uTintL, WAVE.tintL); gl.uniform3fv(pr.u.uTintR, WAVE.tintR);
+}
+
+// st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
 function renderFrame(st, outTarget) {
   const L = st.layers, sc = st.scene, m = sc.mood, cam = st.cam;
-  const { cw, ch, ow, oh } = RT;
+  const { ww, wh, ow, oh } = RT;
 
   // 1. background gradient (small), eased over the previous frame
   {
@@ -865,101 +916,82 @@ function renderFrame(st, outTarget) {
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform1i(pr.u.uPrev, 1);
     gl.uniform1f(pr.u.uTiles, 24); gl.uniform1f(pr.u.uA, sc.monA); gl.uniform1f(pr.u.uB, sc.monB);
     gl.uniform1f(pr.u.uF, sc.monF); gl.uniform1f(pr.u.uNight, sc.night); gl.uniform1f(pr.u.uWday, sc.wday);
-    gl.uniform1f(pr.u.uHL, 0.12); gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
+    gl.uniform1f(pr.u.uHL, BG_HL); gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
     quad(); RT.bgFresh = false;
     RT.bgA = dst; RT.bgB = src;
   }
   const bgT = RT.bgA;
 
   // 2. wave intensity, supersampled, additive
-  if (L.wave || L.glare) {
+  if (L.wave) {
     uploadNet(netTex[0], st.net0); uploadNet(netTex[1], st.net1);
     const pr = PR.wave; gl.useProgram(pr.p);
-    bindTarget(RT.wave); gl.viewport(0, 0, RT.wave.w, RT.wave.h);
+    bindTarget(RT.wave); gl.viewport(0, 0, ww, wh);
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, netTex[0]); gl.uniform1i(pr.u.uNet0, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, netTex[1]); gl.uniform1i(pr.u.uNet1, 1);
     gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp);
     const SA = 16 * WAVE.samplesAlong, SV = 16 * WAVE.samplesAcross;
-    gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV);
+    gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV); gl.uniform2f(pr.u.uRes, ww, wh); gl.uniform1f(pr.u.uMinW, WAVE.minWidth);
     gl.uniform3fv(pr.u.uCam, cam.pos);
-    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uSheenBase, m.sheenBase); gl.uniform1f(pr.u.uSheenPow, m.sheenPow);
-    gl.uniform1f(pr.u.uFres, m.fresnel); gl.uniform1f(pr.u.uFresPow, m.fresnelPow); gl.uniform1f(pr.u.uEps, m.eps);
+    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uBasePow, m.basePow);
+    gl.uniform1f(pr.u.uFres, m.fresnel); gl.uniform1f(pr.u.uFresPow, m.fresnelPow); gl.uniform1f(pr.u.uProj, m.proj);
     gl.uniform1f(pr.u.uThreads, WAVE.threads); gl.uniform1f(pr.u.uThreadAmp, m.threadAmp); gl.uniform1f(pr.u.uStreakAmp, m.streakAmp);
     gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
     gl.bindVertexArray(emptyVao);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 2 * (SA + 1), SV);
+    gl.drawArrays(gl.TRIANGLES, 0, 6 * SA * SV);
     gl.disable(gl.BLEND);
   }
 
-  // 3. composite background + wave into C (twice if the glare needs layers that are not shown)
-  const comp = (bgOn, waveOn) => {
-    const pr = PR.comp; gl.useProgram(pr.p);
-    bindTarget(RT.c); gl.viewport(0, 0, cw, ch);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bgT.tex); gl.uniform1i(pr.u.uBg, 0);
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, RT.wave.tex); gl.uniform1i(pr.u.uWave, 1);
-    gl.uniform1i(pr.u.uBgOn, bgOn ? 1 : 0); gl.uniform1i(pr.u.uWaveOn, waveOn ? 1 : 0);
-    gl.uniform2f(pr.u.uBgSize, bgT.w, bgT.h); gl.uniform2f(pr.u.uWaveTexel, 0.5 / cw, 0.5 / ch);
-    gl.uniform3fv(pr.u.uTintTop, BG_TINT.top); gl.uniform3fv(pr.u.uTintBot, BG_TINT.bottom);
-    gl.uniform3fv(pr.u.uTintL, WAVE.tintL); gl.uniform3fv(pr.u.uTintR, WAVE.tintR);
-    gl.uniform1f(pr.u.uExposure, 1.0);
-    quad();
-  };
-  let glareT = null;
-  if (L.glare) {
-    comp(true, true);
-    glareT = buildGlare(m);
-  }
-  if (!L.glare || !(L.bg && L.wave)) comp(L.bg, L.wave);
+  // 3. glare from the background and wave
+  let glareT = null, glareK = 0;
+  if (L.glare && (L.bg || L.wave)) { glareT = buildGlare(m, bgT, L.bg, L.wave); glareK = RT.glareScale; }
 
-  // 5. sparkles, then their glint pass, additively into C
+  // 4. final pass at the output size
+  {
+    const pr = PR.final; gl.useProgram(pr.p);
+    bindTarget(outTarget); gl.viewport(0, 0, ow, oh);
+    setBgAndWave(pr, bgT, L.bg, L.wave, ow, oh);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT.tex : bgT.tex); gl.uniform1i(pr.u.uGlare, 2);
+    gl.uniform1i(pr.u.uGlareOn, glareT ? 1 : 0); gl.uniform1f(pr.u.uGlareK, glareK);
+    gl.uniform1i(pr.u.uDither, L.dither ? 1 : 0); gl.uniform1f(pr.u.uDitherAmp, DITHER);
+    gl.uniform1f(pr.u.uFrame, st.frameNo % 1024);
+    gl.activeTexture(gl.TEXTURE0);
+    quad();
+  }
+
+  // 5. sparkles, then their glint pass, additively on top
   if (L.sparkles && st.nSparks > 0) {
     gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, st.sparks, 0, st.nSparks * SPARK_STRIDE);
     const pr = PR.spark; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
-    bindTarget(RT.c); gl.viewport(0, 0, cw, ch);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
     gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp); gl.uniform3fv(pr.u.uCam, cam.pos); gl.uniform3fv(pr.u.uCamFwd, cam.fwd);
-    gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniform1f(pr.u.uPxScale, ch / 1080);
+    gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniform1f(pr.u.uPxScale, oh / 1080);
     gl.uniform1f(pr.u.uSize, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
     gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
     gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
     gl.uniform1f(pr.u.uCamFade0, SPARKR.camFade[0]); gl.uniform1f(pr.u.uCamFade1, SPARKR.camFade[1]);
     gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uIri, SPARKR.iri);
-    gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare);
-    gl.uniform2f(pr.u.uRes, cw, ch);
+    gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare); gl.uniform1f(pr.u.uDimPow, SPARKR.dimPow);
+    gl.uniform2f(pr.u.uRes, ow, oh);
     gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.6);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
     gl.uniform1f(pr.u.uGlint, SPARKR.glintBright * m.glint / 0.35); gl.uniform1f(pr.u.uExt, SPARKR.glintSize);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
     gl.disable(gl.BLEND); gl.bindVertexArray(null);
   }
-
-  // 6. average down to the output, add glare and dither
-  {
-    const pr = PR.final; gl.useProgram(pr.p);
-    bindTarget(outTarget); gl.viewport(0, 0, ow, oh);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, RT.c.tex); gl.uniform1i(pr.u.uC, 0);
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT.tex : RT.c.tex); gl.uniform1i(pr.u.uGlare, 1);
-    const k = cw / ow, taps = Math.max(1, Math.min(4, Math.ceil(k - 0.01)));
-    gl.uniform2f(pr.u.uCTexel, taps > 1 ? 1 / ow : 0, taps > 1 ? 1 / oh : 0); // footprint of one output pixel
-    gl.uniform1i(pr.u.uTaps, taps);
-    gl.uniform1i(pr.u.uGlareOn, glareT ? 1 : 0); gl.uniform1f(pr.u.uGlareK, glareT ? RT.glareScale : 0);
-    gl.uniform1i(pr.u.uDither, L.dither ? 1 : 0); gl.uniform1f(pr.u.uDitherAmp, DITHER);
-    gl.uniform1f(pr.u.uFrame, st.frameNo % 1024);
-    quad();
-  }
 }
 
-function buildGlare(m) {
+function buildGlare(m, bgT, bgOn, waveOn) {
   const lv = RT.levels;
-  // bright-pass at quarter size from C (4 bilinear taps = a 4 x 4 box)
+  // bright-pass at quarter size
   let pr = PR.bright; gl.useProgram(pr.p);
   bindTarget(lv[0].a); gl.viewport(0, 0, lv[0].w, lv[0].h);
-  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, RT.c.tex); gl.uniform1i(pr.u.uT, 0);
-  gl.uniform2f(pr.u.uTexel, 1 / RT.cw * (RT.cw / RT.ow), 1 / RT.ch * (RT.ch / RT.oh));
+  setBgAndWave(pr, bgT, bgOn, waveOn, lv[0].w, lv[0].h);
   gl.uniform1f(pr.u.uExposure, m.exposure); gl.uniform1f(pr.u.uWhite, m.white);
+  gl.activeTexture(gl.TEXTURE0);
   quad();
   // mip pyramid
   pr = PR.down; gl.useProgram(pr.p); gl.uniform1i(pr.u.uT, 0);
@@ -978,16 +1010,15 @@ function buildGlare(m) {
   }
   // weighted sum, coarsest to finest (geometric weights)
   pr = PR.combine; gl.useProgram(pr.p); gl.uniform1i(pr.u.uT, 0); gl.uniform1i(pr.u.uCoarse, 1);
-  let acc = lv[lv.length - 1].c, norm = 1, wsum = 1;
+  let acc = lv[lv.length - 1].c, wsum = 1, wk = 1;
   for (let i = lv.length - 2; i >= 0; i--) {
     bindTarget(lv[i].b); gl.viewport(0, 0, lv[i].w, lv[i].h);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, lv[i].c.tex);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, acc.tex);
     gl.uniform1f(pr.u.uRatio, m.glareRatio); quad();
-    acc = lv[i].b; norm = norm * m.glareRatio; wsum += norm;
+    acc = lv[i].b; wk *= m.glareRatio; wsum += wk;
   }
   gl.activeTexture(gl.TEXTURE0);
-  // the final pass scales by strength / (sum of weights)
   RT.glareScale = m.glareStrength / wsum;
   return acc;
 }
@@ -1200,9 +1231,9 @@ function tick(now) {
   const scale = S.scale > 0 ? S.scale : dpr;              // render pixels per CSS pixel
   const cw = Math.max(1, Math.round(cssW * scale)), ch = Math.max(1, Math.round(cssH * scale));
   if (canvas.width !== ow || canvas.height !== oh) { canvas.width = ow; canvas.height = oh; }
-  // supersample the wave unless the render is already larger than the screen
-  const waveSS = cw >= ow * 1.5 ? 1 : 2;
-  ensureTargets(cw, ch, ow, oh, waveSS);
+  // the wave buffer is at least twice the screen size: supersample unless the render already is
+  const ss = cw >= ow * 1.5 ? 1 : 2;
+  ensureTargets(cw, ch, ow, oh, ss);
   const scene = currentScene(now);
   const cam = cameraFor(scene.mood.camPitch, cw / ch);
   const ms = JSON.stringify(simMoodParams(scene.mood, cam), (k, v) => typeof v === 'number' ? +v.toFixed(3) : v);
