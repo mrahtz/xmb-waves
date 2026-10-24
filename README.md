@@ -24,6 +24,37 @@ Not affiliated with, endorsed by or connected to Sony Interactive Entertainment.
 - Every value, colour and algorithm here is original. No assets are shipped;
   everything is generated in code (see [docs/ASSETS.md](docs/ASSETS.md)).
 
+## Use
+
+Open `index.html` (any static file server, or straight from disk). It follows
+your local clock and date. Move the pointer or tap near the bottom-right corner
+for the settings button (or press `p`); space pauses, `.` steps one frame.
+
+URL parameters: `theme=0..12`, `time=2026-10-15T12:00` (fixed date and time),
+`speed=60` (day clock speed), `scale=2` (render pixels per CSS pixel; `0` or
+absent = the device's pixel ratio), `fps=1`, `layers=bg,wave,glare,sparkles,dither`,
+`seed=<int>`, `pause=1`. Settings changed in the panel are remembered on the device.
+
+On an iPad, "Add to Home Screen" opens it full screen; it keeps the screen
+awake while shown where the browser allows it.
+
+Deterministic renders for side-by-side testing: `index.html?mode=score&time=...&theme=...&seed=...&frames=...&w=...&h=...`
+and `window.XMBW.render(opts)` (see section 9 of the spec).
+
+## How it works (short)
+
+- A 19 x 19 mass-spring net, driven at one end and pulled gently at the other,
+  is simulated at 60 fixed steps per second in a Web Worker, passed through a
+  slow free-form deformation lattice, and used as the control net of a bicubic
+  B-spline surface evaluated on the GPU and seen through a perspective camera.
+- The sheet is shaded by the angle between its normal and the line of sight,
+  drawn additively into a supersampled single-channel buffer, and composited
+  over a small, smoothly upscaled background made from per-month day and night
+  images; a bright-pass bloom pyramid adds the glare.
+- About 2,000 sparkles are flung off the moving sheet by bursts and trail
+  walkers, drift with Brownian jitter, spin, and are drawn as billboards with
+  depth of field and an iridescent tint, plus a glint pass.
+
 ## Licence
 
 MIT, see [LICENSE](LICENSE).

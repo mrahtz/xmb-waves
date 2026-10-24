@@ -3,679 +3,994 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Waves">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>xmb-waves</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-  canvas { display: block; width: 100vw; height: 100vh; }
-  #panel { position: fixed; left: 8px; bottom: 8px; font: 12px/1.4 system-ui, sans-serif;
-    color: #fff; background: rgba(0,0,0,.45); padding: 6px 8px; border-radius: 6px; display: none; }
-  #panel label { display: block; }
-  #panel input, #panel select { font: inherit; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; -webkit-user-select: none; user-select: none; }
+  canvas { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  #gear { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom));
+    width: 36px; height: 36px; border-radius: 18px; border: 0; background: rgba(0,0,0,.35); color: #fff; font-size: 20px;
+    opacity: 0; transition: opacity .4s; cursor: pointer; }
+  body.active #gear, #panel.open ~ #gear { opacity: .8; }
+  #panel { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: calc(max(10px, env(safe-area-inset-bottom)) + 44px);
+    font: 13px/1.5 system-ui, sans-serif; color: #fff; background: rgba(0,0,0,.6); padding: 10px 12px; border-radius: 10px;
+    display: none; min-width: 220px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  #panel.open { display: block; }
+  #panel label { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin: 3px 0; }
+  #panel .row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  #panel .row label { margin: 0; }
+  #panel input, #panel select, #panel button { font: inherit; }
+  #fps { position: fixed; left: max(8px, env(safe-area-inset-left)); top: max(8px, env(safe-area-inset-top));
+    font: 12px/1 ui-monospace, monospace; color: #fff; background: rgba(0,0,0,.45); padding: 4px 6px; border-radius: 4px; display: none; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="fps"></div>
 <div id="panel">
   <label>theme <select id="pTheme"></select></label>
-  <label>time speed <input id="pSpeed" type="range" min="0" max="3" step="0.05" value="1"></label>
-  <label>render scale <input id="pScale" type="range" min="0.25" max="2" step="0.05" value="1"></label>
-  <label><input id="pPause" type="checkbox"> pause</label>
-  <div id="pInfo"></div>
+  <label><span><input id="pFixed" type="checkbox"> fixed time</span> <input id="pTime" type="datetime-local"></label>
+  <label>time speed <select id="pSpeed"><option value="1">1x</option><option value="60">60x</option><option value="600">600x</option><option value="3600">3600x</option></select></label>
+  <label>render scale <span><input id="pScale" type="range" min="0" max="4" step="0.25"> <span id="pScaleV"></span></span></label>
+  <div class="row"><button id="pPause">pause</button><button id="pStep">step</button>
+    <label><input id="pFps" type="checkbox"> fps</label></div>
+  <div class="row">
+    <label><input id="pL_bg" type="checkbox">bg</label><label><input id="pL_wave" type="checkbox">wave</label>
+    <label><input id="pL_glare" type="checkbox">glare</label><label><input id="pL_sparkles" type="checkbox">sparkles</label>
+    <label><input id="pL_dither" type="checkbox">dither</label></div>
 </div>
+<button id="gear" aria-label="settings">&#9881;</button>
 <script>
-'use strict';
-(function () {
+// Simulation module: the wave's spring net, its free-form deformation, and the
+// sparkle pool. Pure JavaScript with no DOM access, so the same source runs in a
+// Web Worker (normal mode) and on the main thread (deterministic score mode).
+function XMBW_SIM() {
+  'use strict';
+  const N = 19;            // control grid, N x N points
+  const DT = 1 / 60;       // fixed step
+  const H = 1 / (N - 1);   // grid spacing in net units (the net is a unit square)
 
-// ---------------------------------------------------------------------------
-// Parameters (all values are original design choices, tuned against scores)
-// ---------------------------------------------------------------------------
-
-// Background palettes: [top rgb, mid rgb, bottom rgb, midY, tiltX]
-// Colours are display (sRGB-encoded) values in 0..1.
-const MONTHS = [
-  /* 1 */ [[0.55, 0.57, 0.60], [0.68, 0.70, 0.73], [0.82, 0.83, 0.85], 0.5, 0.10],
-  /* 2 */ [[0.62, 0.55, 0.10], [0.74, 0.68, 0.22], [0.85, 0.80, 0.35], 0.5, 0.10],
-  /* 3 */ [[0.45, 0.62, 0.20], [0.58, 0.74, 0.32], [0.72, 0.85, 0.45], 0.5, 0.10],
-  /* 4 */ [[0.75, 0.35, 0.55], [0.84, 0.50, 0.66], [0.92, 0.65, 0.78], 0.5, 0.10],
-  /* 5 */ [[0.10, 0.45, 0.12], [0.22, 0.56, 0.21], [0.35, 0.68, 0.30], 0.5, 0.10],
-  /* 6 */ [[0.50, 0.40, 0.72], [0.62, 0.54, 0.80], [0.75, 0.68, 0.88], 0.5, 0.10],
-  /* 7 */ [[0.05, 0.45, 0.48], [0.17, 0.57, 0.59], [0.30, 0.70, 0.70], 0.5, 0.10],
-  /* 8 */ [[0.08, 0.25, 0.62], [0.21, 0.40, 0.73], [0.35, 0.55, 0.85], 0.5, 0.10],
-  /* 9 */ [[0.38, 0.12, 0.55], [0.49, 0.25, 0.65], [0.60, 0.38, 0.75], 0.5, 0.10],
-  /*10 */ [[0.62, 0.45, 0.10], [0.74, 0.58, 0.22], [0.85, 0.70, 0.35], 0.5, 0.10],
-  /*11 */ [[0.40, 0.25, 0.12], [0.52, 0.36, 0.21], [0.65, 0.48, 0.30], 0.5, 0.10],
-  /*12 */ [[0.60, 0.08, 0.08], [0.72, 0.21, 0.19], [0.85, 0.35, 0.30], 0.5, 0.10],
-];
-const THEMES = MONTHS.map(p => JSON.parse(JSON.stringify(p)));
-
-// Moods: night, dawn, day, dusk. Centre hour, and per-mood factors.
-const MOOD_CENTRE = [0, 6, 12, 18];
-const MOOD_HOLD = 1.5, MOOD_RAMP = 3.0; // hours
-// [bgBright, bgSat, waveBright, glare, sparkleBright]
-const MOOD = [
-  [0.45, 0.60, 0.55, 0.40, 0.60],
-  [0.80, 0.90, 0.85, 0.80, 0.85],
-  [1.00, 1.00, 1.00, 1.00, 1.00],
-  [0.75, 0.90, 0.85, 0.80, 0.85],
-];
-const THEME_MOOD = [0, 0, 1, 0]; // fixed themes look like daytime
-
-// Camera. World: x along the ribbon, y up, z away from the viewer.
-const CAMERA = {
-  fovY: 40,        // degrees
-  pitch: 15,       // degrees, looking down
-  yaw: 10,         // degrees, oblique view along the ribbon
-  dist: 3.3,       // from the target point
-  target: [0, 0.12, 0],
-};
-
-// Wave surface S(x, v): a ribbon whose spine runs along x, with a cross direction
-// that is twisted about the spine by an angle phi(x, t); v in [0, 1] is across.
-// Each component: [amplitude, spatial frequency, temporal frequency (rad/s),
-//                  amplitude-modulation depth, modulation frequency (rad/s)]
-const WAVE = {
-  speed: 1.4,              // global time scale of the wave's motion
-  x0: -3.4, x1: 3.4,       // world units
-  c0: 0.40,                // spine height
-  C: [[0.300, 0.85, 0.090, 0.35, 0.031], [0.110, 1.40, -0.140, 0.40, 0.047],
-      [0.035, 1.55, 0.200, 0.45, 0.059], [0.012, 2.40, -0.270, 0.50, 0.073]],
-  Z: [[0.300, 0.40, 0.080, 0.35, 0.029], [0.150, 0.85, -0.120, 0.40, 0.043]],
-  w0: 1.4,                 // ribbon width (world)
-  W: [[0.25, 0.40, 0.070, 0.30, 0.023], [0.15, 0.85, -0.130, 0.40, 0.041],
-      [0.06, 1.40, 0.190, 0.40, 0.053]],
-  p0: 0.0,                 // twist about the spine (rad); 0 = lying flat
-  P: [[0.30, 0.60, 0.090, 0.30, 0.027], [0.18, 1.15, -0.150, 0.40, 0.039],
-      [0.12, 0.30, 0.050, 0.30, 0.017]],
-  // Displacement along the surface normal. With a large phase per unit v these
-  // are lengthwise folds across the ribbon that drift along it and merge.
-  // [amp, freq, omega, modDepth, modFreq, phase per unit v]
-  R: [[0.090, 0.70, 0.35, 0.45, 0.037, 9.5], [0.055, 1.30, -0.50, 0.50, 0.051, 14.0],
-      [0.030, 2.10, 0.70, 0.50, 0.067, 21.0], [0.010, 3.40, -0.95, 0.40, 0.083, 4.0]],
-  fade: 0.8,          // world length of the end fades
-  // each thread also wanders on its own: [amp, freq, omega]
-  thread: [0.004, 2.3, 0.35],
-  lines: 280,
-  segs: 320,
-  lineWidth: 2.6,     // px at 1080 lines, at the camera distance
-  lineBright: 0.019,  // per-line peak
-  edgeBoost: 1.5,     // extra brightness when seen edge-on (from the 3D normal)
-  edgePow: 2.0,
-  tint: 0.12,         // how much the palette tints the wave
-};
-
-const SPARK = {
-  slots: 420,
-  periodMin: 5, periodMax: 12,  // s
-  lifeMin: 0.55, lifeMax: 0.95, // fraction of period
-  fadeIn: 0.8, fadeOut: 1.6,    // s
-  follow: 1.5,                  // s: time constant of following the wave after birth
-  nearSigma: 0.08, farSigma: 0.45, farFrac: 0.3, // world units, 3D offsets from the sheet
-  drift: 0.04,                  // world units per second
-  wobble: 0.03,
-  span: 2.6,                    // births along x within +-span
-  sharpR: [1.0, 2.4],           // px at 1080
-  bokehR: [3.5, 9.0],
-  bokehFrac: 0.25,
-  sharpI: [0.35, 1.0],
-  bokehI: [0.08, 0.22],
-  twinkleFrac: 0.3,
-  glint: 0.25,
-};
-
-// Two halos: a tight one around bright lines and a wide, faint one. Sigmas are in screen heights.
-const GLARE = { sigma: 0.035, threshold: 0.15, strength: 0.6, nearSigma: 0.006, nearStrength: 0.5 };
-const DITHER = 1.0; // in 1/255 units, peak-to-peak/2
-
-// ---------------------------------------------------------------------------
-// Seeded randomness
-// ---------------------------------------------------------------------------
-function hash32(a) {
-  a |= 0; a = (a ^ 61) ^ (a >>> 16); a = Math.imul(a, 9); a ^= a >>> 4;
-  a = Math.imul(a, 0x27d4eb2d); a ^= a >>> 15; return a >>> 0;
-}
-function hashN(...xs) { let h = 0x9e3779b9; for (const x of xs) h = hash32(h ^ hash32(x | 0)); return h; }
-function rnd(...xs) { return hashN(...xs) / 4294967296; }
-function mulberry(seed) {
-  let s = seed >>> 0;
-  return function () {
-    s = (s + 0x6D2B79F5) >>> 0; let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  // ---- tunables (all original design values) ----
+  const NET = {
+    kStruct: 6.0, kBend: 14.0,     // spring constants (unit masses)
+    damping: 0.004,                 // fraction of velocity removed per step
+    noise: 0.0016,                  // velocity kick per step (std dev)
+    push: 0.10,                     // steady pull on the free end, along the length
+    driveA: 0.060, driveW1: 0.83,   // driven end: height amplitude, angular frequency
+    driveB: 0.030, driveW2: 0.53,   // driven end: depth amplitude, angular frequency
+    drivePhase1: 0.22, drivePhase2: 0.15, // phase change per row
+    driveEase: 0.02,                // easing of the driving clock towards sim time
+    envLow: 0.35, envWidth: 0.25,   // envelope along the length: subdued level, transition half-width
+    warm: 1500,                     // warm-up steps before frame 0
   };
-}
+  // Free-form deformation lattice: more cells along the length than across or in depth.
+  const LAT = { nu: 10, nv: 4, nw: 4, ease: 0.02,
+    // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]
+    sways: [[0.022, 3.1, 0.071, 0.25], [0.022, 5.3, -0.113, 0.35], [0.010, 8.9, 0.167, 0.40]],
+    bump: { amp: 0.020, width: 0.18, speed: 0.021 },
+  };
+  // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
+  const SCENE = { len: 8.4, wid: 1.45, height: 8.4, y0: 0.25, z0: 0.0 };
 
-// ---------------------------------------------------------------------------
-// Wave evaluation (the same formula is used in the vertex shader)
-// ---------------------------------------------------------------------------
-const TAU = Math.PI * 2;
-function makeWaveState(seed) {
-  const r = mulberry(hashN(seed, 7771));
-  const ph = g => g.map(() => [r() * TAU, r() * TAU]);
-  return { tOff: r() * 5000, C: ph(WAVE.C), Z: ph(WAVE.Z), W: ph(WAVE.W), P: ph(WAVE.P), R: ph(WAVE.R) };
-}
-// Per-component [amp, freq, phase(, vmul)] at time t (double precision phases).
-function waveUniforms(ws, t) {
-  t = t * WAVE.speed + ws.tOff;
-  const f = (comps, phs, n) => comps.map((c, k) => {
-    const a = c[0] * (1 + c[3] * Math.sin(c[4] * t + phs[k][1]));
-    const p = ((c[2] * t + phs[k][0]) % TAU + TAU) % TAU;
-    return [a, c[1], p, n ? c[5] : 0];
-  });
-  return { C: f(WAVE.C, ws.C), Z: f(WAVE.Z, ws.Z), W: f(WAVE.W, ws.W), P: f(WAVE.P, ws.P),
-           R: f(WAVE.R, ws.R, 1) };
-}
-// World position of the sheet at (x, v).
-function sheetPos(u, x, v) {
-  let c = WAVE.c0, z = 0, w = 1, p = WAVE.p0, rr = 0;
-  for (const k of u.C) c += k[0] * Math.sin(k[1] * x + k[2]);
-  for (const k of u.Z) z += k[0] * Math.sin(k[1] * x + k[2]);
-  for (const k of u.W) w += k[0] * Math.sin(k[1] * x + k[2]);
-  for (const k of u.P) p += k[0] * Math.sin(k[1] * x + k[2]);
-  for (const k of u.R) rr += k[0] * Math.sin(k[1] * x + k[2] + k[3] * v);
-  const s = (v - 0.5) * WAVE.w0 * w, sp = Math.sin(p), cp = Math.cos(p);
-  // cross direction (0, sin p, cos p); normal (0, cos p, -sin p)
-  return [x, c + s * sp + rr * cp, z + s * cp - rr * sp];
-}
-// Same as sheetPos(waveUniforms(ws, t), x, v), without allocating; writes into out.
-function sheetPosAt(ws, t, x, v, out) {
-  t = t * WAVE.speed + ws.tOff;
-  const sum = (comps, phs, vv) => {
-    let acc = 0;
-    for (let k = 0; k < comps.length; k++) {
-      const c = comps[k], ph = phs[k];
-      const a = c[0] * (1 + c[3] * Math.sin(c[4] * t + ph[1]));
-      acc += a * Math.sin(c[1] * x + ((c[2] * t + ph[0]) % TAU) + (vv ? c[5] * v : 0));
+  const SPARK = {
+    pool: 2400,
+    burstP: 0.45, burstMin: 1, burstMax: 9,        // per step
+    walkers: 4, walkerP: 0.04, walkMin: 30, walkMax: 140, walkStep: 0.045, // patches per step
+    cone: 0.35, reverseP: 0.12,
+    speedK: 0.32, speedPow: 0.5, speedMin: 0.035, // scene units / s
+    rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
+    rampIn: 0.06, rampOut: 0.16,
+    jitter: 0.045, gravity: 0.004, friction: 0.22,  // per second units
+    spinA: 2.2, spinF: [0.21, 0.37],                // rad/s amplitude, oscillation freq range (rad/s)
+    box: [[-7, 7], [-3.0, 3.2], [-3.5, 5.0]],
+  };
+  const SPARK_STRIDE = 11; // prev xyz, cur xyz, facing xyz, opacity, random
+
+  function mulberry(seed) {
+    let s = seed >>> 0;
+    return function () {
+      s = (s + 0x6D2B79F5) >>> 0; let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hash32(a) {
+    a |= 0; a = (a ^ 61) ^ (a >>> 16); a = Math.imul(a, 9); a ^= a >>> 4;
+    a = Math.imul(a, 0x27d4eb2d); a ^= a >>> 15; return a >>> 0;
+  }
+
+  // Uniform cubic B-spline basis and derivative.
+  function bsp(t, out) {
+    const t2 = t * t, t3 = t2 * t, u = 1 - t;
+    out[0] = u * u * u / 6; out[1] = (3 * t3 - 6 * t2 + 4) / 6;
+    out[2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6; out[3] = t3 / 6;
+    return out;
+  }
+
+  function createSim(seed) {
+    const rng = mulberry(hash32(seed ^ 0x5eed1234) ^ 0x9e3779b9);
+    const gauss = () => { let u = rng(); if (u < 1e-12) u = 1e-12; return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283185307179586 * rng()); };
+    const NP = N * N;
+    const pos = new Float64Array(NP * 3), vel = new Float64Array(NP * 3), acc = new Float64Array(NP * 3);
+    const rest = new Float64Array(NP * 3);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const k = (j * N + i) * 3; rest[k] = i * H; rest[k + 1] = 0; rest[k + 2] = j * H;
+      pos[k] = rest[k]; pos[k + 2] = rest[k + 2];
     }
-    return acc;
-  };
-  const c = WAVE.c0 + sum(WAVE.C, ws.C), z = sum(WAVE.Z, ws.Z), w = 1 + sum(WAVE.W, ws.W);
-  const p = WAVE.p0 + sum(WAVE.P, ws.P), rr = sum(WAVE.R, ws.R, true);
-  const sw = (v - 0.5) * WAVE.w0 * w, sp = Math.sin(p), cp = Math.cos(p);
-  out[0] = x; out[1] = c + sw * sp + rr * cp; out[2] = z + sw * cp - rr * sp;
-  return out;
+    // springs: [a, b, rest, k]
+    const springs = [];
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const a = j * N + i;
+      if (i + 1 < N) springs.push([a, a + 1, H, NET.kStruct]);
+      if (j + 1 < N) springs.push([a, a + N, H, NET.kStruct]);
+      if (i + 2 < N) springs.push([a, a + 2, 2 * H, NET.kBend]);
+      if (j + 2 < N) springs.push([a, a + 2 * N, 2 * H, NET.kBend]);
+    }
+    const SA = Int32Array.from(springs.map(s => s[0])), SB = Int32Array.from(springs.map(s => s[1]));
+    const SR = Float64Array.from(springs.map(s => s[2])), SK = Float64Array.from(springs.map(s => s[3]));
+
+    // lattice displacement values (vertical), eased towards targets
+    const NL = LAT.nu * LAT.nv * LAT.nw;
+    const lat = new Float64Array(NL);
+    const latPh = LAT.sways.map(() => [rng() * 6.2832, rng() * 6.2832]);
+    const bumpPh = rng();
+
+    let simTime = rng() * 1000, driveT = simTime, steps = 0;
+    const mood = { envCross: 0.55, latScale: [1, 1, 1], camFwd: [0, -0.26, 0.97] };
+
+    // deformed scene-space nets (previous and current step)
+    let netPrev = new Float32Array(NP * 3), netCur = new Float32Array(NP * 3);
+
+    // sparkle pool
+    const S = SPARK.pool;
+    const sp = new Float64Array(S * 3), sv = new Float64Array(S * 3), spPrev = new Float64Array(S * 3);
+    const sq = new Float64Array(S * 4), sAge = new Float64Array(S), sRate = new Float64Array(S);
+    const sSpin = new Float64Array(S * 6), sRnd = new Float64Array(S);
+    const alive = new Uint8Array(S);
+    const free = new Int32Array(S); let nFree = S;
+    for (let i = 0; i < S; i++) free[i] = S - 1 - i;
+    const walkers = [];
+    for (let w = 0; w < SPARK.walkers; w++) walkers.push({ on: false, s: 0, t: 0, dir: 1, left: 0 });
+
+    function latticeTargets() {
+      const T = simTime;
+      for (let iw = 0; iw < LAT.nw; iw++) for (let iv = 0; iv < LAT.nv; iv++) for (let iu = 0; iu < LAT.nu; iu++) {
+        const u = (iu - 1) / (LAT.nu - 3), w = (iw - 1) / (LAT.nw - 3), v = (iv - 1) / (LAT.nv - 3);
+        let d = 0;
+        for (let m = 0; m < LAT.sways.length; m++) {
+          const s = LAT.sways[m];
+          d += s[0] * (1 + s[3] * (w - 0.5) + 0.1 * (v - 0.5)) * Math.sin(s[1] * u + s[2] * T + latPh[m][0] + 0.8 * s[3] * w);
+        }
+        const ub = (((T * LAT.bump.speed + bumpPh) % 1) + 1) % 1 * 1.8 - 0.4;
+        const du = (u - ub) / LAT.bump.width;
+        d += LAT.bump.amp * Math.exp(-du * du) * (1 + 0.3 * (w - 0.5));
+        const k = (iw * LAT.nv + iv) * LAT.nu + iu;
+        lat[k] += (d - lat[k]) * LAT.ease;
+      }
+    }
+    function latticeInit() { const e = LAT.ease; LAT.ease = 1; latticeTargets(); LAT.ease = e; }
+
+    const bu = [0, 0, 0, 0], bv = [0, 0, 0, 0], bw = [0, 0, 0, 0];
+    function ffd(u, v, w) { // tricubic B-spline blend of lattice values at normalised coords
+      const fu = Math.min(Math.max(u, 0), 1) * (LAT.nu - 3), fv = Math.min(Math.max(v, 0), 1) * (LAT.nv - 3), fw = Math.min(Math.max(w, 0), 1) * (LAT.nw - 3);
+      const iu = Math.min(Math.floor(fu), LAT.nu - 4), iv = Math.min(Math.floor(fv), LAT.nv - 4), iw = Math.min(Math.floor(fw), LAT.nw - 4);
+      bsp(fu - iu, bu); bsp(fv - iv, bv); bsp(fw - iw, bw);
+      let d = 0;
+      for (let c = 0; c < 4; c++) for (let b = 0; b < 4; b++) {
+        const wbc = bv[b] * bw[c]; const base = ((iw + c) * LAT.nv + (iv + b)) * LAT.nu + iu;
+        d += wbc * (bu[0] * lat[base] + bu[1] * lat[base + 1] + bu[2] * lat[base + 2] + bu[3] * lat[base + 3]);
+      }
+      return d;
+    }
+    function smooth(e0, e1, x) { const t = Math.min(Math.max((x - e0) / (e1 - e0), 0), 1); return t * t * (3 - 2 * t); }
+
+    // net -> envelope -> FFD -> scene
+    function deform(out) {
+      const ls = mood.latScale;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const k = (j * N + i) * 3;
+        const fx = i / (N - 1);
+        const env = NET.envLow + (1 - NET.envLow) * smooth(mood.envCross - NET.envWidth, mood.envCross + NET.envWidth, fx);
+        const x = pos[k];
+        const y = (pos[k + 1] - rest[k + 1]) * env;
+        const z = rest[k + 2] + (pos[k + 2] - rest[k + 2]) * env;
+        // lattice normalised coords: the lattice spans the net's region with a margin
+        const u = (x + 0.1) / 1.2, v = (y + 0.5), w = (z + 0.1) / 1.2;
+        const dy = ffd(u, v, w);
+        out[k] = (x - 0.5) * SCENE.len * ls[0];
+        out[k + 1] = (y + dy) * SCENE.height * ls[1] + SCENE.y0;
+        out[k + 2] = (z - 0.5) * SCENE.wid * ls[2] + SCENE.z0;
+      }
+    }
+
+    function stepNet() {
+      acc.fill(0);
+      for (let s = 0; s < SA.length; s++) {
+        const a = SA[s] * 3, b = SB[s] * 3;
+        const dx = pos[b] - pos[a], dy = pos[b + 1] - pos[a + 1], dz = pos[b + 2] - pos[a + 2];
+        const L = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-9;
+        const f = SK[s] * (L - SR[s]) / L;
+        acc[a] += f * dx; acc[a + 1] += f * dy; acc[a + 2] += f * dz;
+        acc[b] -= f * dx; acc[b + 1] -= f * dy; acc[b + 2] -= f * dz;
+      }
+      for (let j = 0; j < N; j++) acc[(j * N) * 3] -= NET.push; // free end i = 0, pulled outwards
+      for (let p = 0; p < N * N; p++) {
+        const k = p * 3;
+        vel[k] += acc[k] * DT + NET.noise * gauss();
+        vel[k + 1] += acc[k + 1] * DT + NET.noise * gauss();
+        vel[k + 2] += acc[k + 2] * DT + NET.noise * gauss();
+        pos[k] += vel[k] * DT; pos[k + 1] += vel[k + 1] * DT; pos[k + 2] += vel[k + 2] * DT;
+        vel[k] *= 1 - NET.damping; vel[k + 1] *= 1 - NET.damping; vel[k + 2] *= 1 - NET.damping;
+      }
+      // driven end i = N-1, placed kinematically
+      driveT += (simTime - driveT) * NET.driveEase;
+      for (let j = 0; j < N; j++) {
+        const k = (j * N + N - 1) * 3;
+        pos[k] = rest[k];
+        pos[k + 1] = NET.driveA * Math.sin(NET.driveW1 * driveT + j * NET.drivePhase1);
+        pos[k + 2] = rest[k + 2] + NET.driveB * Math.sin(NET.driveW2 * driveT + j * NET.drivePhase2 + 1.3);
+        vel[k] = vel[k + 1] = vel[k + 2] = 0;
+      }
+    }
+
+    // B-spline surface evaluation on a deformed net: s in [0, N-3] along, t in [0, N-3] across.
+    const es = [0, 0, 0, 0], et = [0, 0, 0, 0];
+    function surf(net, s, t, out) {
+      const is = Math.min(Math.max(Math.floor(s), 0), N - 4), it = Math.min(Math.max(Math.floor(t), 0), N - 4);
+      bsp(s - is, es); bsp(t - it, et);
+      let x = 0, y = 0, z = 0;
+      for (let b = 0; b < 4; b++) for (let a = 0; a < 4; a++) {
+        const w = es[a] * et[b], k = ((it + b) * N + is + a) * 3;
+        x += w * net[k]; y += w * net[k + 1]; z += w * net[k + 2];
+      }
+      out[0] = x; out[1] = y; out[2] = z; return out;
+    }
+
+    const P0 = [0, 0, 0], P1 = [0, 0, 0];
+    function birth(s, t) {
+      if (nFree === 0) return;
+      surf(netPrev, s, t, P0); surf(netCur, s, t, P1);
+      let dx = P1[0] - P0[0], dy = P1[1] - P0[1], dz = P1[2] - P0[2];
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (d < 1e-7) return;
+      dx /= d; dy /= d; dz /= d;
+      // spread within a cone: add a random perpendicular-ish offset
+      const c = SPARK.cone;
+      dx += c * gauss() * 0.5; dy += c * gauss() * 0.5; dz += c * gauss() * 0.5;
+      if (rng() < SPARK.reverseP) { dx = -dx; dy = -dy; dz = -dz; }
+      const f = mood.camFwd, along = dx * f[0] + dy * f[1] + dz * f[2];
+      dx -= along * f[0]; dy -= along * f[1]; dz -= along * f[2];
+      const n = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (n < 1e-6) return;
+      const speed = Math.max(SPARK.speedMin, SPARK.speedK * Math.pow(d / DT, SPARK.speedPow)) * (0.6 + 0.8 * rng());
+      const i = free[--nFree];
+      alive[i] = 1;
+      const k = i * 3;
+      sp[k] = spPrev[k] = P1[0]; sp[k + 1] = spPrev[k + 1] = P1[1]; sp[k + 2] = spPrev[k + 2] = P1[2];
+      sv[k] = dx / n * speed; sv[k + 1] = dy / n * speed; sv[k + 2] = dz / n * speed;
+      sAge[i] = 0;
+      sRate[i] = Math.max(SPARK.rateMin, SPARK.rateMean * (1 + SPARK.rateSpread * gauss()));
+      // random initial orientation
+      let qx = gauss(), qy = gauss(), qz = gauss(), qw = gauss();
+      const qn = Math.sqrt(qx * qx + qy * qy + qz * qz + qw * qw) || 1;
+      sq[i * 4] = qx / qn; sq[i * 4 + 1] = qy / qn; sq[i * 4 + 2] = qz / qn; sq[i * 4 + 3] = qw / qn;
+      for (let a = 0; a < 3; a++) {
+        sSpin[i * 6 + a] = SPARK.spinF[0] + (SPARK.spinF[1] - SPARK.spinF[0]) * rng();
+        sSpin[i * 6 + 3 + a] = rng() * 6.2832;
+      }
+      sRnd[i] = rng();
+    }
+    function randPoint() { return [rng() * (N - 3), rng() * (N - 3)]; }
+
+    function emit() {
+      if (rng() < SPARK.burstP) {
+        const n = SPARK.burstMin + Math.floor(rng() * (SPARK.burstMax - SPARK.burstMin + 1));
+        for (let b = 0; b < n; b++) { const p = randPoint(); birth(p[0], p[1]); }
+      }
+      for (const w of walkers) {
+        if (!w.on) {
+          if (rng() < SPARK.walkerP) {
+            const p = randPoint(); w.on = true; w.s = p[0]; w.t = p[1];
+            w.dir = rng() < 0.5 ? -1 : 1; w.left = SPARK.walkMin + Math.floor(rng() * (SPARK.walkMax - SPARK.walkMin));
+          }
+          continue;
+        }
+        birth(w.s, w.t);
+        w.s += w.dir * SPARK.walkStep;
+        if (--w.left <= 0 || w.s < 0 || w.s > N - 3) w.on = false;
+      }
+    }
+
+    function stepSparks() {
+      const fr = SPARK.friction, g = SPARK.gravity, jit = SPARK.jitter, box = SPARK.box;
+      for (let i = 0; i < S; i++) {
+        if (!alive[i]) continue;
+        const k = i * 3;
+        spPrev[k] = sp[k]; spPrev[k + 1] = sp[k + 1]; spPrev[k + 2] = sp[k + 2];
+        const ax = jit * gauss() - fr * sv[k], ay = jit * gauss() - g - fr * sv[k + 1], az = jit * gauss() - fr * sv[k + 2];
+        sv[k] += ax * DT; sv[k + 1] += ay * DT; sv[k + 2] += az * DT;
+        sp[k] += sv[k] * DT; sp[k + 1] += sv[k + 1] * DT; sp[k + 2] += sv[k + 2] * DT;
+        sAge[i] += sRate[i] * DT;
+        // spin: angular velocity oscillating slowly with age
+        const age = sAge[i] / sRate[i];
+        const wx = SPARK.spinA * Math.sin(sSpin[i * 6] * age + sSpin[i * 6 + 3]);
+        const wy = SPARK.spinA * Math.sin(sSpin[i * 6 + 1] * age + sSpin[i * 6 + 4]);
+        const wz = SPARK.spinA * Math.sin(sSpin[i * 6 + 2] * age + sSpin[i * 6 + 5]);
+        const q = i * 4, x = sq[q], y = sq[q + 1], z = sq[q + 2], w = sq[q + 3], h = 0.5 * DT;
+        let nx = x + h * (wx * w + wy * z - wz * y), ny = y + h * (wy * w + wz * x - wx * z);
+        let nz = z + h * (wz * w + wx * y - wy * x), nw = w - h * (wx * x + wy * y + wz * z);
+        const n = Math.sqrt(nx * nx + ny * ny + nz * nz + nw * nw);
+        sq[q] = nx / n; sq[q + 1] = ny / n; sq[q + 2] = nz / n; sq[q + 3] = nw / n;
+        if (sAge[i] >= 1 || sp[k] < box[0][0] || sp[k] > box[0][1] || sp[k + 1] < box[1][0] ||
+            sp[k + 1] > box[1][1] || sp[k + 2] < box[2][0] || sp[k + 2] > box[2][1]) {
+          alive[i] = 0; free[nFree++] = i;
+        }
+      }
+    }
+
+    function step() {
+      simTime += DT; steps++;
+      latticeTargets();
+      stepNet();
+      const t = netPrev; netPrev = netCur; netCur = t;
+      deform(netCur);
+      stepSparks();
+      emit();
+    }
+
+    // Pack the alive sparkles for drawing.
+    function packSparks(out) {
+      let n = 0;
+      for (let i = 0; i < S; i++) {
+        if (!alive[i]) continue;
+        const k = i * 3, o = n * SPARK_STRIDE, a = sAge[i];
+        out[o] = spPrev[k]; out[o + 1] = spPrev[k + 1]; out[o + 2] = spPrev[k + 2];
+        out[o + 3] = sp[k]; out[o + 4] = sp[k + 1]; out[o + 5] = sp[k + 2];
+        // facing = q * (0, 0, 1)
+        const q = i * 4, x = sq[q], y = sq[q + 1], z = sq[q + 2], w = sq[q + 3];
+        out[o + 6] = 2 * (x * z + w * y); out[o + 7] = 2 * (y * z - w * x); out[o + 8] = 1 - 2 * (x * x + y * y);
+        const op = Math.min(1, a / SPARK.rampIn) * Math.min(1, (1 - a) / SPARK.rampOut);
+        out[o + 9] = op * op * (3 - 2 * op);
+        out[o + 10] = sRnd[i];
+        n++;
+      }
+      return n;
+    }
+
+    function setMood(m) {
+      if (m.envCross != null) mood.envCross = m.envCross;
+      if (m.latScale) mood.latScale = m.latScale.slice();
+      if (m.camFwd) mood.camFwd = m.camFwd.slice();
+    }
+
+    latticeInit();
+    deform(netCur); netPrev.set(netCur);
+    return {
+      N, DT, SPARK_STRIDE, pool: S,
+      step, setMood, packSparks, surf,
+      get netPrev() { return netPrev; }, get netCur() { return netCur; },
+      get steps() { return steps; },
+      warm(n) { for (let i = 0; i < n; i++) step(); steps = 0; },
+      warmSteps: NET.warm,
+      debug: { pos, vel, alive: () => S - nFree },
+    };
+  }
+  return { createSim, N, DT, SPARK_STRIDE };
 }
-// Camera basis and projection to screen-height units (origin at centre, Y up).
-const CAM = (() => {
-  const d2r = Math.PI / 180, p = CAMERA.pitch * d2r, y = CAMERA.yaw * d2r;
-  const fwd = [Math.sin(y) * Math.cos(p), -Math.sin(p), Math.cos(y) * Math.cos(p)];
-  const right = [Math.cos(y), 0, -Math.sin(y)];
-  const up = [fwd[1] * right[2] - fwd[2] * right[1], fwd[2] * right[0] - fwd[0] * right[2],
-              fwd[0] * right[1] - fwd[1] * right[0]];
-  const pos = CAMERA.target.map((t, i) => t - CAMERA.dist * fwd[i]);
-  return { fwd, right, up, pos, F: 0.5 / Math.tan(CAMERA.fovY * d2r / 2) };
-})();
-// Returns [X, Y, depth] or null if behind the camera.
-function project(q) {
-  const d = [q[0] - CAM.pos[0], q[1] - CAM.pos[1], q[2] - CAM.pos[2]];
-  const zc = d[0] * CAM.fwd[0] + d[1] * CAM.fwd[1] + d[2] * CAM.fwd[2];
-  if (zc < 0.2) return null;
-  const xc = d[0] * CAM.right[0] + d[1] * CAM.right[1] + d[2] * CAM.right[2];
-  const yc = d[0] * CAM.up[0] + d[1] * CAM.up[1] + d[2] * CAM.up[2];
-  return [CAM.F * xc / zc, CAM.F * yc / zc, zc];
-}
+</script>
+<script>
+(function () {
+'use strict';
+const SIMM = XMBW_SIM();
+const NN = SIMM.N, DT = SIMM.DT, SPARK_STRIDE = SIMM.SPARK_STRIDE;
+const TAU = Math.PI * 2;
 
 // ---------------------------------------------------------------------------
-// Time of day / palette
+// Palettes (original design). Each month has a day image and a night image,
+// generated in code as small soft images (see makeBackgroundImages).
+//   top, bottom: colours at the top and bottom edge
+//   glow: colour added by a broad soft highlight, glowPos [x, y], glowSize
+//   tilt: brightness change from left to right
+//   night: [colour of the faint hint, where it sits (0 = left, 1 = right)]
+// Colours are display values (sRGB-encoded) in 0..1.
 // ---------------------------------------------------------------------------
-function moodWeights(hour) {
-  const w = MOOD_CENTRE.map(c => {
-    let d = Math.abs(hour - c) % 24; if (d > 12) d = 24 - d;
-    const s = Math.min(Math.max((d - MOOD_HOLD) / MOOD_RAMP, 0), 1);
-    return 1 - s * s * (3 - 2 * s);
-  });
-  const sum = w.reduce((a, b) => a + b, 0);
-  return w.map(x => x / sum);
+const PALETTES = [
+  /* 1 silver      */ { top: [0.50, 0.52, 0.56], bottom: [0.70, 0.71, 0.74], glow: [0.16, 0.16, 0.16], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.06, 0.065, 0.075], 0.35] },
+  /* 2 yellow      */ { top: [0.55, 0.47, 0.06], bottom: [0.70, 0.62, 0.16], glow: [0.18, 0.16, 0.06], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.08, 0.065, 0.0], 0.35] },
+  /* 3 light green */ { top: [0.38, 0.54, 0.14], bottom: [0.56, 0.70, 0.30], glow: [0.14, 0.18, 0.08], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.035, 0.08, 0.01], 0.35] },
+  /* 4 pink        */ { top: [0.62, 0.30, 0.46], bottom: [0.80, 0.52, 0.66], glow: [0.18, 0.12, 0.14], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.09, 0.03, 0.06], 0.35] },
+  /* 5 green       */ { top: [0.07, 0.36, 0.10], bottom: [0.22, 0.56, 0.20], glow: [0.10, 0.16, 0.08], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.01, 0.10, 0.015], 0.35] },
+  /* 6 lavender    */ { top: [0.42, 0.34, 0.62], bottom: [0.62, 0.55, 0.78], glow: [0.14, 0.12, 0.18], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.05, 0.04, 0.10], 0.35] },
+  /* 7 teal        */ { top: [0.06, 0.40, 0.42], bottom: [0.20, 0.56, 0.56], glow: [0.08, 0.16, 0.16], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.0, 0.07, 0.08], 0.35] },
+  /* 8 blue        */ { top: [0.22, 0.48, 0.55], bottom: [0.12, 0.24, 0.46], glow: [0.10, 0.12, 0.12], glowPos: [0.25, 0.15], glowSize: 0.55, tilt: 0.04, night: [[0.02, 0.03, 0.17], 0.15] },
+  /* 9 purple      */ { top: [0.22, 0.15, 0.36], bottom: [0.60, 0.38, 0.66], glow: [0.20, 0.16, 0.26], glowPos: [0.50, 0.0], glowSize: 0.42, tilt: 0.04, night: [[0.035, 0.035, 0.18], 0.15] },
+  /*10 gold        */ { top: [0.46, 0.34, 0.08], bottom: [0.33, 0.18, 0.01], glow: [0.14, 0.12, 0.08], glowPos: [0.40, 0.05], glowSize: 0.50, tilt: 0.04, night: [[0.08, 0.05, 0.0], 0.35] },
+  /*11 brown       */ { top: [0.40, 0.27, 0.13], bottom: [0.30, 0.18, 0.08], glow: [0.12, 0.10, 0.07], glowPos: [0.45, 0.05], glowSize: 0.50, tilt: 0.04, night: [[0.06, 0.035, 0.012], 0.35] },
+  /*12 red         */ { top: [0.52, 0.08, 0.08], bottom: [0.70, 0.22, 0.20], glow: [0.16, 0.08, 0.07], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.10, 0.012, 0.01], 0.35] },
+];
+const BG_W = 32, BG_H = 18; // size of each generated background image
+
+// ---------------------------------------------------------------------------
+// Moods: complete parameter sets, blended linearly with one shared factor.
+// ---------------------------------------------------------------------------
+const MOOD_KEYS = [
+  'waveBright', 'sheenBase', 'sheenPow', 'fresnel', 'fresnelPow', 'eps', 'threadAmp', 'streakAmp',
+  'latX', 'latY', 'latZ', 'envCross', 'camPitch',
+  'exposure', 'white', 'glareSigma', 'glareRatio', 'glareStrength',
+  'focusFar', 'sparkSize', 'sparkBright', 'glint',
+];
+const MOODS = {
+  night: { waveBright: 0.024, sheenBase: 0.30, sheenPow: 2.0, fresnel: 0.060, fresnelPow: 4.0, eps: 0.16, threadAmp: 0.10, streakAmp: 0.25,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 13.5,
+    exposure: 1.0, white: 2.2, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.0,
+    focusFar: 4.4, sparkSize: 1.0, sparkBright: 0.55, glint: 0.10 },
+  dawn: { waveBright: 0.036, sheenBase: 0.30, sheenPow: 2.0, fresnel: 0.090, fresnelPow: 4.0, eps: 0.16, threadAmp: 0.10, streakAmp: 0.25,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 15,
+    exposure: 1.0, white: 1.6, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.35,
+    focusFar: 4.6, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
+  day: { waveBright: 0.045, sheenBase: 0.30, sheenPow: 2.0, fresnel: 0.108, fresnelPow: 4.0, eps: 0.16, threadAmp: 0.10, streakAmp: 0.25,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 15,
+    exposure: 1.0, white: 1.3, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.55,
+    focusFar: 4.8, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+  dusk: { waveBright: 0.039, sheenBase: 0.30, sheenPow: 2.0, fresnel: 0.096, fresnelPow: 4.0, eps: 0.16, threadAmp: 0.10, streakAmp: 0.25,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 14.5,
+    exposure: 1.0, white: 1.5, glareSigma: 1.5, glareRatio: 0.75, glareStrength: 0.40,
+    focusFar: 4.6, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
+};
+// Mood schedule (local hours): hold windows and blends between them.
+const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
+  [23, 25, 'night', 'night'], [1, 5, 'night', 'dawn'], [5, 7, 'dawn', 'dawn'], [7, 11, 'dawn', 'day'],
+  [11, 13, 'day', 'day'], [13, 17, 'day', 'dusk'], [17, 19, 'dusk', 'dusk'], [19, 23, 'dusk', 'night'],
+];
+function ease(t) { t = Math.min(Math.max(t, 0), 1); return t * t * (3 - 2 * t); }
+function moodAt(hour) {
+  let h = ((hour % 24) + 24) % 24;
+  for (const [s, e, a, b] of MOOD_SCHEDULE) {
+    const hh = h < s && e > 24 ? h + 24 : h;
+    if (hh >= s && hh < e) return blendMood(MOODS[a], MOODS[b], a === b ? 0 : ease((hh - s) / (e - s)));
+  }
+  return blendMood(MOODS.night, MOODS.night, 0);
 }
-function flat(p) { return [...p[0], ...p[1], ...p[2], p[3], p[4]]; }
-function lerpArr(a, b, t) { return a.map((x, i) => x + (b[i] - x) * t); }
+function blendMood(A, B, f) { const o = {}; for (const k of MOOD_KEYS) o[k] = A[k] + (B[k] - A[k]) * f; return o; }
+// Background night weight: fades out 00:00-05:00, zero by day, fades in 18:30-20:30.
+function nightWeight(hour) {
+  const h = ((hour % 24) + 24) % 24;
+  if (h < 5) return 1 - ease(h / 5);
+  if (h < 18.5) return 0;
+  if (h < 20.5) return ease((h - 18.5) / 2);
+  return 1;
+}
+// Warped hour: advances slowly around midday and quickly around midnight; returns 0..1 over the day.
+function warpedDay(hour) {
+  const p = ((hour - 12) / 24) * TAU; // -pi..pi, 0 at noon
+  return 0.5 + (p - 0.6 * Math.sin(p)) / TAU;
+}
 function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
-// Palette (flat array) for a date; blends into neighbours only near month boundaries.
-function monthPalette(y, mon, day, hour) {
-  const dim = daysInMonth(y, mon);
-  const pos = day - 1 + hour / 24; // days since start of month
-  const W = 3; // half-width of the blend window, days
-  let a = mon, b = mon, t = 0;
-  if (pos < W) { b = mon === 1 ? 12 : mon - 1; t = 0.5 * (1 - pos / W); }
-  else if (pos > dim - W) { b = mon === 12 ? 1 : mon + 1; t = 0.5 * (1 - (dim - pos) / W); }
-  t = t * t * (3 - 2 * t) ;
-  return lerpArr(flat(MONTHS[a - 1]), flat(MONTHS[b - 1]), t);
-}
-function sceneParams(timeParts, theme) {
-  const [y, mon, day, hh, mm, ss] = timeParts;
+
+function sceneParams(tp, theme) {
+  const [y, mon, day, hh, mm, ss] = tp;
   const hour = hh + mm / 60 + ss / 3600;
-  let pal, mw;
-  if (theme >= 1 && theme <= 12) { pal = flat(THEMES[theme - 1]); mw = THEME_MOOD; }
-  else { pal = monthPalette(y, mon, day, hour); mw = moodWeights(hour); }
-  const m = [0, 0, 0, 0, 0];
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 5; j++) m[j] += mw[i] * MOOD[i][j];
-  return { pal, bgBright: m[0], bgSat: m[1], waveBright: m[2], glare: m[3], sparkBright: m[4] };
+  if (theme >= 1 && theme <= 12) {
+    return { monA: theme - 1, monB: theme % 12, monF: 0, night: 0, wday: warpedDay(12), mood: { ...MOODS.day } };
+  }
+  const dim = daysInMonth(y, mon);
+  return { monA: mon - 1, monB: mon % 12, monF: (day - 1) / dim, night: nightWeight(hour), wday: warpedDay(hour), mood: moodAt(hour) };
 }
 function parseTime(s) {
   const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2})(?::(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?)?)?/.exec(s || '');
   if (!m) return null;
   return [+m[1], +m[2], +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)];
 }
-function nowParts() {
-  const d = new Date();
-  return [d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes(),
-          d.getSeconds() + d.getMilliseconds() / 1000];
+function partsOf(d) {
+  return [d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds() + d.getMilliseconds() / 1000];
 }
 
 // ---------------------------------------------------------------------------
-// Sparkles (analytic in time: each slot runs a seeded sequence of lives)
+// Camera (original design): looks across the sheet from in front, yawed so the
+// sheet is seen obliquely and pitched down a little; the pitch follows the mood.
 // ---------------------------------------------------------------------------
-const SPARK_STRIDE = 9; // X, Y (screen-height units), radius (px@1080), intensity, r, g, b, softness, glint
-function makeSparkSlots(seed) {
-  const slots = [];
-  for (let i = 0; i < SPARK.slots; i++) {
-    const r = mulberry(hashN(seed, 911, i));
-    const period = SPARK.periodMin + (SPARK.periodMax - SPARK.periodMin) * r();
-    slots.push({ period, offset: r() * period * 50 });
-  }
-  return slots;
-}
-const SP_TMP = [0, 0, 0];
-function gauss(r) { return Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
-function sparkles(seed, slots, ws, t, out) {
-  let n = 0;
-  for (let i = 0; i < slots.length; i++) {
-    const s = slots[i];
-    const T = t + s.offset;
-    const cyc = Math.floor(T / s.period);
-    const age = T - cyc * s.period;
-    const r = mulberry(hashN(seed, 313, i, cyc));
-    const life = s.period * (SPARK.lifeMin + (SPARK.lifeMax - SPARK.lifeMin) * r());
-    if (age > life) continue;
-    const x0 = (r() * 2 - 1) * SPARK.span;
-    const v0 = r();
-    const far = r() < SPARK.farFrac;
-    const sg = far ? SPARK.farSigma : SPARK.nearSigma;
-    const off = [gauss(r) * sg * 0.5, gauss(r) * sg, gauss(r) * sg];
-    const sp = SPARK.drift * (0.3 + r());
-    const dv = [gauss(r) * sp, gauss(r) * sp * 0.6, gauss(r) * sp * 0.6];
-    const wf = 0.5 + r() * 1.5, wp = r() * TAU, wa = SPARK.wobble * r();
-    const bokeh = r() < SPARK.bokehFrac;
-    const rad = bokeh ? SPARK.bokehR[0] + (SPARK.bokehR[1] - SPARK.bokehR[0]) * r()
-                      : SPARK.sharpR[0] + (SPARK.sharpR[1] - SPARK.sharpR[0]) * r();
-    let inten = bokeh ? SPARK.bokehI[0] + (SPARK.bokehI[1] - SPARK.bokehI[0]) * r()
-                      : SPARK.sharpI[0] + (SPARK.sharpI[1] - SPARK.sharpI[0]) * r();
-    const tw = r() < SPARK.twinkleFrac, twf = 3 + r() * 6, twp = r() * TAU;
-    const hp = r() * TAU, hf = 0.5 + r();
-    // Follow the sheet point for a while after birth, then let go (time warp).
-    const tb = t - age;
-    const tf = SPARK.follow * (0.5 + r());
-    const S = sheetPosAt(ws, tb + tf * (1 - Math.exp(-age / tf)), x0, v0, SP_TMP);
-    const wob = Math.sin(wf * age + wp) - Math.sin(wp), wob2 = Math.cos(wf * 1.3 * age + wp) - Math.cos(wp);
-    S[0] += off[0] + dv[0] * age + wa * wob;
-    S[1] += off[1] + dv[1] * age + wa * wob2;
-    S[2] += off[2] + dv[2] * age + wa * 0.5 * wob;
-    const q = project(S);
-    if (!q) continue;
-    const fade = Math.min(1, age / SPARK.fadeIn) * Math.min(1, (life - age) / SPARK.fadeOut);
-    const f2 = fade * fade * (3 - 2 * fade);
-    if (tw) inten *= 0.55 + 0.45 * Math.sin(twf * T + twp);
-    inten *= f2;
-    if (inten <= 0.001) continue;
-    const hh = hf * T + hp;
-    const o = n * SPARK_STRIDE;
-    out[o] = q[0]; out[o + 1] = q[1]; out[o + 2] = rad * CAMERA.dist / q[2]; out[o + 3] = inten;
-    out[o + 4] = 1 + 0.10 * Math.sin(hh); out[o + 5] = 1 + 0.10 * Math.sin(hh + 2.1);
-    out[o + 6] = 1 + 0.10 * Math.sin(hh + 4.2);
-    out[o + 7] = bokeh ? 1 : 0; out[o + 8] = bokeh ? 0.3 * SPARK.glint : SPARK.glint;
-    n++;
-  }
-  return n;
+const CAMERA = { fovY: 38, yaw: 11, dist: 3.4, target: [0.0, 0.10, 0.0], near: 0.1, far: 40 };
+function cameraFor(pitchDeg, aspect) {
+  const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
+  const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
+  const right = [Math.cos(yw), 0, -Math.sin(yw)];
+  const up = [fwd[1] * right[2] - fwd[2] * right[1], fwd[2] * right[0] - fwd[0] * right[2], fwd[0] * right[1] - fwd[1] * right[0]];
+  const pos = CAMERA.target.map((t, i) => t - CAMERA.dist * fwd[i]);
+  const f = 1 / Math.tan(CAMERA.fovY * d2r / 2), n = CAMERA.near, fa = CAMERA.far;
+  // view: rows right, up, -fwd (right-handed clip convention); column-major for GL
+  const tx = -(right[0] * pos[0] + right[1] * pos[1] + right[2] * pos[2]);
+  const ty = -(up[0] * pos[0] + up[1] * pos[1] + up[2] * pos[2]);
+  const tz = (fwd[0] * pos[0] + fwd[1] * pos[1] + fwd[2] * pos[2]);
+  const view = [right[0], up[0], -fwd[0], 0, right[1], up[1], -fwd[1], 0, right[2], up[2], -fwd[2], 0, tx, ty, tz, 1];
+  const proj = [f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (fa + n) / (n - fa), -1, 0, 0, 2 * fa * n / (n - fa), 0];
+  const vp = new Array(16).fill(0);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) vp[c * 4 + r] += proj[k * 4 + r] * view[c * 4 + k];
+  return { pos, fwd, right, up, vp, f };
 }
 
 // ---------------------------------------------------------------------------
-// WebGL
+// Wave, glare, sparkle and output settings (original design)
+// ---------------------------------------------------------------------------
+const WAVE = {
+  samplesAlong: 32, samplesAcross: 8,   // per patch (16 x 16 patches)
+  threads: 400,                         // thread periods across the sheet
+  fadeEnds: 0.10, fadeEdges: 0.12,      // fraction of the sheet over which it fades out
+  tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
+};
+const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
+const SPARKR = { size: 1.6, blur: 6.0, nearSoft: 1.2, farSoft: 2.2, focusNear: 2.6, camFade: [0.6, 1.4],
+  bright: 0.28, iri: 0.35, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10 };
+const DITHER = 0.85; // output levels, peak
+
+// ---------------------------------------------------------------------------
+// WebGL setup
 // ---------------------------------------------------------------------------
 const params = new URLSearchParams(location.search);
 const SCORE = params.get('mode') === 'score';
 const canvas = document.getElementById('c');
-const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false,
-  stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: SCORE,
-  powerPreference: 'high-performance' });
-if (!gl) { document.body.textContent = 'WebGL2 is not available.'; return; }
-const hasFloatRT = !!gl.getExtension('EXT_color_buffer_float') ||
-                   !!gl.getExtension('EXT_color_buffer_half_float');
+const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, stencil: false,
+  premultipliedAlpha: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+if (!gl) { document.body.textContent = 'WebGL2 is not available.'; window.XMBW = { ready: Promise.reject(new Error('no WebGL2')) }; return; }
+const floatRT = !!gl.getExtension('EXT_color_buffer_float') || !!gl.getExtension('EXT_color_buffer_half_float');
+gl.getExtension('EXT_float_blend');
 
 const VS_QUAD = `#version 300 es
 out vec2 vUv;
-void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2);
-  vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
+void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2); vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
 
-const NC = WAVE.C.length, NZ = WAVE.Z.length, NW = WAVE.W.length, NP = WAVE.P.length, NR = WAVE.R.length;
+// Background gradient for this frame, into a small target.
+const FS_BGGEN = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+uniform sampler2D uImg, uPrev; uniform float uTiles, uA, uB, uF, uNight, uWday, uEase, uHL;
+vec3 img(float idx, vec2 uv){
+  vec2 q = vec2(uv.x, (idx + clamp(uv.y, 0.5 / ${BG_H}.0, 1.0 - 0.5 / ${BG_H}.0)) / uTiles);
+  return texture(uImg, q).rgb;
+}
+void main(){
+  vec2 uv = vUv; // y = 0 at the bottom
+  vec2 iu = vec2(uv.x, 1.0 - uv.y); // image rows are stored top first
+  vec3 day = mix(img(uA * 2.0, iu), img(uB * 2.0, iu), uF);
+  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), uF);
+  // the day light drifts slowly from left to right through the day
+  float hx = mix(-0.1, 1.1, uWday);
+  float hl = exp(-pow((uv.x - hx) / 0.55, 2.0)) * (0.55 + 0.45 * uv.y);
+  day *= 1.0 + uHL * (hl - 0.35);
+  vec3 c = mix(day, night, uNight);
+  vec3 prev = texture(uPrev, vUv).rgb;
+  o = vec4(mix(prev, c, uEase), 1.0);
+}`;
+
+// Wave: bicubic B-spline surface over the control net, shaded by view angle.
 const VS_WAVE = `#version 300 es
 precision highp float;
-uniform vec4 uC[${NC}]; uniform vec4 uZ[${NZ}]; uniform vec4 uW[${NW}]; uniform vec4 uP[${NP}]; uniform vec4 uR[${NR}];
-uniform float uC0, uW0, uP0, uX0, uX1, uFade, uLineW, uLineI, uEdge, uEdgePow, uCamDist;
-uniform vec3 uThread; uniform float uThreadT;
-uniform vec3 uCamPos, uCamR, uCamU, uCamF; uniform float uFocal;
-uniform vec2 uRes; uniform int uSegs, uLines;
-out float vD; out float vI; out float vHalf;
-float hash(float n){ return fract(sin(n * 12.9898) * 43758.5453); }
-float gThrPh;
-vec3 sheet(float x, float v){
-  float c = uC0, z = 0.0, w = 1.0, p = uP0;
-  float r = uThread.x * sin(uThread.y * x + uThreadT + gThrPh);
-  for (int k = 0; k < ${NC}; k++) c += uC[k].x * sin(uC[k].y * x + uC[k].z);
-  for (int k = 0; k < ${NZ}; k++) z += uZ[k].x * sin(uZ[k].y * x + uZ[k].z);
-  for (int k = 0; k < ${NW}; k++) w += uW[k].x * sin(uW[k].y * x + uW[k].z);
-  for (int k = 0; k < ${NP}; k++) p += uP[k].x * sin(uP[k].y * x + uP[k].z);
-  for (int k = 0; k < ${NR}; k++) r += uR[k].x * sin(uR[k].y * x + uR[k].z + uR[k].w * v);
-  float s = (v - 0.5) * uW0 * w, sp = sin(p), cp = cos(p);
-  return vec3(x, c + s * sp + r * cp, z + s * cp - r * sp);
+uniform highp sampler2D uNet0, uNet1; uniform float uAlpha;
+uniform mat4 uVP; uniform int uSA, uSV; // total samples along / across
+out vec3 vP; out vec3 vN; out vec2 vST;
+vec3 cp(ivec2 ij){ return mix(texelFetch(uNet0, ij, 0).xyz, texelFetch(uNet1, ij, 0).xyz, uAlpha); }
+void basis(float t, out vec4 b, out vec4 d){
+  float t2 = t * t, t3 = t2 * t, u = 1.0 - t;
+  b = vec4(u * u * u, 3.0 * t3 - 6.0 * t2 + 4.0, -3.0 * t3 + 3.0 * t2 + 3.0 * t + 1.0, t3) / 6.0;
+  d = vec4(-u * u, 3.0 * t2 - 4.0 * t, -3.0 * t2 + 2.0 * t + 1.0, t2) * 0.5;
 }
-// camera space (right, up, depth)
-vec3 cam(vec3 q){ vec3 d = q - uCamPos; return vec3(dot(d, uCamR), dot(d, uCamU), dot(d, uCamF)); }
-vec2 toPx(vec3 c){ vec2 q = uFocal * c.xy / max(c.z, 0.05); return vec2(uRes.x * 0.5 + q.x * uRes.y, uRes.y * 0.5 + q.y * uRes.y); }
 void main(){
-  int line = gl_InstanceID;
-  int j = gl_VertexID >> 1;
-  float side = float(gl_VertexID & 1) * 2.0 - 1.0;
-  float fl = float(line);
-  float v = (fl + 0.5 + (hash(fl + 1.0) - 0.5) * 0.6) / float(uLines);
-  gThrPh = 6.2831853 * hash(fl * 3.71 + 11.0);
-  float x = mix(uX0, uX1, float(j) / float(uSegs));
-  float dx = (uX1 - uX0) / float(uSegs), dv = 0.01;
-  vec3 P0 = sheet(x, v), Pa = sheet(x - dx, v), Pb = sheet(x + dx, v), Pv = sheet(x, v + dv);
-  vec3 c0 = cam(P0);
-  vec2 p = toPx(c0);
-  vec2 t = toPx(cam(Pb)) - toPx(cam(Pa));
-  t = length(t) > 1e-6 ? normalize(t) : vec2(1.0, 0.0);
-  vec2 n = vec2(-t.y, t.x);
-  // perspective: thread width scales with inverse depth
-  float wd = uLineW * uCamDist / max(c0.z, 0.05);
-  float w = max(wd, 1.0);
-  float half_ = w * 0.5 + 1.0;
-  p += n * side * half_;
-  vD = side * half_; vHalf = w * 0.5;
-  // real angle between surface and line of sight
-  vec3 nrm = normalize(cross(Pb - Pa, Pv - P0));
-  float facing = abs(dot(nrm, normalize(P0 - uCamPos)));
-  float edge = 1.0 + uEdge * pow(1.0 - facing, uEdgePow);
-  float prof = smoothstep(0.0, 0.18, v) * smoothstep(1.0, 0.82, v);
-  float thr = 0.6 + 0.8 * hash(fl * 7.13 + 3.0);
-  float ends = smoothstep(uX0, uX0 + uFade, x) * smoothstep(uX1, uX1 - uFade, x);
-  vI = uLineI * prof * thr * edge * ends * (wd / w);
-  gl_Position = vec4(p / uRes * 2.0 - 1.0, 0.0, 1.0);
+  int i = gl_VertexID >> 1, row = gl_InstanceID + (gl_VertexID & 1);
+  float s = float(i) / float(uSA) * ${NN - 3}.0, t = float(row) / float(uSV) * ${NN - 3}.0;
+  int is_ = min(int(floor(s)), ${NN - 4}), it = min(int(floor(t)), ${NN - 4});
+  vec4 bs, ds, bt, dt; basis(s - float(is_), bs, ds); basis(t - float(it), bt, dt);
+  vec3 P = vec3(0.0), Ps = vec3(0.0), Pt = vec3(0.0);
+  for (int b = 0; b < 4; b++) {
+    vec3 rb = vec3(0.0), rd = vec3(0.0);
+    for (int a = 0; a < 4; a++) { vec3 c = cp(ivec2(is_ + a, it + b)); rb += bs[a] * c; rd += ds[a] * c; }
+    P += bt[b] * rb; Ps += bt[b] * rd; Pt += dt[b] * rb;
+  }
+  vP = P; vN = cross(Ps, Pt); vST = vec2(s, t) / ${NN - 3}.0;
+  gl_Position = uVP * vec4(P, 1.0);
 }`;
 const FS_WAVE = `#version 300 es
 precision highp float;
-in float vD; in float vI; in float vHalf;
-uniform vec3 uCol;
+in vec3 vP; in vec3 vN; in vec2 vST;
+uniform vec3 uCam; uniform float uBright, uSheenBase, uSheenPow, uFres, uFresPow, uEps, uThreads, uThreadAmp, uStreakAmp, uFadeEnds, uFadeEdges;
 out vec4 o;
-void main(){ float cov = clamp(vHalf + 0.5 - abs(vD), 0.0, 1.0); o = vec4(uCol * (vI * cov), 1.0); }`;
+float band(float x, float amp){ // a periodic profile, pre-filtered by its on-screen density
+  float w = fwidth(x);
+  return amp * cos(6.2831853 * x) * (1.0 - smoothstep(0.2, 0.6, w));
+}
+void main(){
+  vec3 V = normalize(uCam - vP);
+  float c = abs(dot(normalize(vN), V));
+  float g = sqrt(1.0 + uEps * uEps) * inversesqrt(c * c + uEps * uEps); // capped thin-sheet gain
+  float sheen = uSheenBase + (1.0 - uSheenBase) * pow(1.0 - c, uSheenPow);
+  float fres = uFres * pow(1.0 - c, uFresPow);
+  float t = vST.y;
+  float pat = 1.0 + band(t * uThreads, uThreadAmp)
+            + band(t * 37.0 + 0.3, uStreakAmp * 0.5) + band(t * 61.0 + 0.7, uStreakAmp * 0.3) + band(t * 97.0 + 0.1, uStreakAmp * 0.2);
+  float fade = smoothstep(0.0, uFadeEnds, vST.x) * smoothstep(1.0, 1.0 - uFadeEnds, vST.x)
+             * smoothstep(0.0, uFadeEdges, t) * smoothstep(1.0, 1.0 - uFadeEdges, t);
+  o = vec4(uBright * (sheen + fres) * g * pat * fade, 0.0, 0.0, 1.0);
+}`;
 
+// Composite: background (smooth upscale) plus wave light.
+const FS_COMP = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+uniform sampler2D uBg, uWave; uniform int uBgOn, uWaveOn;
+uniform vec2 uBgSize, uWaveTexel; uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uExposure;
+vec3 bicubicBg(vec2 uv){ // B-spline filtered upscale from four bilinear taps
+  vec2 st = uv * uBgSize - 0.5, i = floor(st), f = st - i;
+  vec2 f2 = f * f, f3 = f2 * f, u = 1.0 - f;
+  vec2 w0 = u * u * u / 6.0, w1 = (3.0 * f3 - 6.0 * f2 + 4.0) / 6.0, w2 = (-3.0 * f3 + 3.0 * f2 + 3.0 * f + 1.0) / 6.0, w3 = f3 / 6.0;
+  vec2 g0 = w0 + w1, g1 = w2 + w3, h0 = (w1 / g0) - 1.0 + i, h1 = (w3 / g1) + 1.0 + i;
+  vec2 p0 = (h0 + 0.5) / uBgSize, p1 = (h1 + 0.5) / uBgSize;
+  return g0.y * (g0.x * texture(uBg, vec2(p0.x, p0.y)).rgb + g1.x * texture(uBg, vec2(p1.x, p0.y)).rgb)
+       + g1.y * (g0.x * texture(uBg, vec2(p0.x, p1.y)).rgb + g1.x * texture(uBg, vec2(p1.x, p1.y)).rgb);
+}
+void main(){
+  vec3 col = vec3(0.0);
+  if (uBgOn == 1) col += bicubicBg(vUv) * mix(uTintBot, uTintTop, vUv.y);
+  if (uWaveOn == 1) {
+    vec2 d = uWaveTexel;
+    float w = 0.25 * (texture(uWave, vUv + vec2(-d.x, -d.y)).r + texture(uWave, vUv + vec2(d.x, -d.y)).r
+                    + texture(uWave, vUv + vec2(-d.x, d.y)).r + texture(uWave, vUv + vec2(d.x, d.y)).r);
+    col += w * mix(uTintL, uTintR, vUv.x);
+  }
+  o = vec4(col * uExposure, 1.0);
+}`;
+
+// Glare chain.
+const FS_BRIGHT = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+uniform sampler2D uT; uniform vec2 uTexel; uniform float uExposure, uWhite;
+void main(){
+  vec3 c = 0.25 * (texture(uT, vUv + uTexel * vec2(-1, -1)).rgb + texture(uT, vUv + uTexel * vec2(1, -1)).rgb
+                 + texture(uT, vUv + uTexel * vec2(-1, 1)).rgb + texture(uT, vUv + uTexel * vec2(1, 1)).rgb) * uExposure;
+  vec3 tone = c * (1.0 + c / (uWhite * uWhite)) / (1.0 + c); // soft curve with a white point
+  o = vec4(max(tone - vec3(0.5), vec3(0.0)) * 2.0, 1.0);    // keep only what exceeds it
+}`;
+const FS_DOWN = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o; uniform sampler2D uT; uniform vec2 uTexel;
+void main(){ o = vec4(0.25 * (texture(uT, vUv + uTexel * vec2(-1, -1)).rgb + texture(uT, vUv + uTexel * vec2(1, -1)).rgb
+                     + texture(uT, vUv + uTexel * vec2(-1, 1)).rgb + texture(uT, vUv + uTexel * vec2(1, 1)).rgb), 1.0); }`;
+const FS_BLUR = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o; uniform sampler2D uT; uniform vec2 uDir; uniform vec3 uSigma;
+void main(){
+  vec3 s = texture(uT, vUv).rgb, ws = vec3(1.0);
+  for (int i = 1; i <= 6; i++) {
+    float fi = float(i); vec3 w = exp(-fi * fi / (2.0 * uSigma * uSigma));
+    s += w * (texture(uT, vUv + uDir * fi).rgb + texture(uT, vUv - uDir * fi).rgb); ws += 2.0 * w;
+  }
+  o = vec4(s / ws, 1.0);
+}`;
+const FS_COMBINE = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o; uniform sampler2D uT, uCoarse; uniform float uRatio;
+void main(){ o = vec4(texture(uT, vUv).rgb + uRatio * texture(uCoarse, vUv).rgb, 1.0); }`;
+
+// Sparkles: camera-facing quads with depth of field and an iridescent tint.
 const VS_SPARK = `#version 300 es
 precision highp float;
-layout(location=0) in vec4 aA; // x, y, radius, intensity
-layout(location=1) in vec4 aB; // r, g, b, softness
-layout(location=2) in float aG; // glint
-uniform vec2 uRes; uniform float uScale; uniform float uExt;
-out vec2 vQ; out float vR; out float vI; out vec3 vC; out float vS; out float vG;
+layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
+layout(location=3) in float aOp; layout(location=4) in float aRnd;
+uniform mat4 uVP; uniform vec3 uCam, uCamFwd, uCamR, uCamU; uniform float uAlpha, uPxScale, uFocal, uSize, uBlur;
+uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uIri, uIriExp, uFlare;
+uniform float uGlint, uExt; uniform vec2 uRes;
+out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
+vec3 ramp(float x){ return 0.5 + 0.5 * cos(6.2831853 * (x + vec3(0.0, 0.33, 0.67))); }
 void main(){
+  vec3 P = mix(aP0, aP1, uAlpha);
+  vec3 d = P - uCam; float z = dot(d, uCamFwd);
+  float out_ = clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0) + clamp((z - uFocusFar) / uFarSoft, 0.0, 1.0);
+  out_ = min(out_, 1.5);
+  float sizePx = (uSize * (0.75 + 0.5 * aRnd) + uBlur * out_) * uPxScale;
+  float sharpPx = uSize * (0.75 + 0.5 * aRnd) * uPxScale;
+  float I = uBright * aOp * (sharpPx * sharpPx) / (sizePx * sizePx) * smoothstep(uCamFade0, uCamFade1, z);
+  // iridescent tint and flare from the sparkle's orientation
+  vec3 V = normalize(-d);
+  float a = pow(abs(dot(aF, V)), uIriExp);
+  vec3 L1 = normalize(vec3(0.4, 0.8, -0.45)), L2 = normalize(vec3(-0.7, 0.3, -0.6)), L3 = normalize(vec3(0.1, -0.5, -0.85));
+  float fl = pow(max(dot(aF, L1), 0.0), 24.0) + pow(max(dot(aF, L2), 0.0), 24.0) + pow(max(dot(aF, L3), 0.0), 24.0);
+  vC = mix(vec3(1.0), ramp(a + 0.15 * aRnd), uIri);
+  vI = I * (0.55 + uFlare * fl) * uGlint;
+  vSoft = clamp(out_, 0.0, 1.0);
+  float r = max(sizePx, 0.7) * uExt;
+  if (uExt > 1.5) vSoft = 1.0;
   vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)) * 2.0 - 1.0;
-  float r = aA.z * uScale;
-  float ra = max(r, 0.8);
-  float I = aA.w * (r * r) / (ra * ra);
-  float ext = ra * (aB.w > 0.5 ? 1.6 : uExt) + 1.5;
-  vec2 c = vec2(uRes.x * 0.5 + aA.x * uRes.y, uRes.y * 0.5 + aA.y * uRes.y);
-  vec2 p = c + corner * ext;
-  vQ = corner * ext; vR = ra; vI = I; vC = aB.rgb; vS = aB.w; vG = aG;
-  gl_Position = vec4(p / uRes * 2.0 - 1.0, 0.0, 1.0);
+  vec4 clip = uVP * vec4(P, 1.0);
+  if (z < 0.05) clip = vec4(2.0, 2.0, 2.0, 1.0);
+  clip.xy += corner * r / uRes * 2.0 * clip.w;
+  vQ = corner * r / max(sizePx, 0.7);
+  if (sizePx < 0.7) vI *= (sizePx * sizePx) / 0.49;
+  gl_Position = clip;
 }`;
 const FS_SPARK = `#version 300 es
 precision highp float;
-in vec2 vQ; in float vR; in float vI; in vec3 vC; in float vS; in float vG;
-uniform vec3 uCol;
+in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt;
 out vec4 o;
 void main(){
-  float r = length(vQ) / vR;
-  float sharp = exp(-r * r * 1.6);
-  float bokeh = smoothstep(1.05, 0.8, r) * (0.65 + 0.35 * r * r);
-  float a = mix(sharp, bokeh, vS);
-  vec2 q = abs(vQ) / vR;
-  float g = exp(-q.x * 0.7) * exp(-q.y * q.y * 6.0) + exp(-q.y * 0.7) * exp(-q.x * q.x * 6.0);
-  a += vG * g * (1.0 - vS);
-  o = vec4(uCol * vC * (vI * a), 1.0);
+  float r2 = dot(vQ, vQ);
+  float sharp = exp(-r2 * 2.2);
+  float soft = smoothstep(1.0, 0.55, sqrt(r2)) * 0.6 + exp(-r2 * 1.5) * 0.4;
+  float k = uExt > 1.5 ? exp(-r2 * 1.1 / (uExt * uExt / 4.0)) : mix(sharp, soft, vSoft);
+  o = vec4(vC * vI * k, 1.0);
 }`;
 
-const FS_DOWN = `#version 300 es
+// Final: average down to the output size, add glare and dither.
+const FS_FINAL = `#version 300 es
 precision highp float;
-in vec2 vUv; uniform sampler2D uT; uniform vec2 uTexel; uniform float uThr; uniform int uFirst;
-out vec4 o;
-void main(){
-  vec3 c = 0.25 * (texture(uT, vUv + uTexel * vec2(-1, -1)).rgb + texture(uT, vUv + uTexel * vec2(1, -1)).rgb
-                 + texture(uT, vUv + uTexel * vec2(-1, 1)).rgb + texture(uT, vUv + uTexel * vec2(1, 1)).rgb);
-  if (uFirst == 1) { float l = max(c.r, max(c.g, c.b)); float k = max(l - uThr, 0.0);
-    k = k * k / (k + uThr + 1e-4); c *= k / max(l, 1e-4); }
-  o = vec4(c, 1.0);
-}`;
-const FS_BLUR = `#version 300 es
-precision highp float;
-in vec2 vUv; uniform sampler2D uT; uniform vec2 uDir; uniform float uSigma; uniform int uTaps;
-out vec4 o;
-void main(){
-  vec3 s = texture(uT, vUv).rgb; float wsum = 1.0;
-  for (int i = 1; i <= 64; i++) { if (i > uTaps) break;
-    float w = exp(-float(i * i) / (2.0 * uSigma * uSigma));
-    s += w * (texture(uT, vUv + uDir * float(i)).rgb + texture(uT, vUv - uDir * float(i)).rgb);
-    wsum += 2.0 * w; }
-  o = vec4(s / wsum, 1.0);
-}`;
-const FS_COMP = `#version 300 es
-precision highp float;
-in vec2 vUv;
-uniform sampler2D uLum, uGlare, uNear;
-uniform int uBg, uLumOn, uGlareOn, uDither;
-uniform vec3 uTop, uMid, uBot; uniform float uMidY, uTilt, uBright, uSat, uGlareK, uNearK, uDitherAmp;
-uniform vec2 uRes; uniform float uFrame;
-out vec4 o;
+in vec2 vUv; out vec4 o;
+uniform sampler2D uC, uGlare; uniform vec2 uCTexel; uniform int uTaps, uGlareOn, uDither; uniform float uGlareK, uDitherAmp, uFrame;
 float h12(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 void main(){
-  vec3 col = vec3(0.0);
-  if (uBg == 1) {
-    float y = 1.0 - vUv.y; // 0 at top
-    vec3 g = y < uMidY ? mix(uTop, uMid, smoothstep(0.0, 1.0, y / uMidY))
-                       : mix(uMid, uBot, smoothstep(0.0, 1.0, (y - uMidY) / (1.0 - uMidY)));
-    g *= 1.0 + uTilt * (vUv.x - 0.5);
-    float l = dot(g, vec3(0.299, 0.587, 0.114));
-    col = mix(vec3(l), g, uSat) * uBright;
-  }
-  if (uLumOn == 1) col += texture(uLum, vUv).rgb;
-  if (uGlareOn == 1) col += uGlareK * texture(uGlare, vUv).rgb + uNearK * texture(uNear, vUv).rgb;
-  if (uDither == 1) {
-    vec2 p = floor(gl_FragCoord.xy) + uFrame * vec2(17.0, 31.0);
-    col += uDitherAmp / 255.0 * (h12(p) + h12(p + 71.7) - 1.0);
-  }
-  o = vec4(clamp(col, 0.0, 1.0), 1.0);
+  vec3 c = vec3(0.0);
+  float n = float(uTaps);
+  for (int j = 0; j < 4; j++) { if (j >= uTaps) break;
+    for (int i = 0; i < 4; i++) { if (i >= uTaps) break;
+      vec2 off = (vec2(float(i), float(j)) + 0.5) / n - 0.5;
+      c += texture(uC, vUv + off * uCTexel).rgb; } }
+  c /= n * n;
+  if (uGlareOn == 1) c += uGlareK * texture(uGlare, vUv).rgb;
+  if (uDither == 1) c += uDitherAmp / 255.0 * (h12(gl_FragCoord.xy + uFrame * vec2(37.0, 17.0)) * 2.0 - 1.0);
+  o = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 
 function compile(vs, fs) {
   const p = gl.createProgram();
   for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
-    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src);
-    gl.attachShader(p, s);
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); gl.attachShader(p, s);
   }
   gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    const logs = gl.getAttachedShaders(p).map(s => gl.getShaderInfoLog(s)).join('\n');
+    throw new Error('shader link failed: ' + gl.getProgramInfoLog(p) + '\n' + logs);
+  }
   const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
-  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i);
-    u[info.name.replace(/\[0\]$/, '')] = gl.getUniformLocation(p, info.name); }
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); u[info.name.replace(/\[0\]$/, '')] = gl.getUniformLocation(p, info.name); }
   return { p, u };
 }
-const P = {
-  wave: compile(VS_WAVE, FS_WAVE), spark: compile(VS_SPARK, FS_SPARK),
-  down: compile(VS_QUAD, FS_DOWN), blur: compile(VS_QUAD, FS_BLUR), comp: compile(VS_QUAD, FS_COMP),
+const PR = {
+  bgGen: compile(VS_QUAD, FS_BGGEN), wave: compile(VS_WAVE, FS_WAVE), comp: compile(VS_QUAD, FS_COMP),
+  bright: compile(VS_QUAD, FS_BRIGHT), down: compile(VS_QUAD, FS_DOWN), blur: compile(VS_QUAD, FS_BLUR),
+  combine: compile(VS_QUAD, FS_COMBINE), spark: compile(VS_SPARK, FS_SPARK), final: compile(VS_QUAD, FS_FINAL),
 };
-
 const emptyVao = gl.createVertexArray();
-const sparkVao = gl.createVertexArray();
-const sparkBuf = gl.createBuffer();
-const sparkData = new Float32Array(SPARK.slots * SPARK_STRIDE);
-gl.bindVertexArray(sparkVao);
-gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf);
-gl.bufferData(gl.ARRAY_BUFFER, sparkData.byteLength, gl.DYNAMIC_DRAW);
-const SB = SPARK_STRIDE * 4;
-gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 4, gl.FLOAT, false, SB, 0); gl.vertexAttribDivisor(0, 1);
-gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, SB, 16); gl.vertexAttribDivisor(1, 1);
-gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, SB, 32); gl.vertexAttribDivisor(2, 1);
-gl.bindVertexArray(null);
+function quad() { gl.bindVertexArray(emptyVao); gl.drawArrays(gl.TRIANGLES, 0, 3); }
 
-function makeTarget(w, h, float) {
-  const tex = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  if (float) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
-  else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const fb = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+function makeTex(w, h, internal, format, type, filter, data) {
+  const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, internal, w, h, 0, format, type, data || null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return tex;
+}
+function makeTarget(w, h, kind) { // kind: 'rgba16f' | 'r16f' | 'rgba8'
+  let tex;
+  if (kind === 'r16f' && floatRT) tex = makeTex(w, h, gl.R16F, gl.RED, gl.HALF_FLOAT, gl.LINEAR);
+  else if (kind !== 'rgba8' && floatRT) tex = makeTex(w, h, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR);
+  else tex = makeTex(w, h, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);
+  const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
   return { tex, fb, w, h };
 }
 function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); } }
+function bindTarget(t) { gl.bindFramebuffer(gl.FRAMEBUFFER, t ? t.fb : null); }
 
-let T = null; // render targets for current size
-function ensureTargets(w, h, needOut) {
-  if (T && T.w === w && T.h === h && (!needOut || T.out)) return;
-  if (T) { freeTarget(T.lum); freeTarget(T.lum2); freeTarget(T.out); T.chain.forEach(freeTarget);
-    freeTarget(T.blurTmp); freeTarget(T.nearTmp); freeTarget(T.nearOut); }
-  T = { w, h, lum: makeTarget(w, h, hasFloatRT), lum2: null, out: needOut ? makeTarget(w, h, false) : null, chain: [] };
-  let cw = w, ch = h;
-  while (ch > 200 || T.chain.length === 0) {
-    cw = Math.max(1, Math.ceil(cw / 2)); ch = Math.max(1, Math.ceil(ch / 2));
-    T.chain.push(makeTarget(cw, ch, hasFloatRT));
-  }
-  const last = T.chain[T.chain.length - 1];
-  T.blurTmp = makeTarget(last.w, last.h, hasFloatRT);
-  const near = T.chain[Math.min(1, T.chain.length - 1)];
-  T.near = near;
-  T.nearTmp = makeTarget(near.w, near.h, hasFloatRT); T.nearOut = makeTarget(near.w, near.h, hasFloatRT);
-}
-
-function setVec4Array(loc, arr) {
-  const f = new Float32Array(arr.length * 4);
-  arr.forEach((a, i) => f.set(a, i * 4)); gl.uniform4fv(loc, f);
-}
-
-// Draw luminous layers (wave and/or sparkles) into target.
-function drawLum(target, st, wave, spark) {
-  gl.bindFramebuffer(gl.FRAMEBUFFER, target.fb);
-  gl.viewport(0, 0, target.w, target.h);
-  gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
-  const scale = target.h / 1080;
-  if (wave) {
-    const pr = P.wave; gl.useProgram(pr.p); gl.bindVertexArray(emptyVao);
-    setVec4Array(pr.u.uC, st.wu.C); setVec4Array(pr.u.uZ, st.wu.Z); setVec4Array(pr.u.uW, st.wu.W);
-    setVec4Array(pr.u.uP, st.wu.P); setVec4Array(pr.u.uR, st.wu.R);
-    gl.uniform1f(pr.u.uC0, WAVE.c0); gl.uniform1f(pr.u.uW0, WAVE.w0); gl.uniform1f(pr.u.uP0, WAVE.p0);
-    gl.uniform1f(pr.u.uX0, WAVE.x0); gl.uniform1f(pr.u.uX1, WAVE.x1); gl.uniform1f(pr.u.uFade, WAVE.fade);
-    gl.uniform1f(pr.u.uLineW, WAVE.lineWidth * scale);
-    gl.uniform1f(pr.u.uLineI, WAVE.lineBright * st.sc.waveBright);
-    gl.uniform1f(pr.u.uEdge, WAVE.edgeBoost); gl.uniform1f(pr.u.uEdgePow, WAVE.edgePow);
-    gl.uniform3fv(pr.u.uCamPos, CAM.pos); gl.uniform3fv(pr.u.uCamR, CAM.right);
-    gl.uniform3fv(pr.u.uCamU, CAM.up); gl.uniform3fv(pr.u.uCamF, CAM.fwd);
-    gl.uniform1f(pr.u.uFocal, CAM.F); gl.uniform1f(pr.u.uCamDist, CAMERA.dist);
-    gl.uniform3fv(pr.u.uThread, WAVE.thread); gl.uniform1f(pr.u.uThreadT, st.thrPhase);
-    gl.uniform2f(pr.u.uRes, target.w, target.h);
-    gl.uniform1i(pr.u.uSegs, WAVE.segs); gl.uniform1i(pr.u.uLines, WAVE.lines);
-    gl.uniform3fv(pr.u.uCol, st.waveCol);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 2 * (WAVE.segs + 1), WAVE.lines);
-  }
-  if (spark && st.nSpark > 0) {
-    const pr = P.spark; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
-    gl.uniform2f(pr.u.uRes, target.w, target.h); gl.uniform1f(pr.u.uScale, scale);
-    gl.uniform1f(pr.u.uExt, 4.0);
-    const k = st.sc.sparkBright; gl.uniform3f(pr.u.uCol, k * st.sparkCol[0], k * st.sparkCol[1], k * st.sparkCol[2]);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSpark);
-  }
-  gl.disable(gl.BLEND);
-  gl.bindVertexArray(null);
-}
-function quad() { gl.bindVertexArray(emptyVao); gl.drawArrays(gl.TRIANGLES, 0, 3); }
-function drawGlare(src) {
-  const pd = P.down; gl.useProgram(pd.p);
-  let prev = src;
-  T.chain.forEach((dst, i) => {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb); gl.viewport(0, 0, dst.w, dst.h);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, prev.tex);
-    gl.uniform1i(pd.u.uT, 0); gl.uniform2f(pd.u.uTexel, 0.5 / prev.w, 0.5 / prev.h);
-    gl.uniform1f(pd.u.uThr, GLARE.threshold); gl.uniform1i(pd.u.uFirst, i === 0 ? 1 : 0);
-    quad(); prev = dst;
+// Background images: day and night for each month, stacked in one texture.
+function makeBackgroundImages() {
+  const tiles = 24, data = new Float32Array(BG_W * BG_H * tiles * 4);
+  const put = (tile, x, y, c) => { const o = ((tile * BG_H + y) * BG_W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 1; };
+  PALETTES.forEach((P, m) => {
+    for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
+      const u = (x + 0.5) / BG_W, v = (y + 0.5) / BG_H; // v = 0 at the top
+      const g = v * v * (3 - 2 * v) * 0.75 + v * 0.25;
+      const dx = (u - P.glowPos[0]) / P.glowSize, dy = (v - P.glowPos[1]) / (P.glowSize * 0.8);
+      const glow = Math.exp(-(dx * dx + dy * dy));
+      const tilt = 1 + P.tilt * (u - 0.5);
+      put(m * 2, x, y, [0, 1, 2].map(i => (P.top[i] + (P.bottom[i] - P.top[i]) * g + P.glow[i] * glow) * tilt));
+      // night: near-dark, a faint hint of the month's colour low on one side
+      const nx = (u - P.night[1]) / 0.7, ny = (1 - v) / 0.45;
+      const hint = Math.exp(-(nx * nx + ny * ny)) * 0.8 + 0.2 * v * v;
+      put(m * 2 + 1, x, y, [0, 1, 2].map(i => P.night[0][i] * hint));
+    }
   });
-  const last = prev, pb = P.blur; gl.useProgram(pb.p); gl.uniform1i(pb.u.uT, 0);
-  const blur = (src, tmp, dst, sigmaFrac) => {
-    const sigma = Math.max(0.5, sigmaFrac * src.h), taps = Math.min(64, Math.ceil(sigma * 3));
-    gl.uniform1f(pb.u.uSigma, sigma); gl.uniform1i(pb.u.uTaps, taps);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, tmp.fb); gl.viewport(0, 0, src.w, src.h);
-    gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform2f(pb.u.uDir, 1 / src.w, 0); quad();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
-    gl.bindTexture(gl.TEXTURE_2D, tmp.tex); gl.uniform2f(pb.u.uDir, 0, 1 / src.h); quad();
+  return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
+}
+const bgImages = makeBackgroundImages();
+
+// Control nets: two float textures (previous and current step).
+const netTex = [0, 1].map(() => makeTex(NN, NN, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST, null));
+const netUpload = new Float32Array(NN * NN * 4);
+function uploadNet(tex, net) {
+  for (let i = 0; i < NN * NN; i++) { netUpload[i * 4] = net[i * 3]; netUpload[i * 4 + 1] = net[i * 3 + 1]; netUpload[i * 4 + 2] = net[i * 3 + 2]; netUpload[i * 4 + 3] = 1; }
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, NN, NN, gl.RGBA, gl.FLOAT, netUpload);
+}
+
+// Sparkle instance buffer.
+const sparkVao = gl.createVertexArray(), sparkBuf = gl.createBuffer();
+gl.bindVertexArray(sparkVao); gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf);
+gl.bufferData(gl.ARRAY_BUFFER, 4096 * SPARK_STRIDE * 4, gl.DYNAMIC_DRAW);
+{
+  const B = SPARK_STRIDE * 4, layout = [[0, 3, 0], [1, 3, 12], [2, 3, 24], [3, 1, 36], [4, 1, 40]];
+  for (const [loc, n, off] of layout) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, n, gl.FLOAT, false, B, off); gl.vertexAttribDivisor(loc, 1); }
+}
+gl.bindVertexArray(null);
+
+// Render targets for a given render size.
+let RT = null;
+function ensureTargets(cw, ch, ow, oh, waveSS) {
+  const key = [cw, ch, ow, oh, waveSS].join('x');
+  if (RT && RT.key === key) return;
+  if (RT) { [RT.c, RT.wave, RT.bgA, RT.bgB, RT.out].forEach(freeTarget); RT.levels.forEach(l => { freeTarget(l.a); freeTarget(l.b); freeTarget(l.c); }); }
+  RT = { key, cw, ch, ow, oh, waveSS };
+  RT.c = makeTarget(cw, ch, 'rgba16f');
+  RT.wave = makeTarget(Math.round(cw * waveSS), Math.round(ch * waveSS), 'r16f');
+  RT.bgA = makeTarget(64, 36, 'rgba16f'); RT.bgB = makeTarget(64, 36, 'rgba16f'); RT.bgFresh = true;
+  RT.levels = [];
+  let lw = Math.max(1, Math.ceil(ow / 4)), lh = Math.max(1, Math.ceil(oh / 4));
+  while (RT.levels.length < 7) {
+    RT.levels.push({ a: makeTarget(lw, lh, 'rgba16f'), b: makeTarget(lw, lh, 'rgba16f'), c: makeTarget(lw, lh, 'rgba16f'), w: lw, h: lh });
+    if (lh <= 6) break;
+    lw = Math.max(1, Math.ceil(lw / 2)); lh = Math.max(1, Math.ceil(lh / 2));
+  }
+  RT.out = SCORE ? makeTarget(ow, oh, 'rgba8') : null;
+}
+
+// ---------------------------------------------------------------------------
+// Frame rendering
+// ---------------------------------------------------------------------------
+// st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease, sparkAlpha }
+function renderFrame(st, outTarget) {
+  const L = st.layers, sc = st.scene, m = sc.mood, cam = st.cam;
+  const { cw, ch, ow, oh } = RT;
+
+  // 1. background gradient (small), eased over the previous frame
+  {
+    const pr = PR.bgGen; gl.useProgram(pr.p);
+    const src = RT.bgA, dst = RT.bgB;
+    bindTarget(dst); gl.viewport(0, 0, dst.w, dst.h);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bgImages); gl.uniform1i(pr.u.uImg, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform1i(pr.u.uPrev, 1);
+    gl.uniform1f(pr.u.uTiles, 24); gl.uniform1f(pr.u.uA, sc.monA); gl.uniform1f(pr.u.uB, sc.monB);
+    gl.uniform1f(pr.u.uF, sc.monF); gl.uniform1f(pr.u.uNight, sc.night); gl.uniform1f(pr.u.uWday, sc.wday);
+    gl.uniform1f(pr.u.uHL, 0.12); gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
+    quad(); RT.bgFresh = false;
+    RT.bgA = dst; RT.bgB = src;
+  }
+  const bgT = RT.bgA;
+
+  // 2. wave intensity, supersampled, additive
+  if (L.wave || L.glare) {
+    uploadNet(netTex[0], st.net0); uploadNet(netTex[1], st.net1);
+    const pr = PR.wave; gl.useProgram(pr.p);
+    bindTarget(RT.wave); gl.viewport(0, 0, RT.wave.w, RT.wave.h);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, netTex[0]); gl.uniform1i(pr.u.uNet0, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, netTex[1]); gl.uniform1i(pr.u.uNet1, 1);
+    gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp);
+    const SA = 16 * WAVE.samplesAlong, SV = 16 * WAVE.samplesAcross;
+    gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV);
+    gl.uniform3fv(pr.u.uCam, cam.pos);
+    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uSheenBase, m.sheenBase); gl.uniform1f(pr.u.uSheenPow, m.sheenPow);
+    gl.uniform1f(pr.u.uFres, m.fresnel); gl.uniform1f(pr.u.uFresPow, m.fresnelPow); gl.uniform1f(pr.u.uEps, m.eps);
+    gl.uniform1f(pr.u.uThreads, WAVE.threads); gl.uniform1f(pr.u.uThreadAmp, m.threadAmp); gl.uniform1f(pr.u.uStreakAmp, m.streakAmp);
+    gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
+    gl.bindVertexArray(emptyVao);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 2 * (SA + 1), SV);
+    gl.disable(gl.BLEND);
+  }
+
+  // 3. composite background + wave into C (twice if the glare needs layers that are not shown)
+  const comp = (bgOn, waveOn) => {
+    const pr = PR.comp; gl.useProgram(pr.p);
+    bindTarget(RT.c); gl.viewport(0, 0, cw, ch);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bgT.tex); gl.uniform1i(pr.u.uBg, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, RT.wave.tex); gl.uniform1i(pr.u.uWave, 1);
+    gl.uniform1i(pr.u.uBgOn, bgOn ? 1 : 0); gl.uniform1i(pr.u.uWaveOn, waveOn ? 1 : 0);
+    gl.uniform2f(pr.u.uBgSize, bgT.w, bgT.h); gl.uniform2f(pr.u.uWaveTexel, 0.5 / cw, 0.5 / ch);
+    gl.uniform3fv(pr.u.uTintTop, BG_TINT.top); gl.uniform3fv(pr.u.uTintBot, BG_TINT.bottom);
+    gl.uniform3fv(pr.u.uTintL, WAVE.tintL); gl.uniform3fv(pr.u.uTintR, WAVE.tintR);
+    gl.uniform1f(pr.u.uExposure, 1.0);
+    quad();
   };
-  blur(T.near, T.nearTmp, T.nearOut, GLARE.nearSigma);
-  blur(last, T.blurTmp, last, GLARE.sigma);
-  return [last, T.nearOut];
-}
-
-function buildState(o) {
-  const sc = sceneParams(o.timeParts, o.theme);
-  const ws = getWaveState(o.seed);
-  const wu = waveUniforms(ws, o.t);
-  const pal = sc.pal;
-  const mid = [pal[3], pal[4], pal[5]];
-  const mx = Math.max(mid[0], mid[1], mid[2], 1e-3);
-  const warm = [1.0, 0.96, 0.90];
-  const waveCol = warm.map((w, i) => w * (1 - WAVE.tint) + (mid[i] / mx) * WAVE.tint);
-  const sparkCol = warm.map((w, i) => w * (1 - 0.5 * WAVE.tint) + (mid[i] / mx) * 0.5 * WAVE.tint);
-  let nSpark = 0;
-  if (o.needSpark) nSpark = sparkles(o.seed, getSlots(o.seed), ws, o.t, sparkData);
-  const thrPhase = (((o.t * WAVE.speed + ws.tOff) * WAVE.thread[2]) % TAU + TAU) % TAU;
-  return { sc, wu, waveCol, sparkCol, nSpark, thrPhase };
-}
-let wsCache = { seed: null }, slotCache = { seed: null };
-function getWaveState(seed) { if (wsCache.seed !== seed) wsCache = { seed, ws: makeWaveState(seed) }; return wsCache.ws; }
-function getSlots(seed) { if (slotCache.seed !== seed) slotCache = { seed, s: makeSparkSlots(seed) }; return slotCache.s; }
-
-function renderFrame(o, outFb) {
-  const L = o.layers;
-  const st = buildState({ ...o, needSpark: L.sparkles || L.glare });
-  if (st.nSpark) { gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, sparkData, 0, st.nSpark * SPARK_STRIDE); }
-  const lumOn = L.wave || L.sparkles;
-  if (lumOn) drawLum(T.lum, st, L.wave, L.sparkles);
   let glareT = null;
   if (L.glare) {
-    let src = T.lum;
-    if (!(L.wave && L.sparkles)) {
-      if (!T.lum2) T.lum2 = makeTarget(T.w, T.h, hasFloatRT);
-      drawLum(T.lum2, st, true, true); src = T.lum2;
-    }
-    glareT = drawGlare(src);
+    comp(true, true);
+    glareT = buildGlare(m);
   }
-  const pc = P.comp; gl.useProgram(pc.p);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, outFb); gl.viewport(0, 0, T.w, T.h);
-  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.lum.tex); gl.uniform1i(pc.u.uLum, 0);
-  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT[0].tex : T.lum.tex); gl.uniform1i(pc.u.uGlare, 1);
-  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT[1].tex : T.lum.tex); gl.uniform1i(pc.u.uNear, 2);
-  gl.activeTexture(gl.TEXTURE0);
-  const pal = st.sc.pal;
-  gl.uniform1i(pc.u.uBg, L.bg ? 1 : 0); gl.uniform1i(pc.u.uLumOn, lumOn ? 1 : 0);
-  gl.uniform1i(pc.u.uGlareOn, L.glare ? 1 : 0); gl.uniform1i(pc.u.uDither, L.dither ? 1 : 0);
-  gl.uniform3f(pc.u.uTop, pal[0], pal[1], pal[2]); gl.uniform3f(pc.u.uMid, pal[3], pal[4], pal[5]);
-  gl.uniform3f(pc.u.uBot, pal[6], pal[7], pal[8]); gl.uniform1f(pc.u.uMidY, pal[9]); gl.uniform1f(pc.u.uTilt, pal[10]);
-  gl.uniform1f(pc.u.uBright, st.sc.bgBright); gl.uniform1f(pc.u.uSat, st.sc.bgSat);
-  gl.uniform1f(pc.u.uGlareK, GLARE.strength * st.sc.glare); gl.uniform1f(pc.u.uNearK, GLARE.nearStrength * st.sc.glare); gl.uniform1f(pc.u.uDitherAmp, DITHER);
-  gl.uniform2f(pc.u.uRes, T.w, T.h); gl.uniform1f(pc.u.uFrame, (o.frameNo || 0) % 64);
-  quad();
+  if (!L.glare || !(L.bg && L.wave)) comp(L.bg, L.wave);
+
+  // 5. sparkles, then their glint pass, additively into C
+  if (L.sparkles && st.nSparks > 0) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, st.sparks, 0, st.nSparks * SPARK_STRIDE);
+    const pr = PR.spark; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
+    bindTarget(RT.c); gl.viewport(0, 0, cw, ch);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp); gl.uniform3fv(pr.u.uCam, cam.pos); gl.uniform3fv(pr.u.uCamFwd, cam.fwd);
+    gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniform1f(pr.u.uPxScale, ch / 1080);
+    gl.uniform1f(pr.u.uSize, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
+    gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
+    gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
+    gl.uniform1f(pr.u.uCamFade0, SPARKR.camFade[0]); gl.uniform1f(pr.u.uCamFade1, SPARKR.camFade[1]);
+    gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uIri, SPARKR.iri);
+    gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare);
+    gl.uniform2f(pr.u.uRes, cw, ch);
+    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.6);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
+    gl.uniform1f(pr.u.uGlint, SPARKR.glintBright * m.glint / 0.35); gl.uniform1f(pr.u.uExt, SPARKR.glintSize);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
+    gl.disable(gl.BLEND); gl.bindVertexArray(null);
+  }
+
+  // 6. average down to the output, add glare and dither
+  {
+    const pr = PR.final; gl.useProgram(pr.p);
+    bindTarget(outTarget); gl.viewport(0, 0, ow, oh);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, RT.c.tex); gl.uniform1i(pr.u.uC, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT.tex : RT.c.tex); gl.uniform1i(pr.u.uGlare, 1);
+    const k = cw / ow, taps = Math.max(1, Math.min(4, Math.ceil(k - 0.01)));
+    gl.uniform2f(pr.u.uCTexel, taps > 1 ? 1 / ow : 0, taps > 1 ? 1 / oh : 0); // footprint of one output pixel
+    gl.uniform1i(pr.u.uTaps, taps);
+    gl.uniform1i(pr.u.uGlareOn, glareT ? 1 : 0); gl.uniform1f(pr.u.uGlareK, glareT ? RT.glareScale : 0);
+    gl.uniform1i(pr.u.uDither, L.dither ? 1 : 0); gl.uniform1f(pr.u.uDitherAmp, DITHER);
+    gl.uniform1f(pr.u.uFrame, st.frameNo % 1024);
+    quad();
+  }
 }
 
+function buildGlare(m) {
+  const lv = RT.levels;
+  // bright-pass at quarter size from C (4 bilinear taps = a 4 x 4 box)
+  let pr = PR.bright; gl.useProgram(pr.p);
+  bindTarget(lv[0].a); gl.viewport(0, 0, lv[0].w, lv[0].h);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, RT.c.tex); gl.uniform1i(pr.u.uT, 0);
+  gl.uniform2f(pr.u.uTexel, 1 / RT.cw * (RT.cw / RT.ow), 1 / RT.ch * (RT.ch / RT.oh));
+  gl.uniform1f(pr.u.uExposure, m.exposure); gl.uniform1f(pr.u.uWhite, m.white);
+  quad();
+  // mip pyramid
+  pr = PR.down; gl.useProgram(pr.p); gl.uniform1i(pr.u.uT, 0);
+  for (let i = 1; i < lv.length; i++) {
+    bindTarget(lv[i].a); gl.viewport(0, 0, lv[i].w, lv[i].h);
+    gl.bindTexture(gl.TEXTURE_2D, lv[i - 1].a.tex); gl.uniform2f(pr.u.uTexel, 0.5 / lv[i - 1].w, 0.5 / lv[i - 1].h);
+    quad();
+  }
+  // separable blur per level, slightly different radius per channel
+  pr = PR.blur; gl.useProgram(pr.p); gl.uniform1i(pr.u.uT, 0);
+  const s = m.glareSigma; gl.uniform3f(pr.u.uSigma, s * 1.08, s, s * 0.93);
+  for (const l of lv) {
+    gl.viewport(0, 0, l.w, l.h);
+    bindTarget(l.b); gl.bindTexture(gl.TEXTURE_2D, l.a.tex); gl.uniform2f(pr.u.uDir, 1 / l.w, 0); quad();
+    bindTarget(l.c); gl.bindTexture(gl.TEXTURE_2D, l.b.tex); gl.uniform2f(pr.u.uDir, 0, 1 / l.h); quad();
+  }
+  // weighted sum, coarsest to finest (geometric weights)
+  pr = PR.combine; gl.useProgram(pr.p); gl.uniform1i(pr.u.uT, 0); gl.uniform1i(pr.u.uCoarse, 1);
+  let acc = lv[lv.length - 1].c, norm = 1, wsum = 1;
+  for (let i = lv.length - 2; i >= 0; i--) {
+    bindTarget(lv[i].b); gl.viewport(0, 0, lv[i].w, lv[i].h);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, lv[i].c.tex);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, acc.tex);
+    gl.uniform1f(pr.u.uRatio, m.glareRatio); quad();
+    acc = lv[i].b; norm = norm * m.glareRatio; wsum += norm;
+  }
+  gl.activeTexture(gl.TEXTURE0);
+  // the final pass scales by strength / (sum of weights)
+  RT.glareScale = m.glareStrength / wsum;
+  return acc;
+}
+
+// ---------------------------------------------------------------------------
+// Deterministic score mode
+// ---------------------------------------------------------------------------
 function parseLayers(s) {
   const all = { bg: true, wave: true, glare: true, sparkles: true, dither: true };
   if (s == null || s === '') return all;
@@ -683,93 +998,216 @@ function parseLayers(s) {
   for (const k of String(s).split(',')) { const t = k.trim(); if (t in L) L[t] = true; }
   return L;
 }
-
-// ---------------------------------------------------------------------------
-// Scoring interface
-// ---------------------------------------------------------------------------
-const urlOpts = {
-  time: params.get('time'), theme: params.get('theme'), seed: params.get('seed'),
-  frames: params.get('frames'), w: params.get('w'), h: params.get('h'), layers: params.get('layers'),
-};
+const urlOpts = { time: params.get('time'), theme: params.get('theme'), seed: params.get('seed'), frames: params.get('frames'),
+  w: params.get('w'), h: params.get('h'), layers: params.get('layers') };
 function resolveOpts(opts) {
   const g = k => (opts && opts[k] != null ? opts[k] : urlOpts[k]);
-  const timeParts = parseTime(g('time')) || nowParts();
-  const theme = Math.max(0, Math.min(12, parseInt(g('theme') ?? 0, 10) || 0));
-  const seed = parseInt(g('seed') ?? 1, 10) || 0;
-  const frames = Math.max(0, parseInt(g('frames') ?? 0, 10) || 0);
-  const w = Math.max(1, parseInt(g('w') ?? 1920, 10) || 1920);
-  const h = Math.max(1, parseInt(g('h') ?? 1080, 10) || 1080);
-  return { timeParts, theme, seed, frames, w, h, layers: parseLayers(g('layers')),
-           t: frames / 60, frameNo: frames };
+  return {
+    timeParts: parseTime(g('time')) || partsOf(new Date()),
+    theme: Math.max(0, Math.min(12, parseInt(g('theme') ?? 0, 10) || 0)),
+    seed: parseInt(g('seed') ?? 1, 10) || 0,
+    frames: Math.max(0, parseInt(g('frames') ?? 0, 10) || 0),
+    w: Math.max(1, parseInt(g('w') ?? 1920, 10) || 1920),
+    h: Math.max(1, parseInt(g('h') ?? 1080, 10) || 1080),
+    layers: parseLayers(g('layers')),
+  };
 }
+function simMoodParams(mood, cam) { return { envCross: mood.envCross, latScale: [mood.latX, mood.latY, mood.latZ], camFwd: cam.fwd }; }
+const sparkPack = new Float32Array(4096 * SPARK_STRIDE);
+let scoreSim = null; // { key, sim, frames }
 function render(opts) {
   const o = resolveOpts(opts);
-  ensureTargets(o.w, o.h, true);
-  renderFrame(o, T.out.fb);
+  const scene = sceneParams(o.timeParts, o.theme);
+  const cam = cameraFor(scene.mood.camPitch, o.w / o.h);
+  const key = [o.seed, o.theme, o.timeParts.join(','), o.w / o.h].join('|');
+  if (!scoreSim || scoreSim.key !== key || scoreSim.frames > o.frames) {
+    const sim = SIMM.createSim(o.seed);
+    sim.setMood(simMoodParams(scene.mood, cam));
+    sim.warm(sim.warmSteps);
+    scoreSim = { key, sim, frames: 0 };
+  }
+  while (scoreSim.frames < o.frames) { scoreSim.sim.step(); scoreSim.frames++; }
+  const sim = scoreSim.sim;
+  const n = sim.packSparks(sparkPack);
+  ensureTargets(o.w, o.h, o.w, o.h, 2);
+  RT.bgFresh = true;
+  renderFrame({ scene, cam, net0: sim.netCur, net1: sim.netCur, alpha: 1, sparks: sparkPack, nSparks: n,
+    layers: o.layers, frameNo: o.frames, ease: 1 }, RT.out);
   const px = new Uint8Array(o.w * o.h * 4);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, T.out.fb);
-  gl.readPixels(0, 0, o.w, o.h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  bindTarget(RT.out); gl.readPixels(0, 0, o.w, o.h, gl.RGBA, gl.UNSIGNED_BYTE, px);
   const data = new Uint8ClampedArray(o.w * o.h * 4), row = o.w * 4;
   for (let y = 0; y < o.h; y++) data.set(px.subarray((o.h - 1 - y) * row, (o.h - y) * row), y * row);
   for (let i = 3; i < data.length; i += 4) data[i] = 255;
-  if (SCORE) { // also show it on the canvas for convenience
-    canvas.width = o.w; canvas.height = o.h;
-    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, T.out.fb); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
-    gl.blitFramebuffer(0, 0, o.w, o.h, 0, 0, o.w, o.h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  }
+  bindTarget(null);
   return { width: o.w, height: o.h, data };
 }
-window.XMBW = { ready: Promise.resolve(), render,
-  _internals: { MONTHS, THEMES, MOOD, WAVE, SPARK, GLARE, CAMERA,
-    sparkles: t => sparkles(1, getSlots(1), getWaveState(1), t, sparkData),
-    sheetPosAt, project, getWaveState, CAM } };
 
-if (SCORE) { canvas.style.width = canvas.style.height = 'auto'; return; }
+window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, moodAt, nightWeight, sceneParams } };
+if (SCORE) { canvas.style.display = 'none'; return; }
 
 // ---------------------------------------------------------------------------
-// Normal mode
+// Normal mode: settings, panel, worker, draw loop
 // ---------------------------------------------------------------------------
-const panel = document.getElementById('panel');
-const pTheme = document.getElementById('pTheme');
-['auto (clock)', 'silver', 'yellow', 'light green', 'pink', 'green', 'lavender', 'teal', 'blue',
- 'purple', 'gold', 'brown', 'red'].forEach((n, i) => {
-  const op = document.createElement('option'); op.value = i; op.textContent = i + ' ' + n; pTheme.appendChild(op); });
-const state = {
-  theme: parseInt(params.get('theme') || '0', 10) || 0,
-  speed: params.has('speed') ? parseFloat(params.get('speed')) : 1,
-  scale: params.has('scale') ? parseFloat(params.get('scale')) : 1,
-  paused: params.get('pause') === '1',
-  fixedTime: parseTime(params.get('time')),
-  seed: params.has('seed') ? (parseInt(params.get('seed'), 10) || 0) : (Date.now() & 0x7fffffff),
+const STORE_KEY = 'xmb-waves-settings-v1';
+const DEFAULTS = { theme: 0, useFixed: false, fixedTime: '', speed: 1, scale: 0, fps: false,
+  layers: { bg: true, wave: true, glare: true, sparkles: true, dither: true } };
+function loadSettings() {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch (e) { s = {}; }
+  const o = { ...DEFAULTS, ...s, layers: { ...DEFAULTS.layers, ...(s.layers || {}) } };
+  // URL parameters override stored settings
+  if (params.has('theme')) o.theme = Math.max(0, Math.min(12, parseInt(params.get('theme'), 10) || 0));
+  if (params.has('time')) { o.useFixed = true; o.fixedTime = params.get('time'); }
+  if (params.has('speed')) o.speed = parseFloat(params.get('speed')) || 1;
+  if (params.has('scale')) o.scale = parseFloat(params.get('scale')) || 0;
+  if (params.has('fps')) o.fps = params.get('fps') === '1';
+  if (params.has('layers')) o.layers = parseLayers(params.get('layers'));
+  return o;
+}
+function saveSettings() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+const S = loadSettings();
+let paused = params.get('pause') === '1';
+
+// day clock: virtual time = anchor + (now - anchorReal) * speed
+let clockAnchor = null, clockReal = 0;
+function resetClock() {
+  const fixed = S.useFixed ? parseTime(S.fixedTime) : null;
+  clockAnchor = fixed ? new Date(fixed[0], fixed[1] - 1, fixed[2], fixed[3], fixed[4], Math.floor(fixed[5])).getTime() : Date.now();
+  clockReal = performance.now();
+}
+let clockFrozenAt = null;
+function clockNow(now) {
+  if (paused) { if (clockFrozenAt == null) clockFrozenAt = clockAnchor + (now - clockReal) * S.speed; return clockFrozenAt; }
+  if (clockFrozenAt != null) { clockAnchor = clockFrozenAt; clockReal = now; clockFrozenAt = null; }
+  return clockAnchor + (now - clockReal) * S.speed;
+}
+resetClock();
+
+// panel
+const $ = id => document.getElementById(id);
+const panel = $('panel'), fpsEl = $('fps');
+['auto (clock)', 'silver', 'yellow', 'light green', 'pink', 'green', 'lavender', 'teal', 'blue', 'purple', 'gold', 'brown', 'red']
+  .forEach((n, i) => { const op = document.createElement('option'); op.value = i; op.textContent = i + ' ' + n; $('pTheme').appendChild(op); });
+function syncPanel() {
+  $('pTheme').value = S.theme; $('pFixed').checked = S.useFixed; $('pTime').value = S.fixedTime || '';
+  $('pSpeed').value = String(S.speed);
+  $('pScale').value = S.scale; $('pScaleV').textContent = S.scale ? S.scale + 'x' : 'auto';
+  $('pFps').checked = S.fps; $('pPause').textContent = paused ? 'play' : 'pause'; $('pStep').disabled = !paused;
+  for (const k of Object.keys(S.layers)) $('pL_' + k).checked = S.layers[k];
+  fpsEl.style.display = S.fps ? 'block' : 'none';
+}
+$('pTheme').onchange = e => { S.theme = +e.target.value; saveSettings(); };
+$('pFixed').onchange = e => { S.useFixed = e.target.checked; if (S.useFixed && !S.fixedTime) S.fixedTime = toLocalInput(new Date()); syncPanel(); resetClock(); saveSettings(); };
+$('pTime').onchange = e => { S.fixedTime = e.target.value; resetClock(); saveSettings(); };
+$('pSpeed').onchange = e => { const now = performance.now(); clockAnchor = clockNow(now); clockReal = now; S.speed = +e.target.value; syncPanel(); saveSettings(); };
+$('pScale').oninput = e => { S.scale = +e.target.value; syncPanel(); saveSettings(); };
+$('pFps').onchange = e => { S.fps = e.target.checked; syncPanel(); saveSettings(); };
+$('pPause').onclick = () => { paused = !paused; worker.postMessage({ type: 'run', on: !paused && !document.hidden }); syncPanel(); };
+$('pStep').onclick = () => { if (paused) worker.postMessage({ type: 'step' }); };
+for (const k of Object.keys(DEFAULTS.layers)) $('pL_' + k).onchange = e => { S.layers[k] = e.target.checked; saveSettings(); };
+$('gear').onclick = () => { panel.classList.toggle('open'); };
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'p' || e.key === 'h') panel.classList.toggle('open');
+  if (e.key === ' ') $('pPause').onclick();
+  if (e.key === '.' ) $('pStep').onclick();
+});
+function toLocalInput(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+let gearTimer = 0;
+function pokeGear() { document.body.classList.add('active'); clearTimeout(gearTimer); gearTimer = setTimeout(() => document.body.classList.remove('active'), 2500); }
+window.addEventListener('pointermove', pokeGear); window.addEventListener('pointerdown', pokeGear);
+syncPanel();
+
+// worker
+function workerMain(SIMF) {
+  const M = SIMF(); let sim = null, running = false, last = 0, acc = 0; const spare = [];
+  const absNow = () => performance.timeOrigin + performance.now();
+  function send(alpha) {
+    const need = M.N * M.N * 6 + 4096 * M.SPARK_STRIDE;
+    let buf = spare.pop(); if (!buf || buf.byteLength < need * 4) buf = new ArrayBuffer(need * 4);
+    const f = new Float32Array(buf);
+    f.set(sim.netPrev, 0); f.set(sim.netCur, M.N * M.N * 3);
+    const n = sim.packSparks(f.subarray(M.N * M.N * 6));
+    postMessage({ buf, n, alpha, at: absNow() }, [buf]);
+  }
+  function loop() {
+    if (!running) return;
+    const now = performance.now();
+    acc += Math.min(0.25, (now - last) / 1000); last = now; // capped: no catch-up after a stall
+    let n = 0;
+    while (acc >= M.DT && n < 8) { sim.step(); acc -= M.DT; n++; }
+    if (n) send(acc / M.DT);
+    setTimeout(loop, 4);
+  }
+  onmessage = e => {
+    const d = e.data;
+    if (d.type === 'init') { sim = M.createSim(d.seed); sim.setMood(d.mood); sim.warm(sim.warmSteps); send(1); }
+    else if (d.type === 'mood') { if (sim) sim.setMood(d.mood); }
+    else if (d.type === 'run') { const was = running; running = d.on; if (running && !was) { last = performance.now(); acc = 0; loop(); } }
+    else if (d.type === 'step') { if (sim) { sim.step(); send(1); } }
+    else if (d.type === 'return') spare.push(d.buf);
+  };
+}
+const workerSrc = `${XMBW_SIM.toString()}\n(${workerMain.toString()})(XMBW_SIM);`;
+const worker = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' })));
+let latest = null;
+const NET3 = NN * NN * 3;
+worker.onmessage = e => {
+  if (latest) worker.postMessage({ type: 'return', buf: latest.buf }, [latest.buf]);
+  const d = e.data, f = new Float32Array(d.buf);
+  latest = { buf: d.buf, net0: f.subarray(0, NET3), net1: f.subarray(NET3, NET3 * 2), sparks: f.subarray(NET3 * 2), n: d.n, alpha: d.alpha, at: d.at };
 };
-pTheme.value = state.theme;
-document.getElementById('pSpeed').value = state.speed;
-document.getElementById('pScale').value = state.scale;
-document.getElementById('pPause').checked = state.paused;
-pTheme.onchange = e => { state.theme = +e.target.value; };
-document.getElementById('pSpeed').oninput = e => { state.speed = +e.target.value; };
-document.getElementById('pScale').oninput = e => { state.scale = +e.target.value; };
-document.getElementById('pPause').onchange = e => { state.paused = e.target.checked; };
-if (params.get('panel') === '1') panel.style.display = 'block';
-window.addEventListener('keydown', e => { if (e.key === 'p' || e.key === 'h')
-  panel.style.display = panel.style.display === 'block' ? 'none' : 'block'; });
-canvas.addEventListener('dblclick', () => { panel.style.display = panel.style.display === 'block' ? 'none' : 'block'; });
+const seed = params.has('seed') ? (parseInt(params.get('seed'), 10) || 0) : (Date.now() & 0x7fffffff);
+let lastMoodSent = '';
+function currentScene(now) {
+  const tp = partsOf(new Date(clockNow(now)));
+  const scene = sceneParams(tp, S.theme);
+  return scene;
+}
+{
+  const sc0 = currentScene(performance.now());
+  worker.postMessage({ type: 'init', seed, mood: simMoodParams(sc0.mood, cameraFor(sc0.mood.camPitch, 16 / 9)) });
+  worker.postMessage({ type: 'run', on: !paused });
+}
 
-let simT = 0, last = performance.now(), frame = 0;
-const allLayers = parseLayers(params.get('layers'));
+// screen wake lock
+let wakeLock = null;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator && !document.hidden && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) { wakeLock = null; }
+}
+keepAwake();
+window.addEventListener('pointerdown', keepAwake);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { worker.postMessage({ type: 'run', on: false }); }
+  else { worker.postMessage({ type: 'run', on: !paused }); keepAwake(); lastDraw = 0; requestAnimationFrame(tick); }
+});
+
+// draw loop (capped at 60 fps)
+let lastDraw = 0, frameNo = 0, fpsCount = 0, fpsT = performance.now();
 function tick(now) {
-  const dt = Math.min(0.25, Math.max(0, (now - last) / 1000)); last = now;
-  if (!state.paused) simT += dt * state.speed;
-  const dpr = window.devicePixelRatio || 1;
-  const w = Math.max(1, Math.round(canvas.clientWidth * dpr * state.scale));
-  const h = Math.max(1, Math.round(canvas.clientHeight * dpr * state.scale));
-  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-  ensureTargets(w, h, false);
-  let tp = state.fixedTime ? state.fixedTime.slice() : nowParts();
-  renderFrame({ timeParts: tp, theme: state.theme, seed: state.seed, t: simT,
-                layers: allLayers, frameNo: frame++ }, null);
+  if (document.hidden) return;
   requestAnimationFrame(tick);
+  if (now - lastDraw < 1000 / 60 - 1.5) return;
+  lastDraw = now;
+  if (!latest) return;
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  const ow = Math.max(1, Math.round(cssW * dpr)), oh = Math.max(1, Math.round(cssH * dpr));
+  const scale = S.scale > 0 ? S.scale : dpr;              // render pixels per CSS pixel
+  const cw = Math.max(1, Math.round(cssW * scale)), ch = Math.max(1, Math.round(cssH * scale));
+  if (canvas.width !== ow || canvas.height !== oh) { canvas.width = ow; canvas.height = oh; }
+  // supersample the wave unless the render is already larger than the screen
+  const waveSS = cw >= ow * 1.5 ? 1 : 2;
+  ensureTargets(cw, ch, ow, oh, waveSS);
+  const scene = currentScene(now);
+  const cam = cameraFor(scene.mood.camPitch, cw / ch);
+  const ms = JSON.stringify(simMoodParams(scene.mood, cam), (k, v) => typeof v === 'number' ? +v.toFixed(3) : v);
+  if (ms !== lastMoodSent) { worker.postMessage({ type: 'mood', mood: JSON.parse(ms) }); lastMoodSent = ms; }
+  const alpha = paused ? 1 : Math.min(1, latest.alpha + (performance.timeOrigin + now - latest.at) / 1000 / DT);
+  renderFrame({ scene, cam, net0: latest.net0, net1: latest.net1, alpha, sparks: latest.sparks, nSparks: latest.n,
+    layers: S.layers, frameNo: frameNo++, ease: 0.05 }, null);
+  fpsCount++;
+  if (now - fpsT > 500) { fpsEl.textContent = (fpsCount * 1000 / (now - fpsT)).toFixed(0) + ' fps · ' + cw + 'x' + ch; fpsCount = 0; fpsT = now; }
 }
 requestAnimationFrame(tick);
 })();
