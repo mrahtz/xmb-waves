@@ -15,7 +15,7 @@ function XMBW_SIM() {
     push: 0.10,                     // steady pull on the free end, along the length
     driveA: 0.035, driveW1: 0.58,   // driven end: height amplitude, angular frequency
     driveB: 0.060, driveW2: 0.37,   // driven end: depth amplitude, angular frequency
-    drivePhase1: 0.14, drivePhase2: 0.11, // phase change per row
+    drivePhase1: 0.18, drivePhase2: 0.13, // phase change per row
     driveEase: 0.02,                // easing of the driving clock towards sim time
     envLow: 0.22, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
     warm: 1500,                     // warm-up steps before frame 0
@@ -27,7 +27,7 @@ function XMBW_SIM() {
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 8.4, wid: 1.7, height: 6.5, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 8.4, wid: 1.9, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
