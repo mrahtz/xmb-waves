@@ -14,7 +14,7 @@ const TAU = Math.PI * 2;
 // Colours are display values (sRGB-encoded) in 0..1.
 // ---------------------------------------------------------------------------
 const PALETTES = [
-  /* 1 silver      */ { top: [0.50, 0.52, 0.56], bottom: [0.70, 0.71, 0.74], glow: [0.16, 0.16, 0.16], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.06, 0.065, 0.075], 0.35] },
+  /* 1 silver      */ { top: [0.45, 0.47, 0.51], bottom: [0.63, 0.64, 0.67], glow: [0.12, 0.12, 0.12], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.06, 0.065, 0.075], 0.35] },
   /* 2 yellow      */ { top: [0.56, 0.58, 0.22], mid: [0.42, 0.38, 0.11], bottom: [0.62, 0.58, 0.26], glow: [0.10, 0.10, 0.05], glowPos: [0.30, 0.0], glowSize: 0.55, tilt: -0.10, night: [[0.07, 0.08, 0.02], 0.55] },
   /* 3 light green */ { top: [0.38, 0.54, 0.14], bottom: [0.56, 0.70, 0.30], glow: [0.14, 0.18, 0.08], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.035, 0.08, 0.01], 0.35] },
   /* 4 pink        */ { top: [0.62, 0.30, 0.46], bottom: [0.80, 0.52, 0.66], glow: [0.18, 0.12, 0.14], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.09, 0.03, 0.06], 0.35] },
@@ -864,7 +864,7 @@ canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); worker.po
 canvas.addEventListener('webglcontextrestored', () => { location.reload(); }, false);
 
 // draw loop (capped at 60 fps)
-let lastDraw = 0, frameNo = 0, fpsCount = 0, fpsT = performance.now(), rafPending = false;
+let lastDraw = 0, frameNo = 0, fpsCount = 0, fpsT = performance.now(), rafPending = false, firstState = 0;
 function schedule() { if (!rafPending) { rafPending = true; requestAnimationFrame(tick); } }
 function tick(now) {
   rafPending = false;
@@ -891,6 +891,9 @@ function tick(now) {
     return;
   }
   const alpha = paused ? 1 : Math.min(1, latest.alpha + (performance.timeOrigin + now - latest.at) / 1000 / DT);
+  if (!firstState) firstState = now;
+  const fadeIn = Math.min(1, (now - firstState) / 1200); // the wave and sparkles fade in over the first second
+  if (fadeIn < 1) { scene.mood = { ...scene.mood, waveBright: scene.mood.waveBright * fadeIn, sparkBright: scene.mood.sparkBright * fadeIn, glareStrength: scene.mood.glareStrength * fadeIn }; }
   renderFrame({ scene, cam, net0: latest.net0, net1: latest.net1, alpha, sparks: latest.sparks, nSparks: latest.n,
     layers: S.layers, frameNo: frameNo++, ease: 0.05 }, null);
   fpsCount++;
