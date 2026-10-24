@@ -131,7 +131,7 @@ function cameraFor(pitchDeg, aspect) {
 // Wave, glare, sparkle and output settings (original design)
 // ---------------------------------------------------------------------------
 const WAVE = {
-  samplesAlong: 32, samplesAcross: 8,   // per patch (16 x 16 patches)
+  samplesAlong: 24, samplesAcross: 6,   // per patch (16 x 16 patches)
   threads: 400,                         // thread periods across the sheet
   fadeEnds: 0.10, fadeEdges: 0.12,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
@@ -836,14 +836,16 @@ keepAwake();
 window.addEventListener('pointerdown', keepAwake);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { worker.postMessage({ type: 'run', on: false }); }
-  else { worker.postMessage({ type: 'run', on: !paused }); keepAwake(); lastDraw = 0; requestAnimationFrame(tick); }
+  else { worker.postMessage({ type: 'run', on: !paused }); keepAwake(); lastDraw = 0; schedule(); }
 });
 
 // draw loop (capped at 60 fps)
-let lastDraw = 0, frameNo = 0, fpsCount = 0, fpsT = performance.now();
+let lastDraw = 0, frameNo = 0, fpsCount = 0, fpsT = performance.now(), rafPending = false;
+function schedule() { if (!rafPending) { rafPending = true; requestAnimationFrame(tick); } }
 function tick(now) {
+  rafPending = false;
   if (document.hidden) return;
-  requestAnimationFrame(tick);
+  schedule();
   if (now - lastDraw < 1000 / 60 - 1.5) return;
   lastDraw = now;
   const dpr = window.devicePixelRatio || 1;
@@ -870,5 +872,5 @@ function tick(now) {
   fpsCount++;
   if (now - fpsT > 500) { fpsEl.textContent = (fpsCount * 1000 / (now - fpsT)).toFixed(0) + ' fps · ' + cw + 'x' + ch; fpsCount = 0; fpsT = now; }
 }
-requestAnimationFrame(tick);
+schedule();
 })();
