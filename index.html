@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>xmb-waves</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #panel { position: fixed; left: 8px; bottom: 8px; font: 12px/1.4 system-ui, sans-serif;
+    color: #fff; background: rgba(0,0,0,.45); padding: 6px 8px; border-radius: 6px; display: none; }
+  #panel label { display: block; }
+  #panel input, #panel select { font: inherit; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <label>theme <select id="pTheme"></select></label>
+  <label>time speed <input id="pSpeed" type="range" min="0" max="3" step="0.05" value="1"></label>
+  <label>render scale <input id="pScale" type="range" min="0.25" max="2" step="0.05" value="1"></label>
+  <label><input id="pPause" type="checkbox"> pause</label>
+  <div id="pInfo"></div>
+</div>
+<script>
+'use strict';
+(function () {
+
+// ---------------------------------------------------------------------------
+// Parameters (all values are original design choices, tuned against scores)
+// ---------------------------------------------------------------------------
+
+// Background palettes: [top rgb, mid rgb, bottom rgb, midY, tiltX]
+// Colours are display (sRGB-encoded) values in 0..1.
+const MONTHS = [
+  /* 1 */ [[0.55, 0.57, 0.60], [0.68, 0.70, 0.73], [0.82, 0.83, 0.85], 0.5, 0.10],
+  /* 2 */ [[0.62, 0.55, 0.10], [0.74, 0.68, 0.22], [0.85, 0.80, 0.35], 0.5, 0.10],
+  /* 3 */ [[0.45, 0.62, 0.20], [0.58, 0.74, 0.32], [0.72, 0.85, 0.45], 0.5, 0.10],
+  /* 4 */ [[0.75, 0.35, 0.55], [0.84, 0.50, 0.66], [0.92, 0.65, 0.78], 0.5, 0.10],
+  /* 5 */ [[0.10, 0.45, 0.12], [0.22, 0.56, 0.21], [0.35, 0.68, 0.30], 0.5, 0.10],
+  /* 6 */ [[0.50, 0.40, 0.72], [0.62, 0.54, 0.80], [0.75, 0.68, 0.88], 0.5, 0.10],
+  /* 7 */ [[0.05, 0.45, 0.48], [0.17, 0.57, 0.59], [0.30, 0.70, 0.70], 0.5, 0.10],
+  /* 8 */ [[0.08, 0.25, 0.62], [0.21, 0.40, 0.73], [0.35, 0.55, 0.85], 0.5, 0.10],
+  /* 9 */ [[0.38, 0.12, 0.55], [0.49, 0.25, 0.65], [0.60, 0.38, 0.75], 0.5, 0.10],
+  /*10 */ [[0.62, 0.45, 0.10], [0.74, 0.58, 0.22], [0.85, 0.70, 0.35], 0.5, 0.10],
+  /*11 */ [[0.40, 0.25, 0.12], [0.52, 0.36, 0.21], [0.65, 0.48, 0.30], 0.5, 0.10],
+  /*12 */ [[0.60, 0.08, 0.08], [0.72, 0.21, 0.19], [0.85, 0.35, 0.30], 0.5, 0.10],
+];
+const THEMES = MONTHS.map(p => JSON.parse(JSON.stringify(p)));
+
+// Moods: night, dawn, day, dusk. Centre hour, and per-mood factors.
+const MOOD_CENTRE = [0, 6, 12, 18];
+const MOOD_HOLD = 1.5, MOOD_RAMP = 3.0; // hours
+// [bgBright, bgSat, waveBright, glare, sparkleBright]
+const MOOD = [
+  [0.45, 0.60, 0.55, 0.40, 0.60],
+  [0.80, 0.90, 0.85, 0.80, 0.85],
+  [1.00, 1.00, 1.00, 1.00, 1.00],
+  [0.75, 0.90, 0.85, 0.80, 0.85],
+];
+const THEME_MOOD = [0, 0, 1, 0]; // fixed themes look like daytime
+
+// Wave shape. Coordinates are in screen-height units, origin at screen centre, Y up.
+// Each component: [amplitude, spatial frequency, temporal frequency (rad/s),
+//                  amplitude-modulation depth, modulation frequency (rad/s)]
+const WAVE = {
+  x0: -1.35, x1: 1.35,
+  c0: -0.05,
+  C: [[0.060, 1.30, 0.110, 0.35, 0.031], [0.035, 2.70, -0.170, 0.40, 0.047],
+      [0.020, 4.10, 0.230, 0.45, 0.059], [0.012, 6.30, -0.310, 0.50, 0.073]],
+  w0: 0.14,
+  W: [[0.30, 1.10, 0.070, 0.30, 0.023], [0.20, 2.30, -0.130, 0.40, 0.041],
+      [0.10, 3.70, 0.190, 0.40, 0.053]],
+  p0: 0.6,
+  P: [[1.00, 1.70, 0.090, 0.30, 0.027], [0.60, 3.10, -0.150, 0.40, 0.039],
+      [0.30, 0.80, 0.050, 0.30, 0.017]],
+  // ripples: [amp, freq, omega, modDepth, modFreq, phase per unit v]
+  R: [[0.008, 5.0, 0.60, 0.40, 0.067, 2.0], [0.005, 9.0, -0.90, 0.40, 0.083, 3.5],
+      [0.004, 13.0, 1.30, 0.40, 0.091, 5.0], [0.003, 3.3, -0.45, 0.40, 0.037, 1.2]],
+  lines: 48,
+  segs: 384,
+  lineWidth: 1.1,     // px at 1080 lines
+  lineBright: 0.10,   // per-line peak
+  edgeBoost: 0.6,
+  tint: 0.25,         // how much the palette tints the wave
+};
+
+const SPARK = {
+  slots: 420,
+  periodMin: 5, periodMax: 12,  // s
+  lifeMin: 0.55, lifeMax: 0.95, // fraction of period
+  fadeIn: 0.8, fadeOut: 1.6,    // s
+  follow: 1.5,                  // s: time constant of following the wave after birth
+  nearSigma: 0.025, farSigma: 0.14, farFrac: 0.3,
+  drift: 0.012,                 // screen heights per second
+  wobble: 0.01,
+  sharpR: [1.0, 2.4],           // px at 1080
+  bokehR: [3.5, 9.0],
+  bokehFrac: 0.25,
+  sharpI: [0.35, 1.0],
+  bokehI: [0.08, 0.22],
+  twinkleFrac: 0.3,
+  glint: 0.25,
+};
+
+const GLARE = { sigma: 0.035, threshold: 0.15, strength: 0.6 };
+const DITHER = 1.0; // in 1/255 units, peak-to-peak/2
+
+// ---------------------------------------------------------------------------
+// Seeded randomness
+// ---------------------------------------------------------------------------
+function hash32(a) {
+  a |= 0; a = (a ^ 61) ^ (a >>> 16); a = Math.imul(a, 9); a ^= a >>> 4;
+  a = Math.imul(a, 0x27d4eb2d); a ^= a >>> 15; return a >>> 0;
+}
+function hashN(...xs) { let h = 0x9e3779b9; for (const x of xs) h = hash32(h ^ hash32(x | 0)); return h; }
+function rnd(...xs) { return hashN(...xs) / 4294967296; }
+function mulberry(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0; let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Wave evaluation (the same formula is used in the vertex shader)
+// ---------------------------------------------------------------------------
+const TAU = Math.PI * 2;
+function makeWaveState(seed) {
+  const r = mulberry(hashN(seed, 7771));
+  const ph = g => g.map(() => [r() * TAU, r() * TAU]);
+  return { tOff: r() * 5000, C: ph(WAVE.C), W: ph(WAVE.W), P: ph(WAVE.P), R: ph(WAVE.R) };
+}
+// Per-component [amp, freq, phase(, vmul)] at time t (double precision phases).
+function waveUniforms(ws, t) {
+  t += ws.tOff;
+  const f = (comps, phs, n) => comps.map((c, k) => {
+    const a = c[0] * (1 + c[3] * Math.sin(c[4] * t + phs[k][1]));
+    const p = ((c[2] * t + phs[k][0]) % TAU + TAU) % TAU;
+    return [a, c[1], p, n ? c[5] : 0];
+  });
+  return { C: f(WAVE.C, ws.C), W: f(WAVE.W, ws.W), P: f(WAVE.P, ws.P), R: f(WAVE.R, ws.R, 1) };
+}
+function waveY(u, x, v) {
+  let c = WAVE.c0, w = 1, p = WAVE.p0, rr = 0;
+  for (const k of u.C) c += k[0] * Math.sin(k[1] * x + k[2]);
+  for (const k of u.W) w += k[0] * Math.sin(k[1] * x + k[2]);
+  for (const k of u.P) p += k[0] * Math.sin(k[1] * x + k[2]);
+  for (const k of u.R) rr += k[0] * Math.sin(k[1] * x + k[2] + k[3] * v);
+  return c + (v - 0.5) * WAVE.w0 * w * Math.cos(p) + rr;
+}
+
+// ---------------------------------------------------------------------------
+// Time of day / palette
+// ---------------------------------------------------------------------------
+function moodWeights(hour) {
+  const w = MOOD_CENTRE.map(c => {
+    let d = Math.abs(hour - c) % 24; if (d > 12) d = 24 - d;
+    const s = Math.min(Math.max((d - MOOD_HOLD) / MOOD_RAMP, 0), 1);
+    return 1 - s * s * (3 - 2 * s);
+  });
+  const sum = w.reduce((a, b) => a + b, 0);
+  return w.map(x => x / sum);
+}
+function flat(p) { return [...p[0], ...p[1], ...p[2], p[3], p[4]]; }
+function lerpArr(a, b, t) { return a.map((x, i) => x + (b[i] - x) * t); }
+function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+// Palette (flat array) for a date; blends into neighbours only near month boundaries.
+function monthPalette(y, mon, day, hour) {
+  const dim = daysInMonth(y, mon);
+  const pos = day - 1 + hour / 24; // days since start of month
+  const W = 3; // half-width of the blend window, days
+  let a = mon, b = mon, t = 0;
+  if (pos < W) { b = mon === 1 ? 12 : mon - 1; t = 0.5 * (1 - pos / W); }
+  else if (pos > dim - W) { b = mon === 12 ? 1 : mon + 1; t = 0.5 * (1 - (dim - pos) / W); }
+  t = t * t * (3 - 2 * t) ;
+  return lerpArr(flat(MONTHS[a - 1]), flat(MONTHS[b - 1]), t);
+}
+function sceneParams(timeParts, theme) {
+  const [y, mon, day, hh, mm, ss] = timeParts;
+  const hour = hh + mm / 60 + ss / 3600;
+  let pal, mw;
+  if (theme >= 1 && theme <= 12) { pal = flat(THEMES[theme - 1]); mw = THEME_MOOD; }
+  else { pal = monthPalette(y, mon, day, hour); mw = moodWeights(hour); }
+  const m = [0, 0, 0, 0, 0];
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 5; j++) m[j] += mw[i] * MOOD[i][j];
+  return { pal, bgBright: m[0], bgSat: m[1], waveBright: m[2], glare: m[3], sparkBright: m[4] };
+}
+function parseTime(s) {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2})(?::(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?)?)?/.exec(s || '');
+  if (!m) return null;
+  return [+m[1], +m[2], +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)];
+}
+function nowParts() {
+  const d = new Date();
+  return [d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes(),
+          d.getSeconds() + d.getMilliseconds() / 1000];
+}
+
+// ---------------------------------------------------------------------------
+// Sparkles (analytic in time: each slot runs a seeded sequence of lives)
+// ---------------------------------------------------------------------------
+const SPARK_STRIDE = 9; // x, y (height units), radius (px@1080), intensity, r, g, b, softness, glint
+function makeSparkSlots(seed) {
+  const slots = [];
+  for (let i = 0; i < SPARK.slots; i++) {
+    const r = mulberry(hashN(seed, 911, i));
+    const period = SPARK.periodMin + (SPARK.periodMax - SPARK.periodMin) * r();
+    slots.push({ period, offset: r() * period * 50 });
+  }
+  return slots;
+}
+function gauss(r) { return Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
+function sparkles(seed, slots, ws, t, out) {
+  let n = 0;
+  const wsT = new Map();
+  const uAt = tau => { // cache wave uniforms per distinct time
+    let u = wsT.get(tau); if (!u) { u = waveUniforms(ws, tau); wsT.set(tau, u); } return u;
+  };
+  for (let i = 0; i < slots.length; i++) {
+    const s = slots[i];
+    const T = t + s.offset;
+    const cyc = Math.floor(T / s.period);
+    const age = T - cyc * s.period;
+    const r = mulberry(hashN(seed, 313, i, cyc));
+    const life = s.period * (SPARK.lifeMin + (SPARK.lifeMax - SPARK.lifeMin) * r());
+    if (age > life) continue;
+    const x0 = (r() * 2 - 1) * 1.0;
+    const v0 = r();
+    const far = r() < SPARK.farFrac;
+    const dy0 = gauss(r) * (far ? SPARK.farSigma : SPARK.nearSigma);
+    const ang = r() * TAU, sp = SPARK.drift * (0.3 + r());
+    const vx = Math.cos(ang) * sp, vy = Math.sin(ang) * sp * 0.6;
+    const wf = 0.5 + r() * 1.5, wp = r() * TAU, wa = SPARK.wobble * r();
+    const bokeh = r() < SPARK.bokehFrac;
+    const rad = bokeh ? SPARK.bokehR[0] + (SPARK.bokehR[1] - SPARK.bokehR[0]) * r()
+                      : SPARK.sharpR[0] + (SPARK.sharpR[1] - SPARK.sharpR[0]) * r();
+    let inten = bokeh ? SPARK.bokehI[0] + (SPARK.bokehI[1] - SPARK.bokehI[0]) * r()
+                      : SPARK.sharpI[0] + (SPARK.sharpI[1] - SPARK.sharpI[0]) * r();
+    const tw = r() < SPARK.twinkleFrac, twf = 3 + r() * 6, twp = r() * TAU;
+    const hp = r() * TAU, hf = 0.5 + r();
+    // Follow the sheet point for a while, then let go (time warp).
+    const tb = t - age;
+    const tf = SPARK.follow * (0.5 + r());
+    const tw2 = tf * (1 - Math.exp(-age / tf));
+    // quantise the sheet-sample time to the birth time grid for caching only when exact
+    const u = waveUniforms(ws, tb + tw2);
+    const x = x0 + vx * age + wa * (Math.sin(wf * age + wp) - Math.sin(wp));
+    const y = waveY(u, x0, v0) + dy0 + vy * age + wa * (Math.cos(wf * 1.3 * age + wp) - Math.cos(wp));
+    const fade = Math.min(1, age / SPARK.fadeIn) * Math.min(1, (life - age) / SPARK.fadeOut);
+    const f2 = fade * fade * (3 - 2 * fade);
+    if (tw) inten *= 0.55 + 0.45 * Math.sin(twf * T + twp);
+    inten *= f2;
+    if (inten <= 0.001) continue;
+    const hh = hf * T + hp;
+    const o = n * SPARK_STRIDE;
+    out[o] = x; out[o + 1] = y; out[o + 2] = rad; out[o + 3] = inten;
+    out[o + 4] = 1 + 0.10 * Math.sin(hh); out[o + 5] = 1 + 0.10 * Math.sin(hh + 2.1);
+    out[o + 6] = 1 + 0.10 * Math.sin(hh + 4.2);
+    out[o + 7] = bokeh ? 1 : 0; out[o + 8] = bokeh ? 0.3 * SPARK.glint : SPARK.glint;
+    n++;
+  }
+  return n;
+}
+
+// ---------------------------------------------------------------------------
+// WebGL
+// ---------------------------------------------------------------------------
+const params = new URLSearchParams(location.search);
+const SCORE = params.get('mode') === 'score';
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false,
+  stencil: false, premultipliedAlpha: false, preserveDrawingBuffer: SCORE,
+  powerPreference: 'high-performance' });
+if (!gl) { document.body.textContent = 'WebGL2 is not available.'; return; }
+const hasFloatRT = !!gl.getExtension('EXT_color_buffer_float') ||
+                   !!gl.getExtension('EXT_color_buffer_half_float');
+
+const VS_QUAD = `#version 300 es
+out vec2 vUv;
+void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2);
+  vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
+
+const NC = WAVE.C.length, NW = WAVE.W.length, NP = WAVE.P.length, NR = WAVE.R.length;
+const VS_WAVE = `#version 300 es
+precision highp float;
+uniform vec4 uC[${NC}]; uniform vec4 uW[${NW}]; uniform vec4 uP[${NP}]; uniform vec4 uR[${NR}];
+uniform float uC0, uW0, uP0, uX0, uX1, uLineW, uLineI, uEdge;
+uniform vec2 uRes; uniform int uSegs, uLines;
+out float vD; out float vI; out float vHalf;
+float hash(float n){ return fract(sin(n * 12.9898) * 43758.5453); }
+vec3 sheet(float x, float v){
+  float c = uC0, w = 1.0, p = uP0, r = 0.0;
+  for (int k = 0; k < ${NC}; k++) c += uC[k].x * sin(uC[k].y * x + uC[k].z);
+  for (int k = 0; k < ${NW}; k++) w += uW[k].x * sin(uW[k].y * x + uW[k].z);
+  for (int k = 0; k < ${NP}; k++) p += uP[k].x * sin(uP[k].y * x + uP[k].z);
+  for (int k = 0; k < ${NR}; k++) r += uR[k].x * sin(uR[k].y * x + uR[k].z + uR[k].w * v);
+  float cp = cos(p);
+  return vec3(x, c + (v - 0.5) * uW0 * w * cp + r, cp);
+}
+vec2 toPx(vec2 q){ return vec2(uRes.x * 0.5 + q.x * uRes.y, uRes.y * 0.5 + q.y * uRes.y); }
+void main(){
+  int line = gl_InstanceID;
+  int j = gl_VertexID >> 1;
+  float side = float(gl_VertexID & 1) * 2.0 - 1.0;
+  float fl = float(line);
+  float v = (fl + 0.5 + (hash(fl + 1.0) - 0.5) * 0.6) / float(uLines);
+  float x = mix(uX0, uX1, float(j) / float(uSegs));
+  float dx = (uX1 - uX0) / float(uSegs);
+  vec3 s0 = sheet(x, v);
+  vec2 p = toPx(s0.xy);
+  vec2 pa = toPx(sheet(x - dx, v).xy), pb = toPx(sheet(x + dx, v).xy);
+  vec2 t = normalize(pb - pa);
+  vec2 n = vec2(-t.y, t.x);
+  float w = max(uLineW, 1.0);
+  float half_ = w * 0.5 + 1.0;
+  p += n * side * half_;
+  vD = side * half_; vHalf = w * 0.5;
+  // intensity: across-sheet profile, per-thread variation, edge-on boost, end fades
+  float prof = smoothstep(0.0, 0.18, v) * smoothstep(1.0, 0.82, v);
+  float thr = 0.6 + 0.8 * hash(fl * 7.13 + 3.0);
+  float edge = 1.0 + uEdge * (1.0 - abs(s0.z));
+  float ends = smoothstep(uX0, uX0 + 0.3, x) * smoothstep(uX1, uX1 - 0.3, x);
+  vI = uLineI * prof * thr * edge * ends * (uLineW / w);
+  gl_Position = vec4(p / uRes * 2.0 - 1.0, 0.0, 1.0);
+}`;
+const FS_WAVE = `#version 300 es
+precision highp float;
+in float vD; in float vI; in float vHalf;
+uniform vec3 uCol;
+out vec4 o;
+void main(){ float cov = clamp(vHalf + 0.5 - abs(vD), 0.0, 1.0); o = vec4(uCol * (vI * cov), 1.0); }`;
+
+const VS_SPARK = `#version 300 es
+precision highp float;
+layout(location=0) in vec4 aA; // x, y, radius, intensity
+layout(location=1) in vec4 aB; // r, g, b, softness
+layout(location=2) in float aG; // glint
+uniform vec2 uRes; uniform float uScale; uniform float uExt;
+out vec2 vQ; out float vR; out float vI; out vec3 vC; out float vS; out float vG;
+void main(){
+  vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)) * 2.0 - 1.0;
+  float r = aA.z * uScale;
+  float ra = max(r, 0.8);
+  float I = aA.w * (r * r) / (ra * ra);
+  float ext = ra * (aB.w > 0.5 ? 1.6 : uExt) + 1.5;
+  vec2 c = vec2(uRes.x * 0.5 + aA.x * uRes.y, uRes.y * 0.5 + aA.y * uRes.y);
+  vec2 p = c + corner * ext;
+  vQ = corner * ext; vR = ra; vI = I; vC = aB.rgb; vS = aB.w; vG = aG;
+  gl_Position = vec4(p / uRes * 2.0 - 1.0, 0.0, 1.0);
+}`;
+const FS_SPARK = `#version 300 es
+precision highp float;
+in vec2 vQ; in float vR; in float vI; in vec3 vC; in float vS; in float vG;
+uniform vec3 uCol;
+out vec4 o;
+void main(){
+  float r = length(vQ) / vR;
+  float sharp = exp(-r * r * 1.6);
+  float bokeh = smoothstep(1.05, 0.8, r) * (0.65 + 0.35 * r * r);
+  float a = mix(sharp, bokeh, vS);
+  vec2 q = abs(vQ) / vR;
+  float g = exp(-q.x * 0.7) * exp(-q.y * q.y * 6.0) + exp(-q.y * 0.7) * exp(-q.x * q.x * 6.0);
+  a += vG * g * (1.0 - vS);
+  o = vec4(uCol * vC * (vI * a), 1.0);
+}`;
+
+const FS_DOWN = `#version 300 es
+precision highp float;
+in vec2 vUv; uniform sampler2D uT; uniform vec2 uTexel; uniform float uThr; uniform int uFirst;
+out vec4 o;
+void main(){
+  vec3 c = 0.25 * (texture(uT, vUv + uTexel * vec2(-1, -1)).rgb + texture(uT, vUv + uTexel * vec2(1, -1)).rgb
+                 + texture(uT, vUv + uTexel * vec2(-1, 1)).rgb + texture(uT, vUv + uTexel * vec2(1, 1)).rgb);
+  if (uFirst == 1) { float l = max(c.r, max(c.g, c.b)); float k = max(l - uThr, 0.0);
+    k = k * k / (k + uThr + 1e-4); c *= k / max(l, 1e-4); }
+  o = vec4(c, 1.0);
+}`;
+const FS_BLUR = `#version 300 es
+precision highp float;
+in vec2 vUv; uniform sampler2D uT; uniform vec2 uDir; uniform float uSigma; uniform int uTaps;
+out vec4 o;
+void main(){
+  vec3 s = texture(uT, vUv).rgb; float wsum = 1.0;
+  for (int i = 1; i <= 64; i++) { if (i > uTaps) break;
+    float w = exp(-float(i * i) / (2.0 * uSigma * uSigma));
+    s += w * (texture(uT, vUv + uDir * float(i)).rgb + texture(uT, vUv - uDir * float(i)).rgb);
+    wsum += 2.0 * w; }
+  o = vec4(s / wsum, 1.0);
+}`;
+const FS_COMP = `#version 300 es
+precision highp float;
+in vec2 vUv;
+uniform sampler2D uLum, uGlare;
+uniform int uBg, uLumOn, uGlareOn, uDither;
+uniform vec3 uTop, uMid, uBot; uniform float uMidY, uTilt, uBright, uSat, uGlareK, uDitherAmp;
+uniform vec2 uRes; uniform float uFrame;
+out vec4 o;
+float h12(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+void main(){
+  vec3 col = vec3(0.0);
+  if (uBg == 1) {
+    float y = 1.0 - vUv.y; // 0 at top
+    vec3 g = y < uMidY ? mix(uTop, uMid, smoothstep(0.0, 1.0, y / uMidY))
+                       : mix(uMid, uBot, smoothstep(0.0, 1.0, (y - uMidY) / (1.0 - uMidY)));
+    g *= 1.0 + uTilt * (vUv.x - 0.5);
+    float l = dot(g, vec3(0.299, 0.587, 0.114));
+    col = mix(vec3(l), g, uSat) * uBright;
+  }
+  if (uLumOn == 1) col += texture(uLum, vUv).rgb;
+  if (uGlareOn == 1) col += uGlareK * texture(uGlare, vUv).rgb;
+  if (uDither == 1) {
+    vec2 p = floor(gl_FragCoord.xy) + uFrame * vec2(17.0, 31.0);
+    col += uDitherAmp / 255.0 * (h12(p) + h12(p + 71.7) - 1.0);
+  }
+  o = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+function compile(vs, fs) {
+  const p = gl.createProgram();
+  for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src);
+    gl.attachShader(p, s);
+  }
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i);
+    u[info.name.replace(/\[0\]$/, '')] = gl.getUniformLocation(p, info.name); }
+  return { p, u };
+}
+const P = {
+  wave: compile(VS_WAVE, FS_WAVE), spark: compile(VS_SPARK, FS_SPARK),
+  down: compile(VS_QUAD, FS_DOWN), blur: compile(VS_QUAD, FS_BLUR), comp: compile(VS_QUAD, FS_COMP),
+};
+
+const emptyVao = gl.createVertexArray();
+const sparkVao = gl.createVertexArray();
+const sparkBuf = gl.createBuffer();
+const sparkData = new Float32Array(SPARK.slots * SPARK_STRIDE);
+gl.bindVertexArray(sparkVao);
+gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf);
+gl.bufferData(gl.ARRAY_BUFFER, sparkData.byteLength, gl.DYNAMIC_DRAW);
+const SB = SPARK_STRIDE * 4;
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 4, gl.FLOAT, false, SB, 0); gl.vertexAttribDivisor(0, 1);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, SB, 16); gl.vertexAttribDivisor(1, 1);
+gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, SB, 32); gl.vertexAttribDivisor(2, 1);
+gl.bindVertexArray(null);
+
+function makeTarget(w, h, float) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  if (float) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+  else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  return { tex, fb, w, h };
+}
+function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); } }
+
+let T = null; // render targets for current size
+function ensureTargets(w, h, needOut) {
+  if (T && T.w === w && T.h === h && (!needOut || T.out)) return;
+  if (T) { freeTarget(T.lum); freeTarget(T.lum2); freeTarget(T.out); T.chain.forEach(freeTarget); freeTarget(T.blurTmp); }
+  T = { w, h, lum: makeTarget(w, h, hasFloatRT), lum2: null, out: needOut ? makeTarget(w, h, false) : null, chain: [] };
+  let cw = w, ch = h;
+  while (ch > 200 || T.chain.length === 0) {
+    cw = Math.max(1, Math.ceil(cw / 2)); ch = Math.max(1, Math.ceil(ch / 2));
+    T.chain.push(makeTarget(cw, ch, hasFloatRT));
+  }
+  const last = T.chain[T.chain.length - 1];
+  T.blurTmp = makeTarget(last.w, last.h, hasFloatRT);
+}
+
+function setVec4Array(loc, arr) {
+  const f = new Float32Array(arr.length * 4);
+  arr.forEach((a, i) => f.set(a, i * 4)); gl.uniform4fv(loc, f);
+}
+
+// Draw luminous layers (wave and/or sparkles) into target.
+function drawLum(target, st, wave, spark) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, target.fb);
+  gl.viewport(0, 0, target.w, target.h);
+  gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+  const scale = target.h / 1080;
+  if (wave) {
+    const pr = P.wave; gl.useProgram(pr.p); gl.bindVertexArray(emptyVao);
+    setVec4Array(pr.u.uC, st.wu.C); setVec4Array(pr.u.uW, st.wu.W);
+    setVec4Array(pr.u.uP, st.wu.P); setVec4Array(pr.u.uR, st.wu.R);
+    gl.uniform1f(pr.u.uC0, WAVE.c0); gl.uniform1f(pr.u.uW0, WAVE.w0); gl.uniform1f(pr.u.uP0, WAVE.p0);
+    gl.uniform1f(pr.u.uX0, WAVE.x0); gl.uniform1f(pr.u.uX1, WAVE.x1);
+    gl.uniform1f(pr.u.uLineW, WAVE.lineWidth * scale);
+    gl.uniform1f(pr.u.uLineI, WAVE.lineBright * st.sc.waveBright);
+    gl.uniform1f(pr.u.uEdge, WAVE.edgeBoost);
+    gl.uniform2f(pr.u.uRes, target.w, target.h);
+    gl.uniform1i(pr.u.uSegs, WAVE.segs); gl.uniform1i(pr.u.uLines, WAVE.lines);
+    gl.uniform3fv(pr.u.uCol, st.waveCol);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 2 * (WAVE.segs + 1), WAVE.lines);
+  }
+  if (spark && st.nSpark > 0) {
+    const pr = P.spark; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
+    gl.uniform2f(pr.u.uRes, target.w, target.h); gl.uniform1f(pr.u.uScale, scale);
+    gl.uniform1f(pr.u.uExt, 4.0);
+    const k = st.sc.sparkBright; gl.uniform3f(pr.u.uCol, k * st.sparkCol[0], k * st.sparkCol[1], k * st.sparkCol[2]);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSpark);
+  }
+  gl.disable(gl.BLEND);
+  gl.bindVertexArray(null);
+}
+function quad() { gl.bindVertexArray(emptyVao); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+function drawGlare(src) {
+  const pd = P.down; gl.useProgram(pd.p);
+  let prev = src;
+  T.chain.forEach((dst, i) => {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb); gl.viewport(0, 0, dst.w, dst.h);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, prev.tex);
+    gl.uniform1i(pd.u.uT, 0); gl.uniform2f(pd.u.uTexel, 0.5 / prev.w, 0.5 / prev.h);
+    gl.uniform1f(pd.u.uThr, GLARE.threshold); gl.uniform1i(pd.u.uFirst, i === 0 ? 1 : 0);
+    quad(); prev = dst;
+  });
+  const last = prev, pb = P.blur; gl.useProgram(pb.p);
+  const sigma = GLARE.sigma * last.h, taps = Math.min(64, Math.ceil(sigma * 3));
+  gl.uniform1f(pb.u.uSigma, sigma); gl.uniform1i(pb.u.uTaps, taps); gl.uniform1i(pb.u.uT, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, T.blurTmp.fb); gl.viewport(0, 0, last.w, last.h);
+  gl.bindTexture(gl.TEXTURE_2D, last.tex); gl.uniform2f(pb.u.uDir, 1 / last.w, 0); quad();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, last.fb);
+  gl.bindTexture(gl.TEXTURE_2D, T.blurTmp.tex); gl.uniform2f(pb.u.uDir, 0, 1 / last.h); quad();
+  return last;
+}
+
+function buildState(o) {
+  const sc = sceneParams(o.timeParts, o.theme);
+  const ws = getWaveState(o.seed);
+  const wu = waveUniforms(ws, o.t);
+  const pal = sc.pal;
+  const mid = [pal[3], pal[4], pal[5]];
+  const mx = Math.max(mid[0], mid[1], mid[2], 1e-3);
+  const warm = [1.0, 0.96, 0.90];
+  const waveCol = warm.map((w, i) => w * (1 - WAVE.tint) + (mid[i] / mx) * WAVE.tint);
+  const sparkCol = warm.map((w, i) => w * (1 - 0.5 * WAVE.tint) + (mid[i] / mx) * 0.5 * WAVE.tint);
+  let nSpark = 0;
+  if (o.needSpark) nSpark = sparkles(o.seed, getSlots(o.seed), ws, o.t, sparkData);
+  return { sc, wu, waveCol, sparkCol, nSpark };
+}
+let wsCache = { seed: null }, slotCache = { seed: null };
+function getWaveState(seed) { if (wsCache.seed !== seed) wsCache = { seed, ws: makeWaveState(seed) }; return wsCache.ws; }
+function getSlots(seed) { if (slotCache.seed !== seed) slotCache = { seed, s: makeSparkSlots(seed) }; return slotCache.s; }
+
+function renderFrame(o, outFb) {
+  const L = o.layers;
+  const st = buildState({ ...o, needSpark: L.sparkles || L.glare });
+  if (st.nSpark) { gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, sparkData, 0, st.nSpark * SPARK_STRIDE); }
+  const lumOn = L.wave || L.sparkles;
+  if (lumOn) drawLum(T.lum, st, L.wave, L.sparkles);
+  let glareT = null;
+  if (L.glare) {
+    let src = T.lum;
+    if (!(L.wave && L.sparkles)) {
+      if (!T.lum2) T.lum2 = makeTarget(T.w, T.h, hasFloatRT);
+      drawLum(T.lum2, st, true, true); src = T.lum2;
+    }
+    glareT = drawGlare(src);
+  }
+  const pc = P.comp; gl.useProgram(pc.p);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, outFb); gl.viewport(0, 0, T.w, T.h);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.lum.tex); gl.uniform1i(pc.u.uLum, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT.tex : T.lum.tex); gl.uniform1i(pc.u.uGlare, 1);
+  gl.activeTexture(gl.TEXTURE0);
+  const pal = st.sc.pal;
+  gl.uniform1i(pc.u.uBg, L.bg ? 1 : 0); gl.uniform1i(pc.u.uLumOn, lumOn ? 1 : 0);
+  gl.uniform1i(pc.u.uGlareOn, L.glare ? 1 : 0); gl.uniform1i(pc.u.uDither, L.dither ? 1 : 0);
+  gl.uniform3f(pc.u.uTop, pal[0], pal[1], pal[2]); gl.uniform3f(pc.u.uMid, pal[3], pal[4], pal[5]);
+  gl.uniform3f(pc.u.uBot, pal[6], pal[7], pal[8]); gl.uniform1f(pc.u.uMidY, pal[9]); gl.uniform1f(pc.u.uTilt, pal[10]);
+  gl.uniform1f(pc.u.uBright, st.sc.bgBright); gl.uniform1f(pc.u.uSat, st.sc.bgSat);
+  gl.uniform1f(pc.u.uGlareK, GLARE.strength * st.sc.glare); gl.uniform1f(pc.u.uDitherAmp, DITHER);
+  gl.uniform2f(pc.u.uRes, T.w, T.h); gl.uniform1f(pc.u.uFrame, (o.frameNo || 0) % 64);
+  quad();
+}
+
+function parseLayers(s) {
+  const all = { bg: true, wave: true, glare: true, sparkles: true, dither: true };
+  if (s == null || s === '') return all;
+  const L = { bg: false, wave: false, glare: false, sparkles: false, dither: false };
+  for (const k of String(s).split(',')) { const t = k.trim(); if (t in L) L[t] = true; }
+  return L;
+}
+
+// ---------------------------------------------------------------------------
+// Scoring interface
+// ---------------------------------------------------------------------------
+const urlOpts = {
+  time: params.get('time'), theme: params.get('theme'), seed: params.get('seed'),
+  frames: params.get('frames'), w: params.get('w'), h: params.get('h'), layers: params.get('layers'),
+};
+function resolveOpts(opts) {
+  const g = k => (opts && opts[k] != null ? opts[k] : urlOpts[k]);
+  const timeParts = parseTime(g('time')) || nowParts();
+  const theme = Math.max(0, Math.min(12, parseInt(g('theme') ?? 0, 10) || 0));
+  const seed = parseInt(g('seed') ?? 1, 10) || 0;
+  const frames = Math.max(0, parseInt(g('frames') ?? 0, 10) || 0);
+  const w = Math.max(1, parseInt(g('w') ?? 1920, 10) || 1920);
+  const h = Math.max(1, parseInt(g('h') ?? 1080, 10) || 1080);
+  return { timeParts, theme, seed, frames, w, h, layers: parseLayers(g('layers')),
+           t: frames / 60, frameNo: frames };
+}
+function render(opts) {
+  const o = resolveOpts(opts);
+  ensureTargets(o.w, o.h, true);
+  renderFrame(o, T.out.fb);
+  const px = new Uint8Array(o.w * o.h * 4);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, T.out.fb);
+  gl.readPixels(0, 0, o.w, o.h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  const data = new Uint8ClampedArray(o.w * o.h * 4), row = o.w * 4;
+  for (let y = 0; y < o.h; y++) data.set(px.subarray((o.h - 1 - y) * row, (o.h - y) * row), y * row);
+  for (let i = 3; i < data.length; i += 4) data[i] = 255;
+  if (SCORE) { // also show it on the canvas for convenience
+    canvas.width = o.w; canvas.height = o.h;
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, T.out.fb); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    gl.blitFramebuffer(0, 0, o.w, o.h, 0, 0, o.w, o.h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  return { width: o.w, height: o.h, data };
+}
+window.XMBW = { ready: Promise.resolve(), render,
+  _internals: { MONTHS, THEMES, MOOD, WAVE, SPARK, GLARE } };
+
+if (SCORE) { canvas.style.width = canvas.style.height = 'auto'; return; }
+
+// ---------------------------------------------------------------------------
+// Normal mode
+// ---------------------------------------------------------------------------
+const panel = document.getElementById('panel');
+const pTheme = document.getElementById('pTheme');
+['auto (clock)', 'silver', 'yellow', 'light green', 'pink', 'green', 'lavender', 'teal', 'blue',
+ 'purple', 'gold', 'brown', 'red'].forEach((n, i) => {
+  const op = document.createElement('option'); op.value = i; op.textContent = i + ' ' + n; pTheme.appendChild(op); });
+const state = {
+  theme: parseInt(params.get('theme') || '0', 10) || 0,
+  speed: params.has('speed') ? parseFloat(params.get('speed')) : 1,
+  scale: params.has('scale') ? parseFloat(params.get('scale')) : 1,
+  paused: params.get('pause') === '1',
+  fixedTime: parseTime(params.get('time')),
+  seed: params.has('seed') ? (parseInt(params.get('seed'), 10) || 0) : (Date.now() & 0x7fffffff),
+};
+pTheme.value = state.theme;
+document.getElementById('pSpeed').value = state.speed;
+document.getElementById('pScale').value = state.scale;
+document.getElementById('pPause').checked = state.paused;
+pTheme.onchange = e => { state.theme = +e.target.value; };
+document.getElementById('pSpeed').oninput = e => { state.speed = +e.target.value; };
+document.getElementById('pScale').oninput = e => { state.scale = +e.target.value; };
+document.getElementById('pPause').onchange = e => { state.paused = e.target.checked; };
+if (params.get('panel') === '1') panel.style.display = 'block';
+window.addEventListener('keydown', e => { if (e.key === 'p' || e.key === 'h')
+  panel.style.display = panel.style.display === 'block' ? 'none' : 'block'; });
+canvas.addEventListener('dblclick', () => { panel.style.display = panel.style.display === 'block' ? 'none' : 'block'; });
+
+let simT = 0, last = performance.now(), frame = 0;
+const allLayers = parseLayers(params.get('layers'));
+function tick(now) {
+  const dt = Math.min(0.25, Math.max(0, (now - last) / 1000)); last = now;
+  if (!state.paused) simT += dt * state.speed;
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(canvas.clientWidth * dpr * state.scale));
+  const h = Math.max(1, Math.round(canvas.clientHeight * dpr * state.scale));
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  ensureTargets(w, h, false);
+  let tp = state.fixedTime ? state.fixedTime.slice() : nowParts();
+  renderFrame({ timeParts: tp, theme: state.theme, seed: state.seed, t: simT,
+                layers: allLayers, frameNo: frame++ }, null);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
