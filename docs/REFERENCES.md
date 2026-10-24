@@ -8,4 +8,10 @@ consulted. On-screen menu icons, text, clocks and watermarks are ignored.
 
 | URL | What it shows | Used for |
 | --- | --- | --- |
-| _(none yet)_ | | |
+| https://www.youtube.com/watch?v=iT6j8wySK1M | Console recording (2009), background only, purple. Thumbnail and three automatic frames. | Wave look: translucent sheet, lengthwise fold lines, size, placement, one-end taper; sparkle clustering. |
+| https://www.youtube.com/watch?v=FZ2DkFf1JBE | Emulator recording, background only, purple. Thumbnail and three automatic frames. | Wave look, size and placement; background glow. |
+| https://www.youtube.com/watch?v=NDxCEV2fj-g | Emulator recording, background only, night look. Thumbnail and three automatic frames. | Layered fold lines; night brightness. |
+| https://www.youtube.com/watch?v=jmLcepyplm4 | Background only, dark green night look. Automatic frames. | Wave shape variety; night look. |
+| https://www.youtube.com/watch?v=2LOWuvzazg4 | Console menu with icons (1 August, morning). Thumbnail and automatic frames. | Wave placement relative to the screen; day colours (icons ignored). |
+| https://www.youtube.com/watch?v=QmFO6wudv5Q, https://www.youtube.com/watch?v=iLpaU-i3ja8, https://www.youtube.com/watch?v=nDL5YJt2aaA, https://www.youtube.com/watch?v=LW0bS1dw2PU, https://www.youtube.com/watch?v=dH1P0L84KEM, https://www.youtube.com/watch?v=qEerrQAkzLI | Console/emulator menus at various dates; thumbnails and automatic frames. | General look only so far (menus ignored). |
+| https://archive.org/details/g4tv.com-video30032 | 2008 TV preview, 640x360; about 30 s of direct menu capture plus footage filmed off a TV. Video downloaded and frames extracted. | Wave motion speed: vertical speed of the brightest ridge measured on the right half of the screen (about 0.01 to 0.025 screen heights per second). |

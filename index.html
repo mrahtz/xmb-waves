@@ -74,30 +74,33 @@ const CAMERA = {
 // Each component: [amplitude, spatial frequency, temporal frequency (rad/s),
 //                  amplitude-modulation depth, modulation frequency (rad/s)]
 const WAVE = {
+  speed: 1.4,              // global time scale of the wave's motion
   x0: -3.4, x1: 3.4,       // world units
-  c0: 0.0,                 // spine height
-  C: [[0.140, 0.55, 0.110, 0.35, 0.031], [0.080, 1.15, -0.170, 0.40, 0.047],
-      [0.045, 1.75, 0.230, 0.45, 0.059], [0.025, 2.70, -0.310, 0.50, 0.073]],
-  Z: [[0.300, 0.40, 0.080, 0.35, 0.029], [0.150, 0.95, -0.120, 0.40, 0.043]],
-  w0: 0.85,                // ribbon width (world)
-  W: [[0.25, 0.45, 0.070, 0.30, 0.023], [0.15, 1.00, -0.130, 0.40, 0.041],
-      [0.08, 1.60, 0.190, 0.40, 0.053]],
+  c0: 0.40,                // spine height
+  C: [[0.300, 0.85, 0.090, 0.35, 0.031], [0.110, 1.40, -0.140, 0.40, 0.047],
+      [0.035, 1.55, 0.200, 0.45, 0.059], [0.012, 2.40, -0.270, 0.50, 0.073]],
+  Z: [[0.300, 0.40, 0.080, 0.35, 0.029], [0.150, 0.85, -0.120, 0.40, 0.043]],
+  w0: 1.4,                 // ribbon width (world)
+  W: [[0.25, 0.40, 0.070, 0.30, 0.023], [0.15, 0.85, -0.130, 0.40, 0.041],
+      [0.06, 1.40, 0.190, 0.40, 0.053]],
   p0: 0.0,                 // twist about the spine (rad); 0 = lying flat
-  P: [[0.35, 0.70, 0.090, 0.30, 0.027], [0.22, 1.35, -0.150, 0.40, 0.039],
-      [0.15, 0.35, 0.050, 0.30, 0.017]],
-  // ripples along the surface normal: [amp, freq, omega, modDepth, modFreq, phase per unit v]
-  R: [[0.020, 2.2, 0.60, 0.40, 0.067, 2.0], [0.012, 3.9, -0.90, 0.40, 0.083, 3.5],
-      [0.008, 5.6, 1.30, 0.40, 0.091, 5.0], [0.008, 1.4, -0.45, 0.40, 0.037, 1.2]],
+  P: [[0.30, 0.60, 0.090, 0.30, 0.027], [0.18, 1.15, -0.150, 0.40, 0.039],
+      [0.12, 0.30, 0.050, 0.30, 0.017]],
+  // Displacement along the surface normal. With a large phase per unit v these
+  // are lengthwise folds across the ribbon that drift along it and merge.
+  // [amp, freq, omega, modDepth, modFreq, phase per unit v]
+  R: [[0.090, 0.70, 0.35, 0.45, 0.037, 9.5], [0.055, 1.30, -0.50, 0.50, 0.051, 14.0],
+      [0.030, 2.10, 0.70, 0.50, 0.067, 21.0], [0.010, 3.40, -0.95, 0.40, 0.083, 4.0]],
   fade: 0.8,          // world length of the end fades
   // each thread also wanders on its own: [amp, freq, omega]
-  thread: [0.006, 3.1, 0.35],
-  lines: 80,
-  segs: 512,
-  lineWidth: 1.1,     // px at 1080 lines, at the camera distance
-  lineBright: 0.065,  // per-line peak
-  edgeBoost: 0.8,     // extra brightness when seen edge-on (from the 3D normal)
+  thread: [0.004, 2.3, 0.35],
+  lines: 280,
+  segs: 320,
+  lineWidth: 2.6,     // px at 1080 lines, at the camera distance
+  lineBright: 0.019,  // per-line peak
+  edgeBoost: 1.5,     // extra brightness when seen edge-on (from the 3D normal)
   edgePow: 2.0,
-  tint: 0.25,         // how much the palette tints the wave
+  tint: 0.12,         // how much the palette tints the wave
 };
 
 const SPARK = {
@@ -119,7 +122,8 @@ const SPARK = {
   glint: 0.25,
 };
 
-const GLARE = { sigma: 0.035, threshold: 0.15, strength: 0.6 };
+// Two halos: a tight one around bright lines and a wide, faint one. Sigmas are in screen heights.
+const GLARE = { sigma: 0.035, threshold: 0.15, strength: 0.6, nearSigma: 0.006, nearStrength: 0.5 };
 const DITHER = 1.0; // in 1/255 units, peak-to-peak/2
 
 // ---------------------------------------------------------------------------
@@ -151,7 +155,7 @@ function makeWaveState(seed) {
 }
 // Per-component [amp, freq, phase(, vmul)] at time t (double precision phases).
 function waveUniforms(ws, t) {
-  t += ws.tOff;
+  t = t * WAVE.speed + ws.tOff;
   const f = (comps, phs, n) => comps.map((c, k) => {
     const a = c[0] * (1 + c[3] * Math.sin(c[4] * t + phs[k][1]));
     const p = ((c[2] * t + phs[k][0]) % TAU + TAU) % TAU;
@@ -174,7 +178,7 @@ function sheetPos(u, x, v) {
 }
 // Same as sheetPos(waveUniforms(ws, t), x, v), without allocating; writes into out.
 function sheetPosAt(ws, t, x, v, out) {
-  t += ws.tOff;
+  t = t * WAVE.speed + ws.tOff;
   const sum = (comps, phs, vv) => {
     let acc = 0;
     for (let k = 0; k < comps.length; k++) {
@@ -464,9 +468,9 @@ void main(){
 const FS_COMP = `#version 300 es
 precision highp float;
 in vec2 vUv;
-uniform sampler2D uLum, uGlare;
+uniform sampler2D uLum, uGlare, uNear;
 uniform int uBg, uLumOn, uGlareOn, uDither;
-uniform vec3 uTop, uMid, uBot; uniform float uMidY, uTilt, uBright, uSat, uGlareK, uDitherAmp;
+uniform vec3 uTop, uMid, uBot; uniform float uMidY, uTilt, uBright, uSat, uGlareK, uNearK, uDitherAmp;
 uniform vec2 uRes; uniform float uFrame;
 out vec4 o;
 float h12(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
@@ -481,7 +485,7 @@ void main(){
     col = mix(vec3(l), g, uSat) * uBright;
   }
   if (uLumOn == 1) col += texture(uLum, vUv).rgb;
-  if (uGlareOn == 1) col += uGlareK * texture(uGlare, vUv).rgb;
+  if (uGlareOn == 1) col += uGlareK * texture(uGlare, vUv).rgb + uNearK * texture(uNear, vUv).rgb;
   if (uDither == 1) {
     vec2 p = floor(gl_FragCoord.xy) + uFrame * vec2(17.0, 31.0);
     col += uDitherAmp / 255.0 * (h12(p) + h12(p + 71.7) - 1.0);
@@ -540,7 +544,8 @@ function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(
 let T = null; // render targets for current size
 function ensureTargets(w, h, needOut) {
   if (T && T.w === w && T.h === h && (!needOut || T.out)) return;
-  if (T) { freeTarget(T.lum); freeTarget(T.lum2); freeTarget(T.out); T.chain.forEach(freeTarget); freeTarget(T.blurTmp); }
+  if (T) { freeTarget(T.lum); freeTarget(T.lum2); freeTarget(T.out); T.chain.forEach(freeTarget);
+    freeTarget(T.blurTmp); freeTarget(T.nearTmp); freeTarget(T.nearOut); }
   T = { w, h, lum: makeTarget(w, h, hasFloatRT), lum2: null, out: needOut ? makeTarget(w, h, false) : null, chain: [] };
   let cw = w, ch = h;
   while (ch > 200 || T.chain.length === 0) {
@@ -549,6 +554,9 @@ function ensureTargets(w, h, needOut) {
   }
   const last = T.chain[T.chain.length - 1];
   T.blurTmp = makeTarget(last.w, last.h, hasFloatRT);
+  const near = T.chain[Math.min(1, T.chain.length - 1)];
+  T.near = near;
+  T.nearTmp = makeTarget(near.w, near.h, hasFloatRT); T.nearOut = makeTarget(near.w, near.h, hasFloatRT);
 }
 
 function setVec4Array(loc, arr) {
@@ -602,14 +610,18 @@ function drawGlare(src) {
     gl.uniform1f(pd.u.uThr, GLARE.threshold); gl.uniform1i(pd.u.uFirst, i === 0 ? 1 : 0);
     quad(); prev = dst;
   });
-  const last = prev, pb = P.blur; gl.useProgram(pb.p);
-  const sigma = GLARE.sigma * last.h, taps = Math.min(64, Math.ceil(sigma * 3));
-  gl.uniform1f(pb.u.uSigma, sigma); gl.uniform1i(pb.u.uTaps, taps); gl.uniform1i(pb.u.uT, 0);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, T.blurTmp.fb); gl.viewport(0, 0, last.w, last.h);
-  gl.bindTexture(gl.TEXTURE_2D, last.tex); gl.uniform2f(pb.u.uDir, 1 / last.w, 0); quad();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, last.fb);
-  gl.bindTexture(gl.TEXTURE_2D, T.blurTmp.tex); gl.uniform2f(pb.u.uDir, 0, 1 / last.h); quad();
-  return last;
+  const last = prev, pb = P.blur; gl.useProgram(pb.p); gl.uniform1i(pb.u.uT, 0);
+  const blur = (src, tmp, dst, sigmaFrac) => {
+    const sigma = Math.max(0.5, sigmaFrac * src.h), taps = Math.min(64, Math.ceil(sigma * 3));
+    gl.uniform1f(pb.u.uSigma, sigma); gl.uniform1i(pb.u.uTaps, taps);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tmp.fb); gl.viewport(0, 0, src.w, src.h);
+    gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform2f(pb.u.uDir, 1 / src.w, 0); quad();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb);
+    gl.bindTexture(gl.TEXTURE_2D, tmp.tex); gl.uniform2f(pb.u.uDir, 0, 1 / src.h); quad();
+  };
+  blur(T.near, T.nearTmp, T.nearOut, GLARE.nearSigma);
+  blur(last, T.blurTmp, last, GLARE.sigma);
+  return [last, T.nearOut];
 }
 
 function buildState(o) {
@@ -624,7 +636,7 @@ function buildState(o) {
   const sparkCol = warm.map((w, i) => w * (1 - 0.5 * WAVE.tint) + (mid[i] / mx) * 0.5 * WAVE.tint);
   let nSpark = 0;
   if (o.needSpark) nSpark = sparkles(o.seed, getSlots(o.seed), ws, o.t, sparkData);
-  const thrPhase = (((o.t + ws.tOff) * WAVE.thread[2]) % TAU + TAU) % TAU;
+  const thrPhase = (((o.t * WAVE.speed + ws.tOff) * WAVE.thread[2]) % TAU + TAU) % TAU;
   return { sc, wu, waveCol, sparkCol, nSpark, thrPhase };
 }
 let wsCache = { seed: null }, slotCache = { seed: null };
@@ -650,7 +662,8 @@ function renderFrame(o, outFb) {
   const pc = P.comp; gl.useProgram(pc.p);
   gl.bindFramebuffer(gl.FRAMEBUFFER, outFb); gl.viewport(0, 0, T.w, T.h);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.lum.tex); gl.uniform1i(pc.u.uLum, 0);
-  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT.tex : T.lum.tex); gl.uniform1i(pc.u.uGlare, 1);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT[0].tex : T.lum.tex); gl.uniform1i(pc.u.uGlare, 1);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT[1].tex : T.lum.tex); gl.uniform1i(pc.u.uNear, 2);
   gl.activeTexture(gl.TEXTURE0);
   const pal = st.sc.pal;
   gl.uniform1i(pc.u.uBg, L.bg ? 1 : 0); gl.uniform1i(pc.u.uLumOn, lumOn ? 1 : 0);
@@ -658,7 +671,7 @@ function renderFrame(o, outFb) {
   gl.uniform3f(pc.u.uTop, pal[0], pal[1], pal[2]); gl.uniform3f(pc.u.uMid, pal[3], pal[4], pal[5]);
   gl.uniform3f(pc.u.uBot, pal[6], pal[7], pal[8]); gl.uniform1f(pc.u.uMidY, pal[9]); gl.uniform1f(pc.u.uTilt, pal[10]);
   gl.uniform1f(pc.u.uBright, st.sc.bgBright); gl.uniform1f(pc.u.uSat, st.sc.bgSat);
-  gl.uniform1f(pc.u.uGlareK, GLARE.strength * st.sc.glare); gl.uniform1f(pc.u.uDitherAmp, DITHER);
+  gl.uniform1f(pc.u.uGlareK, GLARE.strength * st.sc.glare); gl.uniform1f(pc.u.uNearK, GLARE.nearStrength * st.sc.glare); gl.uniform1f(pc.u.uDitherAmp, DITHER);
   gl.uniform2f(pc.u.uRes, T.w, T.h); gl.uniform1f(pc.u.uFrame, (o.frameNo || 0) % 64);
   quad();
 }
