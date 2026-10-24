@@ -1233,7 +1233,6 @@ function tick(now) {
   requestAnimationFrame(tick);
   if (now - lastDraw < 1000 / 60 - 1.5) return;
   lastDraw = now;
-  if (!latest) return;
   const dpr = window.devicePixelRatio || 1;
   const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
   const ow = Math.max(1, Math.round(cssW * dpr)), oh = Math.max(1, Math.round(cssH * dpr));
@@ -1247,6 +1246,11 @@ function tick(now) {
   const cam = cameraFor(scene.mood.camPitch, cw / ch);
   const ms = JSON.stringify(simMoodParams(scene.mood, cam), (k, v) => typeof v === 'number' ? +v.toFixed(3) : v);
   if (ms !== lastMoodSent) { worker.postMessage({ type: 'mood', mood: JSON.parse(ms) }); lastMoodSent = ms; }
+  if (!latest) { // the worker is still warming up: show the background alone
+    renderFrame({ scene, cam, net0: null, net1: null, alpha: 1, sparks: null, nSparks: 0,
+      layers: { ...S.layers, wave: false, glare: false, sparkles: false }, frameNo: frameNo++, ease: 0.05 }, null);
+    return;
+  }
   const alpha = paused ? 1 : Math.min(1, latest.alpha + (performance.timeOrigin + now - latest.at) / 1000 / DT);
   renderFrame({ scene, cam, net0: latest.net0, net1: latest.net1, alpha, sparks: latest.sparks, nSparks: latest.n,
     layers: S.layers, frameNo: frameNo++, ease: 0.05 }, null);
