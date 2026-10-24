@@ -859,6 +859,10 @@ document.addEventListener('visibilitychange', () => {
   else { worker.postMessage({ type: 'run', on: !paused }); keepAwake(); lastDraw = 0; schedule(); }
 });
 
+// a lost WebGL context (memory pressure on a tablet): stop drawing, reload when it comes back
+canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); worker.postMessage({ type: 'run', on: false }); }, false);
+canvas.addEventListener('webglcontextrestored', () => { location.reload(); }, false);
+
 // draw loop (capped at 60 fps)
 let lastDraw = 0, frameNo = 0, fpsCount = 0, fpsT = performance.now(), rafPending = false;
 function schedule() { if (!rafPending) { rafPending = true; requestAnimationFrame(tick); } }
