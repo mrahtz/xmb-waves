@@ -4,6 +4,8 @@ This document describes an effect: a flowing, luminous wave drifting across a so
 
 It describes **what the viewer should see and how it should behave**. It deliberately contains no parameter values, colours, textures, counts or code. Every value, colour, texture and algorithmic detail not stated here is **your design**. Tune them until the private scorer (see "What the scorer measures") reports a good match. Where this document says "choose", the choice is yours.
 
+**Version 2 (2026-10-24).** Change from version 1: section 4 now requires the wave to be a genuine three-dimensional surface seen through a perspective camera, and section 6 places the sparkles in the same 3D space (new "Geometry (required)" items; nothing else changed).
+
 ## 1. Output and platform
 
 - A single static web page, `index.html`, rendering with WebGL2. No build step is required (a build step is fine if the output is a static page). No network requests at run time; every texture is generated in code or shipped as your own original asset.
@@ -37,8 +39,15 @@ All the luminous layers (wave, glare, sparkles) add light to what is behind them
 - The wave is a **sheet**: think of a long ribbon of cloth, wider than the screen, seen from a slightly raised, slightly oblique camera, so that it crosses the screen from left to right as a band whose thickness and height vary along its length. It folds over itself gently in places, so that parts of it are seen nearly edge-on.
 - Its motion is a slow, organic undulation: ripples travel along it and its overall shape evolves over tens of seconds. It never repeats exactly, never settles and never moves abruptly. Its ends stay off screen.
 - The surface looks perfectly smooth at any resolution (no visible facets or kinks).
-- How the shape is generated and animated is entirely your design.
+- How the shape is generated and animated is entirely your design, within the geometry requirements below.
 - The animation advances with real time (independent of the frame rate) and stays stable whatever the frame rate.
+
+### Geometry (required)
+
+- The wave is a genuine **three-dimensional surface** (two parameters: along and across the ribbon) that moves in 3D, rendered through a **perspective camera**. A screen-space curve or band that only imitates depth does not meet this requirement.
+- Perspective is visible: the parts of the sheet nearer the camera look larger, and the spacing between its lines changes with distance and with the angle at which the sheet is seen.
+- Brightness depends on the real angle between the surface and the line of sight (edge-on brighter, facing the camera fainter), computed from the 3D surface.
+- The sheet can genuinely fold and pass in front of or behind other parts of itself; where layers overlap they add up (the wave never hides anything, section 2).
 
 ### Look
 
@@ -59,6 +68,7 @@ All the luminous layers (wave, glare, sparkles) add light to what is behind them
 - A dense field of tiny glowing particles surrounding the wave, more of them near the wave than far from it. How many is yours to tune (the scorer reports the visible count).
 - **Birth**: new sparkles appear continually near the wave and at first move along with it.
 - **Life**: each sparkle drifts slowly and a little irregularly, fades in after it appears, lives for a while (lifetimes vary), then fades out.
+- **Space**: sparkles live in the same 3D space as the wave and are seen through the same camera: some are in front of the sheet, some behind it, and their on-screen size and position follow from their 3D position.
 - **Look**: each sparkle is a small soft disc of light whose colour shimmers slightly. Some are small and sharp; others are larger, softer and dimmer, like out-of-focus points of light (bokeh). Some twinkle.
 - All randomness comes from a seeded pseudo-random generator of your own (see section 9).
 

@@ -60,28 +60,41 @@ const MOOD = [
 ];
 const THEME_MOOD = [0, 0, 1, 0]; // fixed themes look like daytime
 
-// Wave shape. Coordinates are in screen-height units, origin at screen centre, Y up.
+// Camera. World: x along the ribbon, y up, z away from the viewer.
+const CAMERA = {
+  fovY: 40,        // degrees
+  pitch: 15,       // degrees, looking down
+  yaw: 10,         // degrees, oblique view along the ribbon
+  dist: 3.3,       // from the target point
+  target: [0, 0.12, 0],
+};
+
+// Wave surface S(x, v): a ribbon whose spine runs along x, with a cross direction
+// that is twisted about the spine by an angle phi(x, t); v in [0, 1] is across.
 // Each component: [amplitude, spatial frequency, temporal frequency (rad/s),
 //                  amplitude-modulation depth, modulation frequency (rad/s)]
 const WAVE = {
-  x0: -1.35, x1: 1.35,
-  c0: -0.05,
-  C: [[0.060, 1.30, 0.110, 0.35, 0.031], [0.035, 2.70, -0.170, 0.40, 0.047],
-      [0.020, 4.10, 0.230, 0.45, 0.059], [0.012, 6.30, -0.310, 0.50, 0.073]],
-  w0: 0.14,
-  W: [[0.30, 1.10, 0.070, 0.30, 0.023], [0.20, 2.30, -0.130, 0.40, 0.041],
-      [0.10, 3.70, 0.190, 0.40, 0.053]],
-  p0: 0.6,
-  P: [[1.00, 1.70, 0.090, 0.30, 0.027], [0.60, 3.10, -0.150, 0.40, 0.039],
-      [0.30, 0.80, 0.050, 0.30, 0.017]],
-  // ripples: [amp, freq, omega, modDepth, modFreq, phase per unit v]
-  R: [[0.008, 5.0, 0.60, 0.40, 0.067, 2.0], [0.005, 9.0, -0.90, 0.40, 0.083, 3.5],
-      [0.004, 13.0, 1.30, 0.40, 0.091, 5.0], [0.003, 3.3, -0.45, 0.40, 0.037, 1.2]],
+  x0: -3.4, x1: 3.4,       // world units
+  c0: 0.0,                 // spine height
+  C: [[0.140, 0.55, 0.110, 0.35, 0.031], [0.080, 1.15, -0.170, 0.40, 0.047],
+      [0.045, 1.75, 0.230, 0.45, 0.059], [0.025, 2.70, -0.310, 0.50, 0.073]],
+  Z: [[0.300, 0.40, 0.080, 0.35, 0.029], [0.150, 0.95, -0.120, 0.40, 0.043]],
+  w0: 1.0,                 // ribbon width (world)
+  W: [[0.25, 0.45, 0.070, 0.30, 0.023], [0.15, 1.00, -0.130, 0.40, 0.041],
+      [0.08, 1.60, 0.190, 0.40, 0.053]],
+  p0: 0.0,                 // twist about the spine (rad); 0 = lying flat
+  P: [[0.45, 0.70, 0.090, 0.30, 0.027], [0.30, 1.35, -0.150, 0.40, 0.039],
+      [0.20, 0.35, 0.050, 0.30, 0.017]],
+  // ripples along the surface normal: [amp, freq, omega, modDepth, modFreq, phase per unit v]
+  R: [[0.020, 2.2, 0.60, 0.40, 0.067, 2.0], [0.012, 3.9, -0.90, 0.40, 0.083, 3.5],
+      [0.008, 5.6, 1.30, 0.40, 0.091, 5.0], [0.008, 1.4, -0.45, 0.40, 0.037, 1.2]],
+  fade: 0.8,          // world length of the end fades
   lines: 48,
-  segs: 384,
-  lineWidth: 1.1,     // px at 1080 lines
+  segs: 512,
+  lineWidth: 1.1,     // px at 1080 lines, at the camera distance
   lineBright: 0.10,   // per-line peak
-  edgeBoost: 0.6,
+  edgeBoost: 0.8,     // extra brightness when seen edge-on (from the 3D normal)
+  edgePow: 2.0,
   tint: 0.25,         // how much the palette tints the wave
 };
 
@@ -91,9 +104,10 @@ const SPARK = {
   lifeMin: 0.55, lifeMax: 0.95, // fraction of period
   fadeIn: 0.8, fadeOut: 1.6,    // s
   follow: 1.5,                  // s: time constant of following the wave after birth
-  nearSigma: 0.025, farSigma: 0.14, farFrac: 0.3,
-  drift: 0.012,                 // screen heights per second
-  wobble: 0.01,
+  nearSigma: 0.08, farSigma: 0.45, farFrac: 0.3, // world units, 3D offsets from the sheet
+  drift: 0.04,                  // world units per second
+  wobble: 0.03,
+  span: 2.6,                    // births along x within +-span
   sharpR: [1.0, 2.4],           // px at 1080
   bokehR: [3.5, 9.0],
   bokehFrac: 0.25,
@@ -131,7 +145,7 @@ const TAU = Math.PI * 2;
 function makeWaveState(seed) {
   const r = mulberry(hashN(seed, 7771));
   const ph = g => g.map(() => [r() * TAU, r() * TAU]);
-  return { tOff: r() * 5000, C: ph(WAVE.C), W: ph(WAVE.W), P: ph(WAVE.P), R: ph(WAVE.R) };
+  return { tOff: r() * 5000, C: ph(WAVE.C), Z: ph(WAVE.Z), W: ph(WAVE.W), P: ph(WAVE.P), R: ph(WAVE.R) };
 }
 // Per-component [amp, freq, phase(, vmul)] at time t (double precision phases).
 function waveUniforms(ws, t) {
@@ -141,15 +155,39 @@ function waveUniforms(ws, t) {
     const p = ((c[2] * t + phs[k][0]) % TAU + TAU) % TAU;
     return [a, c[1], p, n ? c[5] : 0];
   });
-  return { C: f(WAVE.C, ws.C), W: f(WAVE.W, ws.W), P: f(WAVE.P, ws.P), R: f(WAVE.R, ws.R, 1) };
+  return { C: f(WAVE.C, ws.C), Z: f(WAVE.Z, ws.Z), W: f(WAVE.W, ws.W), P: f(WAVE.P, ws.P),
+           R: f(WAVE.R, ws.R, 1) };
 }
-function waveY(u, x, v) {
-  let c = WAVE.c0, w = 1, p = WAVE.p0, rr = 0;
+// World position of the sheet at (x, v).
+function sheetPos(u, x, v) {
+  let c = WAVE.c0, z = 0, w = 1, p = WAVE.p0, rr = 0;
   for (const k of u.C) c += k[0] * Math.sin(k[1] * x + k[2]);
+  for (const k of u.Z) z += k[0] * Math.sin(k[1] * x + k[2]);
   for (const k of u.W) w += k[0] * Math.sin(k[1] * x + k[2]);
   for (const k of u.P) p += k[0] * Math.sin(k[1] * x + k[2]);
   for (const k of u.R) rr += k[0] * Math.sin(k[1] * x + k[2] + k[3] * v);
-  return c + (v - 0.5) * WAVE.w0 * w * Math.cos(p) + rr;
+  const s = (v - 0.5) * WAVE.w0 * w, sp = Math.sin(p), cp = Math.cos(p);
+  // cross direction (0, sin p, cos p); normal (0, cos p, -sin p)
+  return [x, c + s * sp + rr * cp, z + s * cp - rr * sp];
+}
+// Camera basis and projection to screen-height units (origin at centre, Y up).
+const CAM = (() => {
+  const d2r = Math.PI / 180, p = CAMERA.pitch * d2r, y = CAMERA.yaw * d2r;
+  const fwd = [Math.sin(y) * Math.cos(p), -Math.sin(p), Math.cos(y) * Math.cos(p)];
+  const right = [Math.cos(y), 0, -Math.sin(y)];
+  const up = [fwd[1] * right[2] - fwd[2] * right[1], fwd[2] * right[0] - fwd[0] * right[2],
+              fwd[0] * right[1] - fwd[1] * right[0]];
+  const pos = CAMERA.target.map((t, i) => t - CAMERA.dist * fwd[i]);
+  return { fwd, right, up, pos, F: 0.5 / Math.tan(CAMERA.fovY * d2r / 2) };
+})();
+// Returns [X, Y, depth] or null if behind the camera.
+function project(q) {
+  const d = [q[0] - CAM.pos[0], q[1] - CAM.pos[1], q[2] - CAM.pos[2]];
+  const zc = d[0] * CAM.fwd[0] + d[1] * CAM.fwd[1] + d[2] * CAM.fwd[2];
+  if (zc < 0.2) return null;
+  const xc = d[0] * CAM.right[0] + d[1] * CAM.right[1] + d[2] * CAM.right[2];
+  const yc = d[0] * CAM.up[0] + d[1] * CAM.up[1] + d[2] * CAM.up[2];
+  return [CAM.F * xc / zc, CAM.F * yc / zc, zc];
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +240,7 @@ function nowParts() {
 // ---------------------------------------------------------------------------
 // Sparkles (analytic in time: each slot runs a seeded sequence of lives)
 // ---------------------------------------------------------------------------
-const SPARK_STRIDE = 9; // x, y (height units), radius (px@1080), intensity, r, g, b, softness, glint
+const SPARK_STRIDE = 9; // X, Y (screen-height units), radius (px@1080), intensity, r, g, b, softness, glint
 function makeSparkSlots(seed) {
   const slots = [];
   for (let i = 0; i < SPARK.slots; i++) {
@@ -215,10 +253,6 @@ function makeSparkSlots(seed) {
 function gauss(r) { return Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(TAU * r()); }
 function sparkles(seed, slots, ws, t, out) {
   let n = 0;
-  const wsT = new Map();
-  const uAt = tau => { // cache wave uniforms per distinct time
-    let u = wsT.get(tau); if (!u) { u = waveUniforms(ws, tau); wsT.set(tau, u); } return u;
-  };
   for (let i = 0; i < slots.length; i++) {
     const s = slots[i];
     const T = t + s.offset;
@@ -227,12 +261,13 @@ function sparkles(seed, slots, ws, t, out) {
     const r = mulberry(hashN(seed, 313, i, cyc));
     const life = s.period * (SPARK.lifeMin + (SPARK.lifeMax - SPARK.lifeMin) * r());
     if (age > life) continue;
-    const x0 = (r() * 2 - 1) * 1.0;
+    const x0 = (r() * 2 - 1) * SPARK.span;
     const v0 = r();
     const far = r() < SPARK.farFrac;
-    const dy0 = gauss(r) * (far ? SPARK.farSigma : SPARK.nearSigma);
-    const ang = r() * TAU, sp = SPARK.drift * (0.3 + r());
-    const vx = Math.cos(ang) * sp, vy = Math.sin(ang) * sp * 0.6;
+    const sg = far ? SPARK.farSigma : SPARK.nearSigma;
+    const off = [gauss(r) * sg * 0.5, gauss(r) * sg, gauss(r) * sg];
+    const sp = SPARK.drift * (0.3 + r());
+    const dv = [gauss(r) * sp, gauss(r) * sp * 0.6, gauss(r) * sp * 0.6];
     const wf = 0.5 + r() * 1.5, wp = r() * TAU, wa = SPARK.wobble * r();
     const bokeh = r() < SPARK.bokehFrac;
     const rad = bokeh ? SPARK.bokehR[0] + (SPARK.bokehR[1] - SPARK.bokehR[0]) * r()
@@ -241,14 +276,15 @@ function sparkles(seed, slots, ws, t, out) {
                       : SPARK.sharpI[0] + (SPARK.sharpI[1] - SPARK.sharpI[0]) * r();
     const tw = r() < SPARK.twinkleFrac, twf = 3 + r() * 6, twp = r() * TAU;
     const hp = r() * TAU, hf = 0.5 + r();
-    // Follow the sheet point for a while, then let go (time warp).
+    // Follow the sheet point for a while after birth, then let go (time warp).
     const tb = t - age;
     const tf = SPARK.follow * (0.5 + r());
-    const tw2 = tf * (1 - Math.exp(-age / tf));
-    // quantise the sheet-sample time to the birth time grid for caching only when exact
-    const u = waveUniforms(ws, tb + tw2);
-    const x = x0 + vx * age + wa * (Math.sin(wf * age + wp) - Math.sin(wp));
-    const y = waveY(u, x0, v0) + dy0 + vy * age + wa * (Math.cos(wf * 1.3 * age + wp) - Math.cos(wp));
+    const S = sheetPos(waveUniforms(ws, tb + tf * (1 - Math.exp(-age / tf))), x0, v0);
+    const wob = Math.sin(wf * age + wp) - Math.sin(wp), wob2 = Math.cos(wf * 1.3 * age + wp) - Math.cos(wp);
+    const q = project([S[0] + off[0] + dv[0] * age + wa * wob,
+                       S[1] + off[1] + dv[1] * age + wa * wob2,
+                       S[2] + off[2] + dv[2] * age + wa * 0.5 * wob]);
+    if (!q) continue;
     const fade = Math.min(1, age / SPARK.fadeIn) * Math.min(1, (life - age) / SPARK.fadeOut);
     const f2 = fade * fade * (3 - 2 * fade);
     if (tw) inten *= 0.55 + 0.45 * Math.sin(twf * T + twp);
@@ -256,7 +292,7 @@ function sparkles(seed, slots, ws, t, out) {
     if (inten <= 0.001) continue;
     const hh = hf * T + hp;
     const o = n * SPARK_STRIDE;
-    out[o] = x; out[o + 1] = y; out[o + 2] = rad; out[o + 3] = inten;
+    out[o] = q[0]; out[o + 1] = q[1]; out[o + 2] = rad * CAMERA.dist / q[2]; out[o + 3] = inten;
     out[o + 4] = 1 + 0.10 * Math.sin(hh); out[o + 5] = 1 + 0.10 * Math.sin(hh + 2.1);
     out[o + 6] = 1 + 0.10 * Math.sin(hh + 4.2);
     out[o + 7] = bokeh ? 1 : 0; out[o + 8] = bokeh ? 0.3 * SPARK.glint : SPARK.glint;
@@ -283,24 +319,28 @@ out vec2 vUv;
 void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2);
   vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
 
-const NC = WAVE.C.length, NW = WAVE.W.length, NP = WAVE.P.length, NR = WAVE.R.length;
+const NC = WAVE.C.length, NZ = WAVE.Z.length, NW = WAVE.W.length, NP = WAVE.P.length, NR = WAVE.R.length;
 const VS_WAVE = `#version 300 es
 precision highp float;
-uniform vec4 uC[${NC}]; uniform vec4 uW[${NW}]; uniform vec4 uP[${NP}]; uniform vec4 uR[${NR}];
-uniform float uC0, uW0, uP0, uX0, uX1, uLineW, uLineI, uEdge;
+uniform vec4 uC[${NC}]; uniform vec4 uZ[${NZ}]; uniform vec4 uW[${NW}]; uniform vec4 uP[${NP}]; uniform vec4 uR[${NR}];
+uniform float uC0, uW0, uP0, uX0, uX1, uFade, uLineW, uLineI, uEdge, uEdgePow, uCamDist;
+uniform vec3 uCamPos, uCamR, uCamU, uCamF; uniform float uFocal;
 uniform vec2 uRes; uniform int uSegs, uLines;
 out float vD; out float vI; out float vHalf;
 float hash(float n){ return fract(sin(n * 12.9898) * 43758.5453); }
 vec3 sheet(float x, float v){
-  float c = uC0, w = 1.0, p = uP0, r = 0.0;
+  float c = uC0, z = 0.0, w = 1.0, p = uP0, r = 0.0;
   for (int k = 0; k < ${NC}; k++) c += uC[k].x * sin(uC[k].y * x + uC[k].z);
+  for (int k = 0; k < ${NZ}; k++) z += uZ[k].x * sin(uZ[k].y * x + uZ[k].z);
   for (int k = 0; k < ${NW}; k++) w += uW[k].x * sin(uW[k].y * x + uW[k].z);
   for (int k = 0; k < ${NP}; k++) p += uP[k].x * sin(uP[k].y * x + uP[k].z);
   for (int k = 0; k < ${NR}; k++) r += uR[k].x * sin(uR[k].y * x + uR[k].z + uR[k].w * v);
-  float cp = cos(p);
-  return vec3(x, c + (v - 0.5) * uW0 * w * cp + r, cp);
+  float s = (v - 0.5) * uW0 * w, sp = sin(p), cp = cos(p);
+  return vec3(x, c + s * sp + r * cp, z + s * cp - r * sp);
 }
-vec2 toPx(vec2 q){ return vec2(uRes.x * 0.5 + q.x * uRes.y, uRes.y * 0.5 + q.y * uRes.y); }
+// camera space (right, up, depth)
+vec3 cam(vec3 q){ vec3 d = q - uCamPos; return vec3(dot(d, uCamR), dot(d, uCamU), dot(d, uCamF)); }
+vec2 toPx(vec3 c){ vec2 q = uFocal * c.xy / max(c.z, 0.05); return vec2(uRes.x * 0.5 + q.x * uRes.y, uRes.y * 0.5 + q.y * uRes.y); }
 void main(){
   int line = gl_InstanceID;
   int j = gl_VertexID >> 1;
@@ -308,22 +348,27 @@ void main(){
   float fl = float(line);
   float v = (fl + 0.5 + (hash(fl + 1.0) - 0.5) * 0.6) / float(uLines);
   float x = mix(uX0, uX1, float(j) / float(uSegs));
-  float dx = (uX1 - uX0) / float(uSegs);
-  vec3 s0 = sheet(x, v);
-  vec2 p = toPx(s0.xy);
-  vec2 pa = toPx(sheet(x - dx, v).xy), pb = toPx(sheet(x + dx, v).xy);
-  vec2 t = normalize(pb - pa);
+  float dx = (uX1 - uX0) / float(uSegs), dv = 0.01;
+  vec3 P0 = sheet(x, v), Pa = sheet(x - dx, v), Pb = sheet(x + dx, v), Pv = sheet(x, v + dv);
+  vec3 c0 = cam(P0);
+  vec2 p = toPx(c0);
+  vec2 t = toPx(cam(Pb)) - toPx(cam(Pa));
+  t = length(t) > 1e-6 ? normalize(t) : vec2(1.0, 0.0);
   vec2 n = vec2(-t.y, t.x);
-  float w = max(uLineW, 1.0);
+  // perspective: thread width scales with inverse depth
+  float wd = uLineW * uCamDist / max(c0.z, 0.05);
+  float w = max(wd, 1.0);
   float half_ = w * 0.5 + 1.0;
   p += n * side * half_;
   vD = side * half_; vHalf = w * 0.5;
-  // intensity: across-sheet profile, per-thread variation, edge-on boost, end fades
+  // real angle between surface and line of sight
+  vec3 nrm = normalize(cross(Pb - Pa, Pv - P0));
+  float facing = abs(dot(nrm, normalize(P0 - uCamPos)));
+  float edge = 1.0 + uEdge * pow(1.0 - facing, uEdgePow);
   float prof = smoothstep(0.0, 0.18, v) * smoothstep(1.0, 0.82, v);
   float thr = 0.6 + 0.8 * hash(fl * 7.13 + 3.0);
-  float edge = 1.0 + uEdge * (1.0 - abs(s0.z));
-  float ends = smoothstep(uX0, uX0 + 0.3, x) * smoothstep(uX1, uX1 - 0.3, x);
-  vI = uLineI * prof * thr * edge * ends * (uLineW / w);
+  float ends = smoothstep(uX0, uX0 + uFade, x) * smoothstep(uX1, uX1 - uFade, x);
+  vI = uLineI * prof * thr * edge * ends * (wd / w);
   gl_Position = vec4(p / uRes * 2.0 - 1.0, 0.0, 1.0);
 }`;
 const FS_WAVE = `#version 300 es
@@ -494,13 +539,16 @@ function drawLum(target, st, wave, spark) {
   const scale = target.h / 1080;
   if (wave) {
     const pr = P.wave; gl.useProgram(pr.p); gl.bindVertexArray(emptyVao);
-    setVec4Array(pr.u.uC, st.wu.C); setVec4Array(pr.u.uW, st.wu.W);
+    setVec4Array(pr.u.uC, st.wu.C); setVec4Array(pr.u.uZ, st.wu.Z); setVec4Array(pr.u.uW, st.wu.W);
     setVec4Array(pr.u.uP, st.wu.P); setVec4Array(pr.u.uR, st.wu.R);
     gl.uniform1f(pr.u.uC0, WAVE.c0); gl.uniform1f(pr.u.uW0, WAVE.w0); gl.uniform1f(pr.u.uP0, WAVE.p0);
-    gl.uniform1f(pr.u.uX0, WAVE.x0); gl.uniform1f(pr.u.uX1, WAVE.x1);
+    gl.uniform1f(pr.u.uX0, WAVE.x0); gl.uniform1f(pr.u.uX1, WAVE.x1); gl.uniform1f(pr.u.uFade, WAVE.fade);
     gl.uniform1f(pr.u.uLineW, WAVE.lineWidth * scale);
     gl.uniform1f(pr.u.uLineI, WAVE.lineBright * st.sc.waveBright);
-    gl.uniform1f(pr.u.uEdge, WAVE.edgeBoost);
+    gl.uniform1f(pr.u.uEdge, WAVE.edgeBoost); gl.uniform1f(pr.u.uEdgePow, WAVE.edgePow);
+    gl.uniform3fv(pr.u.uCamPos, CAM.pos); gl.uniform3fv(pr.u.uCamR, CAM.right);
+    gl.uniform3fv(pr.u.uCamU, CAM.up); gl.uniform3fv(pr.u.uCamF, CAM.fwd);
+    gl.uniform1f(pr.u.uFocal, CAM.F); gl.uniform1f(pr.u.uCamDist, CAMERA.dist);
     gl.uniform2f(pr.u.uRes, target.w, target.h);
     gl.uniform1i(pr.u.uSegs, WAVE.segs); gl.uniform1i(pr.u.uLines, WAVE.lines);
     gl.uniform3fv(pr.u.uCol, st.waveCol);
@@ -632,7 +680,7 @@ function render(opts) {
   return { width: o.w, height: o.h, data };
 }
 window.XMBW = { ready: Promise.resolve(), render,
-  _internals: { MONTHS, THEMES, MOOD, WAVE, SPARK, GLARE } };
+  _internals: { MONTHS, THEMES, MOOD, WAVE, SPARK, GLARE, CAMERA } };
 
 if (SCORE) { canvas.style.width = canvas.style.height = 'auto'; return; }
 
