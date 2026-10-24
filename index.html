@@ -79,20 +79,22 @@ const WAVE = {
   C: [[0.140, 0.55, 0.110, 0.35, 0.031], [0.080, 1.15, -0.170, 0.40, 0.047],
       [0.045, 1.75, 0.230, 0.45, 0.059], [0.025, 2.70, -0.310, 0.50, 0.073]],
   Z: [[0.300, 0.40, 0.080, 0.35, 0.029], [0.150, 0.95, -0.120, 0.40, 0.043]],
-  w0: 1.0,                 // ribbon width (world)
+  w0: 0.85,                // ribbon width (world)
   W: [[0.25, 0.45, 0.070, 0.30, 0.023], [0.15, 1.00, -0.130, 0.40, 0.041],
       [0.08, 1.60, 0.190, 0.40, 0.053]],
   p0: 0.0,                 // twist about the spine (rad); 0 = lying flat
-  P: [[0.45, 0.70, 0.090, 0.30, 0.027], [0.30, 1.35, -0.150, 0.40, 0.039],
-      [0.20, 0.35, 0.050, 0.30, 0.017]],
+  P: [[0.35, 0.70, 0.090, 0.30, 0.027], [0.22, 1.35, -0.150, 0.40, 0.039],
+      [0.15, 0.35, 0.050, 0.30, 0.017]],
   // ripples along the surface normal: [amp, freq, omega, modDepth, modFreq, phase per unit v]
   R: [[0.020, 2.2, 0.60, 0.40, 0.067, 2.0], [0.012, 3.9, -0.90, 0.40, 0.083, 3.5],
       [0.008, 5.6, 1.30, 0.40, 0.091, 5.0], [0.008, 1.4, -0.45, 0.40, 0.037, 1.2]],
   fade: 0.8,          // world length of the end fades
-  lines: 48,
+  // each thread also wanders on its own: [amp, freq, omega]
+  thread: [0.006, 3.1, 0.35],
+  lines: 80,
   segs: 512,
   lineWidth: 1.1,     // px at 1080 lines, at the camera distance
-  lineBright: 0.10,   // per-line peak
+  lineBright: 0.065,  // per-line peak
   edgeBoost: 0.8,     // extra brightness when seen edge-on (from the 3D normal)
   edgePow: 2.0,
   tint: 0.25,         // how much the palette tints the wave
@@ -344,12 +346,15 @@ const VS_WAVE = `#version 300 es
 precision highp float;
 uniform vec4 uC[${NC}]; uniform vec4 uZ[${NZ}]; uniform vec4 uW[${NW}]; uniform vec4 uP[${NP}]; uniform vec4 uR[${NR}];
 uniform float uC0, uW0, uP0, uX0, uX1, uFade, uLineW, uLineI, uEdge, uEdgePow, uCamDist;
+uniform vec3 uThread; uniform float uThreadT;
 uniform vec3 uCamPos, uCamR, uCamU, uCamF; uniform float uFocal;
 uniform vec2 uRes; uniform int uSegs, uLines;
 out float vD; out float vI; out float vHalf;
 float hash(float n){ return fract(sin(n * 12.9898) * 43758.5453); }
+float gThrPh;
 vec3 sheet(float x, float v){
-  float c = uC0, z = 0.0, w = 1.0, p = uP0, r = 0.0;
+  float c = uC0, z = 0.0, w = 1.0, p = uP0;
+  float r = uThread.x * sin(uThread.y * x + uThreadT + gThrPh);
   for (int k = 0; k < ${NC}; k++) c += uC[k].x * sin(uC[k].y * x + uC[k].z);
   for (int k = 0; k < ${NZ}; k++) z += uZ[k].x * sin(uZ[k].y * x + uZ[k].z);
   for (int k = 0; k < ${NW}; k++) w += uW[k].x * sin(uW[k].y * x + uW[k].z);
@@ -367,6 +372,7 @@ void main(){
   float side = float(gl_VertexID & 1) * 2.0 - 1.0;
   float fl = float(line);
   float v = (fl + 0.5 + (hash(fl + 1.0) - 0.5) * 0.6) / float(uLines);
+  gThrPh = 6.2831853 * hash(fl * 3.71 + 11.0);
   float x = mix(uX0, uX1, float(j) / float(uSegs));
   float dx = (uX1 - uX0) / float(uSegs), dv = 0.01;
   vec3 P0 = sheet(x, v), Pa = sheet(x - dx, v), Pb = sheet(x + dx, v), Pv = sheet(x, v + dv);
@@ -569,6 +575,7 @@ function drawLum(target, st, wave, spark) {
     gl.uniform3fv(pr.u.uCamPos, CAM.pos); gl.uniform3fv(pr.u.uCamR, CAM.right);
     gl.uniform3fv(pr.u.uCamU, CAM.up); gl.uniform3fv(pr.u.uCamF, CAM.fwd);
     gl.uniform1f(pr.u.uFocal, CAM.F); gl.uniform1f(pr.u.uCamDist, CAMERA.dist);
+    gl.uniform3fv(pr.u.uThread, WAVE.thread); gl.uniform1f(pr.u.uThreadT, st.thrPhase);
     gl.uniform2f(pr.u.uRes, target.w, target.h);
     gl.uniform1i(pr.u.uSegs, WAVE.segs); gl.uniform1i(pr.u.uLines, WAVE.lines);
     gl.uniform3fv(pr.u.uCol, st.waveCol);
@@ -617,7 +624,8 @@ function buildState(o) {
   const sparkCol = warm.map((w, i) => w * (1 - 0.5 * WAVE.tint) + (mid[i] / mx) * 0.5 * WAVE.tint);
   let nSpark = 0;
   if (o.needSpark) nSpark = sparkles(o.seed, getSlots(o.seed), ws, o.t, sparkData);
-  return { sc, wu, waveCol, sparkCol, nSpark };
+  const thrPhase = (((o.t + ws.tOff) * WAVE.thread[2]) % TAU + TAU) % TAU;
+  return { sc, wu, waveCol, sparkCol, nSpark, thrPhase };
 }
 let wsCache = { seed: null }, slotCache = { seed: null };
 function getWaveState(seed) { if (wsCache.seed !== seed) wsCache = { seed, ws: makeWaveState(seed) }; return wsCache.ws; }
@@ -701,7 +709,8 @@ function render(opts) {
 }
 window.XMBW = { ready: Promise.resolve(), render,
   _internals: { MONTHS, THEMES, MOOD, WAVE, SPARK, GLARE, CAMERA,
-    sparkles: t => sparkles(1, getSlots(1), getWaveState(1), t, sparkData) } };
+    sparkles: t => sparkles(1, getSlots(1), getWaveState(1), t, sparkData),
+    sheetPosAt, project, getWaveState, CAM } };
 
 if (SCORE) { canvas.style.width = canvas.style.height = 'auto'; return; }
 
