@@ -46,7 +46,11 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 - A 19 x 19 mass-spring net, driven at the far end and gently pulled at the
   free end, is simulated at 60 fixed steps per second in a Web Worker. Two
   fold families run from the driven end along the sheet and cross at shallow
-  angles; the springs are soft, so the folds travel slowly. The net is passed
+  angles; the springs are soft, so the folds travel slowly. Tiny random
+  velocity kicks keep the motion alive and, because the across-the-width
+  springs have no linear stiffness at rest length, also set how many strands
+  the band shows (their size is tuned to the reference's three to four
+  brightness peaks per column). The net is passed
   through a slow free-form deformation lattice (two slow twisting sways and a
   gentle swell about two screen widths long that travels along the band and
   lifts it, strands together) and used as the control net of a bicubic

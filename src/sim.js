@@ -16,7 +16,12 @@ function XMBW_SIM() {
                                     // over minutes without touching the folds or the wrinkles
     acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
     damping: 0.001,                 // fraction of velocity removed per step (low, so the folds persist along the length)
-    noise: 0.0001,                  // velocity kick per step (std dev); kept tiny, or the control net jitters and the fold lines stipple
+    noise: 0.0001,                  // velocity kick per step (std dev). Besides keeping the motion alive, the kicks set how
+                                    // many strands the band shows: the across-the-width springs have no linear stiffness at
+                                    // rest length, so the kicks drive neighbouring rows apart into separate strands; 1e-4 gives
+                                    // the reference's 3-4 brightness peaks and about 0.8 dark partings per column, 2e-5 a broad
+                                    // ribbon of two or three layers whose lines stand too high above the band; larger values
+                                    // make the net jitter and the fold lines stipple
     push: 0.005,                    // steady gentle pull on the free end, along the length, so the sheet stays extended
     driveA: 0.050, driveW1: 0.42,   // driven end: height amplitude, angular frequency
     driveB: 0.070, driveW2: 0.25,   // driven end: depth amplitude, angular frequency
