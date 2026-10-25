@@ -26,7 +26,7 @@ function XMBW_SIM() {
   // Free-form deformation lattice: more cells along the length than across or in depth.
   const LAT = { nu: 10, nv: 4, nw: 4, ease: 0.02,
     // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]
-    sways: [[0.050, 3.1, 0.082, 0.8], [0.045, 5.3, -0.130, 1.0], [0.020, 8.9, 0.190, 0.7]],
+    sways: [[0.045, 3.1, 0.082, 0.8], [0.040, 5.3, -0.130, 1.0], [0.020, 8.9, 0.190, 0.7]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
