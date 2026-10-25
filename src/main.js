@@ -40,19 +40,19 @@ const MOOD_KEYS = [
 ];
 const MOODS = {
   night: { waveBright: 0.43, base: 0.24, baseC: 0.40, baseK: 2.0, edge: 0.065, edgeC: 0.12, threadAmp: 0.0,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 6,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 3.6,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
     focusFar: 12.0, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
   dawn: { waveBright: 0.33, base: 0.30, baseC: 0.40, baseK: 2.0, edge: 0.08, edgeC: 0.12, threadAmp: 0.0,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 4.6,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
   day: { waveBright: 0.33, base: 0.30, baseC: 0.40, baseK: 2.0, edge: 0.08, edgeC: 0.12, threadAmp: 0.0,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 7,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 4.6,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.5, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.45, base: 0.32, baseC: 0.40, baseK: 2.0, edge: 0.085, edgeC: 0.12, threadAmp: 0.0,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 4.6,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
 };

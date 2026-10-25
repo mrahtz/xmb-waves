@@ -85,7 +85,7 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   free end, is simulated at 60 fixed steps per second in a Web Worker. Each
   point of the shaken edge moves up and down by one slow oscillation and
   towards and away by another, with the timing offset building up across the
-  width to about one and a half cycles for the height and two for the depth,
+  width to about two cycles for the height and nearly four for the depth,
   so the edge is itself wavy and, because the two offsets differ, the folds
   it sends along the sheet cross at shallow angles; the springs are soft, so
   the folds travel slowly.
@@ -99,8 +99,8 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   gentle swell about two screen widths long that travels along the band and
   lifts it, strands together) and used as the control net of a bicubic
   B-spline surface evaluated on the GPU and seen through a slightly raised
-  (7 degrees), oblique perspective camera placed far back with a narrow field
-  of view, so the near and far parts of the band look alike.
+  (about 5 degrees), oblique perspective camera placed far back with a narrow
+  field of view, so the near and far parts of the band look alike.
 - The sheet is lit by the angle between its normal and the line of sight
   with a flat-topped response: the nearly edge-on faces of the shallowly
   seen sheet stay near full brightness, faces that turn towards the viewer
