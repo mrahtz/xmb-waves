@@ -14,6 +14,8 @@ It describes **what the viewer should see, how it should behave, and how the ori
 - Section 8 is now a list of required product features (viewer controls, settings remembered, iPad home-screen use, performance target). Section 1 adds the performance design.
 - New section 11 lists the few structural numbers the user allowed from the analysis, each one marked with where it comes from.
 
+**Version 5 (2026-10-25).** Adds 4.4e "The drive in plain terms" (idea-level description of how the sheet is shaken; no values). Nothing else changed.
+
 **Version 4 (2026-10-25).** Adds 4.6 "Measured look and motion" (on-screen statistics of the original's wave measured from rendered output: band placement and thickness, strands and partings, brightness profile, streaks, motion and coarse timescales) and 4.7 "Character of the effect" (plain-language description). Exact colours, camera numbers, drive timings and decay constants are deliberately not given. Nothing else changed.
 
 **Version 2.** Section 4 required the wave to be a genuine three-dimensional surface seen through a perspective camera, and section 6 placed the sparkles in the same 3D space. Both requirements still apply.
@@ -130,6 +132,14 @@ The original builds the sheet in four stages. Do the same, with your own values.
 
 - A **perspective camera** with a moderate vertical field of view. It looks along the sheet from in front and slightly to one side, rotated about a tilted axis so that the sheet is seen from slightly above and obliquely. That is why the band crosses the screen and varies in thickness. The near and far planes are ordinary.
 - The camera's tilt changes slightly with the time-of-day mood (the night mood tilts it a little differently).
+
+**e. The drive in plain terms (version 5).**
+
+- The shaken end is the one at the left of the screen, where the motion enters; that is why the swell travels left to right (4.6).
+- The whole edge is shaken, not one corner. Neighbouring points along that edge move almost in step, and the timing offset builds up gradually across the width.
+- Nothing else is driven. The rest of the sheet only follows through the springs, apart from the tiny random nudges (a) and the separate slow bend (b).
+- The motion is smooth and continuous, with no bursts, pauses or jerks; the shaken edge traces slow, rounded paths that never exactly repeat.
+- Fine detail (where lines meet, small wrinkles) re-forms within seconds while the swell takes roughly 10-15 s to cross the screen; both are always present at once.
 
 ### 4.5 Construction: shading, anti-aliasing and compositing
 
