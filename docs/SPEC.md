@@ -14,6 +14,8 @@ It describes **what the viewer should see, how it should behave, and how the ori
 - Section 8 is now a list of required product features (viewer controls, settings remembered, iPad home-screen use, performance target). Section 1 adds the performance design.
 - New section 11 lists the few structural numbers the user allowed from the analysis, each one marked with where it comes from.
 
+**Version 6 (2026-10-25).** Adds 8.1 "Settings menu": the viewer controls described by function, as one settings menu. Nothing else changed.
+
 **Version 5.1 (2026-10-25).** Corrects one bullet of 4.4e: the timing offset across the shaken edge adds up to more than one full cycle, so the edge is itself wavy. Nothing else changed.
 
 **Version 5 (2026-10-25).** Adds 4.4e "The drive in plain terms" (idea-level description of how the sheet is shaken; no values). Nothing else changed.
@@ -339,6 +341,44 @@ These are required.
 - **Pauses when hidden:** no simulation or drawing while the page is hidden. On return it resumes without a jump (the capped time step of 4.4a).
 - **Aspect and resolution:** 16:9 by default, 4:3 nice to have, any resolution (section 1).
 - **Performance:** 60 frames per second on a recent iPad in Safari at render scale 4x, built as described in section 1.
+
+### 8.1 Settings menu (version 6)
+
+The viewer controls of section 8 take the form of one settings menu, described here by function. Its look is your own; only the functions below are required.
+
+**Opening and closing.** A small round button in a corner of the screen opens and closes a side panel (the button shows a menu icon when closed and a close icon when open). The H key does the same. The panel floats over the picture without dimming it, scrolls if it is taller than the screen, and is grouped into collapsible sections; the first four start open.
+
+**Picture**
+- Output shape: 16:9 or 4:3.
+- Render scale: 0.25x, 0.5x, 0.75x, 1x, 1.5x, 2x, 3x, 4x of the picture's display size, with a short note under it giving the resulting render size in pixels.
+- Fit to window: fill (crop the edges), whole picture (letterbox), stretch, or one picture pixel per screen pixel.
+- Show pixels when enlarged (no smoothing between pixels), on or off.
+
+**Performance**
+- Frame-rate counter (also the F key): a small overlay with frames per second and a short history graph.
+- Detailed stats: render size, the simulation thread's time per step, and which quality options are in effect.
+- A button that measures and lists GPU time per rendering pass.
+- Frame rate cap: 60 fps, 30 fps (saves battery), or the display's own rate.
+- Wave buffer quality: full supersampling, or one sample per rendered pixel at high render scales (much less GPU work, no visible difference once the picture is shrunk to the screen).
+
+**Time and theme**
+- Date and time, with a "Now" button.
+- Time of day: a slider over the 24 hours.
+- Clock speed: stopped, real time, 1 minute per second, 10 minutes per second, 1 hour per second, 6 hours per second.
+- Wave speed: frozen, 0.25x, 0.5x, 1x, 2x, 4x (the wave and sparkles only; the clock is separate).
+- Pause / play (also Space), step one frame while paused (also the full stop or right arrow key), and restart the wave from a fresh settled state.
+- Colour: automatic (from the date and time) or one of the twelve themes by name.
+- Mood: follow the clock, or hold night, dawn, day or dusk.
+
+**Layers.** On/off for each part of the picture: background gradient, wave, glare, sparkles, sparkle glints, dither, and the background's frame-to-frame easing.
+
+**Wireframes.** Overlays of your own geometry: the wave surface's mesh, the control grid, and the sparkle quads.
+
+**Inspect.** A view of your own intermediate images: choose any buffer your renderer uses (with a mip level where it has several), a brightness gain slider with an automatic setting for faint buffers, and "stop after pass" to show the frame only up to a chosen pass.
+
+**Parameters.** Sliders for your own tunable values, grouped by part (wave motion, wave look, camera, background, glare, sparkles), each with a reset button, plus "reset all". The sliders change the picture live.
+
+**Remembered.** All settings, including which sections are open, are kept in this browser between visits (handled defensively: the page works when storage is unavailable). URL parameters still override them.
 
 ## 9. Deterministic render interface (required)
 
