@@ -81,10 +81,15 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 
 ## How it works (short)
 
-- A 19 x 19 mass-spring net, driven at the far end and gently pulled at the
-  free end, is simulated at 60 fixed steps per second in a Web Worker. Two
-  fold families run from the driven end along the sheet and cross at shallow
-  angles; the springs are soft, so the folds travel slowly. Tiny random
+- A 19 x 19 mass-spring net, shaken at the far end and gently pulled at the
+  free end, is simulated at 60 fixed steps per second in a Web Worker. Each
+  point of the shaken edge moves up and down by one slow oscillation and
+  towards and away by another, with the timing offset building up across the
+  width to about two and a half cycles in opposite directions for the two
+  axes, so the edge is itself wavy and the folds it sends along the sheet
+  cross at shallow angles; the springs are soft, so the folds travel slowly.
+  Nothing pulls the net towards a rest shape: its form comes from the
+  springs, the damping, the steady push and the shaking alone. Tiny random
   velocity kicks keep the motion alive and, because the across-the-width
   springs have no linear stiffness at rest length, also set how many strands
   the band shows (their size is tuned to the reference's three to four
@@ -153,8 +158,15 @@ January, March, June, July and December (and theme 1, silver), the look in
 the small hours and at dawn, and the exact month-to-month blend in the
 middle of a month. These are design guesses that follow the spec.
 
-Performance has been checked only in a software renderer; the 60 fps target
-on an iPad has not been measured on a device yet.
+Performance has been checked only in a software renderer (headless Chromium
+with SwiftShader), where the frame time goes to drawing rather than to the
+cloth: at 1920 x 1080 the final composite with the wave down-filter takes
+about half the frame, the wave draw into the supersampled buffer a third,
+glare and sparkles a tenth each, and the simulation under a millisecond; at
+3840 x 2160 the composite dominates further. The wave buffer at one sample
+per rendered pixel (the menu's default above 1.5x) saves a fifth of the
+frame at 1080p and a third at 4K. The 60 fps target on an iPad has not been
+measured on a device yet.
 
 ## Licence
 

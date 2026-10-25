@@ -12,8 +12,6 @@ function XMBW_SIM() {
     kStruct: 0.25, kBend: 1.25,    // spring constants along the length (unit masses); soft, so the folds travel slowly
     alongRest: 1.0,                 // rest length of the along-springs relative to the grid spacing: 1.0 keeps the
                                     // sheet smooth; above 1 the slack buckles into standing wrinkles (wirier than the reference)
-    hold: 0.0002,                   // weak pull of every node towards its rest position: stops the slack sheet creeping
-                                    // over minutes without touching the folds or the wrinkles
     acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
     damping: 0.001,                 // fraction of velocity removed per step (low, so the folds persist along the length)
     noise: 0.0001,                  // velocity kick per step (std dev). Besides keeping the motion alive, the kicks set how
@@ -23,11 +21,10 @@ function XMBW_SIM() {
                                     // ribbon of two or three layers whose lines stand too high above the band; larger values
                                     // make the net jitter and the fold lines stipple
     push: 0.005,                    // steady gentle pull on the free end, along the length, so the sheet stays extended
-    driveA: 0.050, driveW1: 0.42,   // driven end: height amplitude, angular frequency
+    driveA: 0.060, driveW1: 0.42,   // driven end: height amplitude, angular frequency (one plain oscillation)
     driveB: 0.070, driveW2: 0.25,   // driven end: depth amplitude, angular frequency
-    driveMix: 0.7,                  // the second family also moves the driven end in height, at this fraction of driveA, so its fold lines show and cross the first family's
-    drivePhase1: 0.87, drivePhase2: -0.58, // phase change per row: the driven edge is folded across its width (about 2.5 folds); the two
-                                          // families run opposite ways across, so their fold lines cross
+    drivePhase1: 0.87, drivePhase2: -0.58, // phase change per row for height and depth: the shaken edge is itself wavy (about 2.5
+                                          // cycles across its width) and the two axes run opposite ways across, so the folds they make cross
     driveEase: 0.02,                // easing of the driving clock towards sim time
     envLow: 0.85, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
     warm: 1500,                     // warm-up steps before frame 0
@@ -212,7 +209,6 @@ function XMBW_SIM() {
         acc[b] -= f * dx; acc[b + 1] -= f * dy; acc[b + 2] -= f * dz;
       }
       for (let j = 0; j < N; j++) acc[(j * N + N - 1) * 3] += NET.push; // free end i = N-1, pulled outwards
-      for (let k = 0; k < NP * 3; k++) acc[k] -= NET.hold * (pos[k] - rest[k]); // the weak hold towards the rest shape
       for (let p = 0; p < N * N; p++) {
         const k = p * 3;
         vel[k] += acc[k] * DT + NET.noise * gauss();
@@ -226,7 +222,7 @@ function XMBW_SIM() {
       for (let j = 0; j < N; j++) {
         const k = (j * N) * 3;
         pos[k] = rest[k];
-        pos[k + 1] = NET.driveA * (Math.sin(NET.driveW1 * driveT + j * NET.drivePhase1) + NET.driveMix * Math.sin(NET.driveW2 * driveT + j * NET.drivePhase2));
+        pos[k + 1] = NET.driveA * Math.sin(NET.driveW1 * driveT + j * NET.drivePhase1);
         pos[k + 2] = rest[k + 2] + NET.driveB * Math.sin(NET.driveW2 * driveT + j * NET.drivePhase2 + 1.3);
         vel[k] = vel[k + 1] = vel[k + 2] = 0;
       }
