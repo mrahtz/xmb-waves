@@ -17,8 +17,10 @@ PARAMS = [
     ('NET.kStruct', 'log', 0.08, 1.5, 0.202), ('bendRatio', 'log', 2.5, 12.0, 4.26), ('NET.acrossK', 'log', 0.75, 1.33, 0.869),
     ('NET.damping', 'log', 0.0003, 0.008, 0.00407), ('NET.push', 'log', 0.002, 0.03, 0.00271),
     ('SCENE.wid', 'lin', 3.0, 6.0, 4.69), ('camPitch', 'lin', 1.0, 12.0, 3.2),
-    ('LAT.sways.0.0', 'log', 0.008, 0.09, 0.0101), ('LAT.sways.1.0', 'log', 0.008, 0.09, 0.0157), ('LAT.sways.2.0', 'log', 0.008, 0.09, 0.0502),
-    ('swayF0', 'log', 0.02, 0.7, 0.274), ('swayF1', 'log', 0.03, 0.7, 0.477), ('swayF2', 'log', 0.03, 0.7, 0.209),  # magnitudes of the (negative) temporal frequencies
+    # spec 11: the slow warp (rolling wave, sliding bump, bob, twist) and the uneven layout along the length
+    ('LAT.rollAmp', 'log', 0.01, 0.12, 0.040), ('LAT.rollW', 'log', 0.08, 1.2, 0.30), ('LAT.rollGrow', 'lin', 1.0, 5.0, 2.0),
+    ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.15), ('LAT.bumpAmp', 'log', 0.004, 0.06, 0.020), ('LAT.twistAmp', 'log', 0.003, 0.04, 0.010),
+    ('LAT.spread', 'log', 3.0, 15.0, 6.0), ('SCENE.len', 'lin', 6.0, 16.0, 9.0), ('SCENE.x0', 'lin', -2.0, 4.0, 0.95),
     ('baseC', 'log', 0.15, 2.0, 0.426), ('baseK', 'lin', 1.0, 4.0, 3.13),  # the view-angle response (day mood)
 ]
 D = len(PARAMS)
@@ -39,7 +41,6 @@ def candidate(vals, cid):
     for (n, k, lo, hi, x0), v in zip(PARAMS, vals):
         if n in ('delta', 'bendRatio'): continue
         if n in ('camPitch', 'baseC', 'baseK'): mood[n] = v
-        elif n.startswith('swayF'): tune['LAT.sways.%s.2' % n[-1]] = -v
         else: tune[n] = v
     p1 = dict(zip([p[0] for p in PARAMS], vals))
     tune['NET.drivePhase2'] = p1['NET.drivePhase1'] + p1['delta']
@@ -48,13 +49,8 @@ def candidate(vals, cid):
 def mkvar_args(vals):
     c = candidate(vals, 'x'); out = []
     for k, v in c['tune'].items():
-        if k.startswith('LAT.sways'): continue
         grp, key = k.split('.', 1); out.append('%s.%s=%s' % (grp.lower(), key, fmt(v)))
     for k in ('camPitch', 'baseC', 'baseK'): out.append('day.%s=%s' % (k, fmt(c['mood'][k])))
-    sw = [[0.0101, 1.55, -0.274, 1.4], [0.0157, 2.65, -0.477, 1.6], [0.0502, 6.0, -0.209, 0.8]]
-    for k, v in c['tune'].items():
-        if k.startswith('LAT.sways'): _, _, i, j = k.split('.'); sw[int(i)][int(j)] = float(fmt(v))
-    out.append('lat.sways=' + json.dumps(sw, separators=(',', ':')))
     return out
 def fmt(v): return '%.4g' % v
 

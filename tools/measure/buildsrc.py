@@ -4,7 +4,6 @@ The sources are src/head.html, src/sim.js and the files of src/main/ (joined in 
 src/main/ORDER, as tools/build.py does). Parameter edits are 'group.key=value':
   day.X / night.X / dawn.X / dusk.X   a mood value          net.X / lat.X / scene.X   simulation constants
   cam.X   the camera                  wave.X   the wave settings
-  lat.sways=[[...],[...],[...]]       the whole sway list
   raw.main=OLD>>>NEW / raw.sim=OLD>>>NEW   a literal replacement (OLD must occur exactly once)
 """
 import os, re
@@ -43,9 +42,6 @@ def apply_edits(texts, edits):
         elif grp in ('cam', 'wave'):
             m = {'cam': 'const CAMERA = {', 'wave': 'const WAVE = {'}[grp]
             f = _where(texts, mains, m); texts[f] = _setk(texts[f], m, '};', key, v)
-        elif grp == 'lat' and key == 'sways':
-            t = texts['sim.js']; assert len(re.findall(r'sways: \[\[.*?\]\],', t)) == 1
-            texts['sim.js'] = re.sub(r'sways: \[\[.*?\]\],', 'sways: ' + v + ',', t, count=1)
         elif grp in ('net', 'lat', 'scene'):
             m = {'net': 'const NET = {', 'lat': 'const LAT = {', 'scene': 'const SCENE = {'}[grp]
             texts['sim.js'] = _setk(texts['sim.js'], m, '};', key, v)

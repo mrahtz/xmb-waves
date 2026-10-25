@@ -511,7 +511,7 @@ function motionStats(frames, fps, ras) {
 // ------------------------------------------------------------------ driving the simulation
 function makeShade(mood) { return { bright: mood.waveBright, base: mood.base, baseC: mood.baseC, baseK: mood.baseK, edge: mood.edge, edgeC: mood.edgeC, sizeRef: mood.sizeRef || 0, areaRef: mood.useArea ? mood.areaRef : 0 }; }
 
-// A page-derived evaluator. tune: dotted-path overrides for the sim tunables (NET.noise, LAT.sways.2.2, SCENE.wid ...),
+// A page-derived evaluator. tune: dotted-path overrides for the sim tunables (NET.noise, LAT.rollW, SCENE.wid ...),
 // moodOver: overrides of the day mood (camPitch, envCross, ...).
 function makeSim(page, seed, tune, moodOver, aspect, fast) {
   const M = fast ? page.XMBW_SIM_FAST() : page.XMBW_SIM();

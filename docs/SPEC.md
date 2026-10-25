@@ -4,7 +4,7 @@ This document describes an effect: a flowing, luminous wave drifting across a so
 
 It describes **what the viewer should see, how it should behave, and how the original is built in general terms**. Construction is given as recommended design: "the original does X; do the same, with your own values". It contains no colours, palettes, textures, constants, preset values or code from the original. The only numbers taken from the analysis of the original are the few listed in section 11 ("Structural numbers from observation and analysis"). Every other value, colour, texture and implementation detail is **your design**. Tune it by comparing your renders side by side with genuine public footage of the original (section 10). Where this document says "choose", the choice is yours.
 
-The current version is 10.1; the version history is at the end of this document.
+The current version is 11; the version history is at the end of this document.
 
 ## 1. Output and platform
 
@@ -104,8 +104,15 @@ The original builds the sheet in four stages. Do the same, with your own values.
 **b. The slow large-scale warp (free-form deformation).**
 
 - The whole net is passed through a **free-form deformation lattice**: a coarse 3D lattice with more cells along the length than across or in depth, spanning the sheet's region. Each control point is mapped into the lattice's normalised coordinates (an offset and a scale). It is then displaced by a **tricubic B-spline** blend of the lattice's displacements and scaled again into the scene.
-- The lattice displacement is **vertical only**: a smooth curve along the length that varies somewhat with depth. That is what gives the band its overall arch or S-shape and makes it drift up and down.
-- **What drives it:** the displacement at each lattice cell is a smooth procedural function of the cell's position and of a slowly advancing time. It combines a few slow sinusoidal sways with a soft bump that travels along the length. The result is eased towards each new value (blended with the previous one) rather than replaced, so it moves very gently. Its time advances with the simulation clock.
+- The lattice displacement is **vertical only** (the uneven layout below is fixed and separate): a smooth curve along the length that varies somewhat with depth. That is what gives the band its overall arch or S-shape and makes it drift up and down.
+- **What drives it (version 11).** The displacement at each lattice cell is the sum of four parts. Each is a smooth function of the cell's position and of one slowly advancing clock that runs with the simulation:
+  - **A wave rolling along the length.** It runs from the shaken end towards the free end, with a little more than one wavelength along the sheet. Its height grows steadily along the length, so it is a few times taller at the free end than at the shaken end. Its overall strength also swells and fades slowly. This is the swell of 4.6: its crest crossing the screen is the band's slow left-to-right rise and fall, and everything on the band (strands, folds, partings) is carried along with it.
+  - **A sliding bump.** One soft hump, roughly a quarter of the sheet's length across, slides slowly back and forth along the length, not round in a loop. For part of its travel it is beyond the shaken end and has no effect.
+  - **A slow bob.** The whole sheet rises and falls together, much more slowly than the swell.
+  - **A small twist.** A gentle ripple, one cycle across the sheet's width, travels across the width and tilts the band slightly.
+
+  The displacement is computed directly from the clock each step, not eased towards targets; it is smooth because every part is slow.
+- **Uneven layout along the length (version 11).** The lattice's cells are not evenly spaced along the length. The part of the sheet near the shaken end is compressed and the part near the free end is spread out many times more, so the free end of the net covers far more of the scene. This layout is fixed and does not move.
 - The lattice's scales vary slightly with the time-of-day mood, so the sheet's proportions change subtly over the day.
 
 **c. The smooth surface.**
@@ -122,7 +129,7 @@ The original builds the sheet in four stages. Do the same, with your own values.
 
 **e. The drive in plain terms (version 5).**
 
-- The shaken end is the one at the left of the screen, where the motion enters; that is why the swell travels left to right (4.6).
+- The shaken end is the one at the left of the screen, where the motion enters; that is why the swell travels left to right (4.6). The large-scale swell of (b) runs the same way.
 - Every row's end is shaken, not one corner. All the shaken ends follow the one shared path of (a), so neighbouring rows' ends are close together and move nearly in step, but across the whole edge the timing offset adds up to more than one full cycle, so the ends are strung out along that path rather than lying in one flat line (corrected in version 5.1, clarified in version 9).
 - Nothing else is driven. The rest of the sheet only follows through the springs, apart from the tiny random nudges (a) and the separate slow bend (b).
 - **No pull back to a rest shape (version 7).** Nothing pulls points towards a stored or flat rest position. The only influences on the net are those in (a): the springs, the damping, the small random nudges, the steady push at the free end and the shaken edge. The sheet's shape comes entirely from how these balance.
@@ -429,6 +436,8 @@ The user allowed these few numbers from the analysis of the original. Use them a
 | N7 | Month palette shift (3) | changes once a day, at local midnight, in equal steps: this month's palette alone on the 1st, then one more step towards next month's each day, so the last day is one step short of next month's palette |
 
 ## Version history
+
+**Version 11 (2026-10-25).** Corrects 4.4b: the slow warp is a wave rolling from the shaken end to the free end and growing along the length, plus a bump sliding back and forth, a slow bob of the whole sheet and a small twist across the width, computed directly rather than eased; the lattice is laid out unevenly along the length. 4.4e notes that the swell runs the same way as the drive. Nothing else changed.
 
 **Version 10.1 (2026-10-25).** Clarifies 4.5: the projected-size factor of version 10 includes the surface element's area, not only the tilt and the distance. Nothing else changed.
 

@@ -116,17 +116,21 @@ function XMBW_SIM() {
     warm: 1500,                     // warm-up steps before frame 0
   };
   // Free-form deformation lattice: more cells along the length than across or in depth.
-  const LAT = { nu: 10, nv: 4, nw: 4, ease: 0.02,
-    // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]; the temporal
-    // frequencies are all negative so every sway travels towards the near end. The first two are slow and
-    // twist the sheet across its width (so the band tilts, arches and pinches); the third is the swell: a
-    // gentle rise and fall about two screen widths long, with a period of about 20 s at a fixed column,
-    // that travels along the band and lifts the whole band, strands together
-    sways: [[0.0101, 1.55, -0.274, 1.4], [0.0157, 2.65, -0.477, 1.6], [0.0502, 6.0, -0.209, 0.8]],
-    bump: { amp: 0.020, width: 0.18, speed: 0.021 },
+  const LAT = { nu: 10, nv: 4, nw: 4,
+    spread: 6.0,                    // uneven layout along the length: the cells at the free end are this many times longer than
+                                    // at the shaken end (fixed), so the free end of the net covers far more of the scene
+    // The vertical displacement is the sum of four slow parts, computed directly from the clock (rates in rad/s):
+    // a wave rolling from the shaken end to the free end, growing along the length, whose strength swells and fades.
+    // It is the swell: its crest crossing the screen is the band's slow left-to-right rise and fall
+    rollAmp: 0.040, rollGrow: 2.0, rollWaves: 1.15, rollW: 0.30, rollMod: 0.35, rollModW: 0.041,
+    // one soft hump sliding back and forth along the length (centre and travel as fractions of the length; part of
+    // its travel lies beyond the shaken end)
+    bumpAmp: 0.020, bumpWidth: 0.25, bumpCentre: 0.25, bumpTravel: 0.5, bumpW: 0.037,
+    bobAmp: 0.012, bobW: 0.071,     // the whole sheet rising and falling together, much more slowly than the swell
+    twistAmp: 0.010, twistW: 0.21,  // a gentle ripple, one cycle across the width, travelling across it
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 10, wid: 4.69, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 9.0, x0: 0.95, wid: 4.69, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
@@ -164,7 +168,7 @@ function XMBW_SIM() {
   }
 
   // Live tuning from the settings menu: values maps dotted paths into the tunables
-  // above ('NET.kStruct', 'LAT.sways.0.0', ...) to numbers. Only a number that
+  // above ('NET.kStruct', 'LAT.rollW', ...) to numbers. Only a number that
   // already exists is set, so a stale or mistyped key does nothing. Sizes fixed at
   // creation (the pool, the lattice cells, the walker count) are not tunable.
   const TUNABLES = { NET, LAT, SCENE, SPARK };
@@ -210,11 +214,10 @@ function XMBW_SIM() {
       }
     }
 
-    // lattice displacement values (vertical), eased towards targets
+    // lattice displacement values (vertical)
     const NL = LAT.nu * LAT.nv * LAT.nw;
     const lat = new Float64Array(NL);
-    const latPh = LAT.sways.map(() => [rng() * 6.2832, rng() * 6.2832]);
-    const bumpPh = rng();
+    const latPh = [rng() * 6.2832, rng() * 6.2832, rng() * 6.2832, rng() * 6.2832, rng() * 6.2832];
 
     let simTime = rng() * 1000, driveT = simTime, steps = 0;
     const mood = { envCross: 0.55, latScale: [1, 1, 1], camFwd: [-0.34, -0.12, 0.93] };
@@ -233,23 +236,23 @@ function XMBW_SIM() {
     const walkers = [];
     for (let w = 0; w < SPARK.walkers; w++) walkers.push({ on: false, s: 0, t: 0, dir: 1, left: 0 });
 
-    function latticeTargets() {
-      const T = simTime;
-      for (let iw = 0; iw < LAT.nw; iw++) for (let iv = 0; iv < LAT.nv; iv++) for (let iu = 0; iu < LAT.nu; iu++) {
-        const u = (iu - 1) / (LAT.nu - 3), w = (iw - 1) / (LAT.nw - 3), v = (iv - 1) / (LAT.nv - 3);
-        let d = 0;
-        for (let m = 0; m < LAT.sways.length; m++) {
-          const s = LAT.sways[m];
-          d += s[0] * (1 + s[3] * (w - 0.5) + 0.1 * (v - 0.5)) * Math.sin(s[1] * u + s[2] * T + latPh[m][0] + 0.8 * s[3] * w);
-        }
-        const ub = (((T * LAT.bump.speed + bumpPh) % 1) + 1) % 1 * 1.8 - 0.4;
-        const du = (u - ub) / LAT.bump.width;
-        d += LAT.bump.amp * Math.exp(-du * du) * (1 + 0.3 * (w - 0.5));
-        const k = (iw * LAT.nv + iv) * LAT.nu + iu;
-        lat[k] += (d - lat[k]) * LAT.ease;
+    function lattice() {
+      const T = simTime, L = LAT;
+      const roll = L.rollAmp * (1 + L.rollMod * Math.sin(L.rollModW * T + latPh[0]));
+      const ub = L.bumpCentre + L.bumpTravel * Math.sin(L.bumpW * T + latPh[1]);
+      const bob = L.bobAmp * Math.sin(L.bobW * T + latPh[2]);
+      for (let iw = 0; iw < L.nw; iw++) for (let iv = 0; iv < L.nv; iv++) for (let iu = 0; iu < L.nu; iu++) {
+        // the cell's position as a fraction of the net's length (0 at the shaken end) and of its width
+        const fx = (iu - 1) / (L.nu - 3) * 1.2 - 0.1, fz = (iw - 1) / (L.nw - 3) * 1.2 - 0.1;
+        const du = (fx - ub) / (0.5 * L.bumpWidth);
+        const k = (iw * L.nv + iv) * L.nu + iu;
+        lat[k] = roll * (1 + L.rollGrow * fx) * Math.sin(6.2832 * L.rollWaves * fx - L.rollW * T + latPh[3])
+          + L.bumpAmp * Math.exp(-du * du) + bob
+          + L.twistAmp * Math.sin(6.2832 * fz - L.twistW * T + latPh[4]);
       }
     }
-    function latticeInit() { const e = LAT.ease; LAT.ease = 1; latticeTargets(); LAT.ease = e; }
+    // fixed uneven layout along the length: net fraction -> scene fraction, cell length growing by 'spread' end to end
+    function layout(x) { const a = Math.log(Math.max(LAT.spread, 1.0001)); return Math.expm1(a * x) / Math.expm1(a); }
 
     const bu = [0, 0, 0, 0], bv = [0, 0, 0, 0], bw = [0, 0, 0, 0];
     function ffd(u, v, w) { // tricubic B-spline blend of lattice values at normalised coords
@@ -278,7 +281,7 @@ function XMBW_SIM() {
         // lattice normalised coords: the lattice spans the net's region with a margin
         const u = (x + 0.1) / 1.2, v = (y + 0.5), w = (z + 0.1) / 1.2;
         const dy = ffd(u, v, w);
-        out[k] = (x - 0.5) * SCENE.len * ls[0];
+        out[k] = ((layout(x) - 0.5) * SCENE.len + SCENE.x0) * ls[0];
         out[k + 1] = (y + dy) * SCENE.height * ls[1] + SCENE.y0 + SCENE.tilt * out[k];
         out[k + 2] = (z - 0.5) * SCENE.wid * ls[2] + SCENE.z0;
       }
@@ -413,7 +416,7 @@ function XMBW_SIM() {
 
     function step() {
       simTime += DT; steps++;
-      latticeTargets();
+      lattice();
       stepNet();
       const t = netPrev; netPrev = netCur; netCur = t;
       deform(netCur);
@@ -446,7 +449,7 @@ function XMBW_SIM() {
       if (m.camFwd) mood.camFwd = m.camFwd.slice();
     }
 
-    latticeInit();
+    lattice();
     deform(netCur); netPrev.set(netCur);
     return {
       N, DT, SPARK_STRIDE, pool: S,
@@ -1489,11 +1492,11 @@ group('Wave motion', [
   sim('NET.drivePhase2', 'phase per row 2', -2, 2, 0.01), sim('NET.driveEase', 'drive easing', 0.001, 0.2, 0.001),
   sim('NET.envLow', 'envelope low', 0, 1, 0.01), sim('NET.envWidth', 'envelope width', 0.02, 0.5, 0.01),
   mood('envCross', 'envelope crossover', 0, 1, 0.01),
-  sim('LAT.sways.0.0', 'sway 1 amplitude', 0, 0.1, 0.001), sim('LAT.sways.0.2', 'sway 1 rate', -0.5, 0.5, 0.001),
-  sim('LAT.sways.1.0', 'sway 2 amplitude', 0, 0.1, 0.001), sim('LAT.sways.1.2', 'sway 2 rate', -0.5, 0.5, 0.001),
-  sim('LAT.sways.2.0', 'swell amplitude', 0, 0.1, 0.001), sim('LAT.sways.2.2', 'swell rate', -1, 1, 0.001),
-  sim('LAT.bump.amp', 'bump amplitude', 0, 0.1, 0.001), sim('LAT.bump.width', 'bump width', 0.05, 0.5, 0.005),
-  sim('LAT.bump.speed', 'bump speed', 0, 0.1, 0.001), sim('LAT.ease', 'warp easing', 0.001, 0.2, 0.001),
+  sim('LAT.spread', 'layout spread', 1, 15, 0.1),
+  sim('LAT.rollAmp', 'swell amplitude', 0, 0.12, 0.001), sim('LAT.rollW', 'swell rate', 0, 1.5, 0.005),
+  sim('LAT.rollWaves', 'swell waves', 0.3, 3, 0.01), sim('LAT.rollGrow', 'swell growth', 0, 6, 0.05),
+  sim('LAT.bumpAmp', 'bump amplitude', 0, 0.1, 0.001), sim('LAT.bumpW', 'bump rate', 0, 0.3, 0.001),
+  sim('LAT.bobAmp', 'bob amplitude', 0, 0.05, 0.001), sim('LAT.twistAmp', 'twist amplitude', 0, 0.05, 0.001),
   sim('SCENE.len', 'sheet length', 4, 16, 0.1), sim('SCENE.wid', 'sheet width', 1, 8, 0.1),
   sim('SCENE.height', 'height scale', 1, 14, 0.1), sim('SCENE.y0', 'height offset', -2, 2, 0.01),
   sim('SCENE.tilt', 'sheet tilt', -0.3, 0.3, 0.005),

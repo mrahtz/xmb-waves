@@ -95,9 +95,10 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   springs have no linear stiffness at rest length, also set how many strands
   the band shows (their size is tuned to the reference's three to four
   brightness peaks per column). The net is passed
-  through a slow free-form deformation lattice (two slow twisting sways and a
-  gentle swell about two screen widths long that travels along the band and
-  lifts it, strands together) and used as the control net of a bicubic
+  through a slow free-form deformation lattice, laid out unevenly so the free
+  end covers more of the scene (a swell rolling from the shaken end to the free
+  end and growing along it, which lifts the band strands together, plus a
+  sliding bump, a slow bob and a small twist) and used as the control net of a bicubic
   B-spline surface evaluated on the GPU and seen through a slightly raised
   (about 5 degrees), oblique perspective camera placed far back with a narrow
   field of view, so the near and far parts of the band look alike.
