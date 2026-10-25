@@ -39,22 +39,22 @@ const MOOD_KEYS = [
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.40, base: 0.30, baseC: 0.12, edge: 0.12, edgeC: 0.20, threadAmp: 0.0,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 13,
+  night: { waveBright: 0.25, base: 0.30, baseC: 0.75, edge: 0.03, edgeC: 0.30, threadAmp: 0.0,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 6,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
-    focusFar: 3.6, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
-  dawn: { waveBright: 0.33, base: 0.38, baseC: 0.12, edge: 0.20, edgeC: 0.20, threadAmp: 0.0,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 14,
+    focusFar: 12.0, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
+  dawn: { waveBright: 0.21, base: 0.38, baseC: 0.75, edge: 0.04, edgeC: 0.30, threadAmp: 0.0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 3.8, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
-  day: { waveBright: 0.33, base: 0.38, baseC: 0.12, edge: 0.20, edgeC: 0.20, threadAmp: 0.0,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 14,
+    focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
+  day: { waveBright: 0.21, base: 0.38, baseC: 0.75, edge: 0.04, edgeC: 0.30, threadAmp: 0.0,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 4.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.36, base: 0.40, baseC: 0.12, edge: 0.22, edgeC: 0.20, threadAmp: 0.0,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 14,
+    focusFar: 12.5, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+  dusk: { waveBright: 0.23, base: 0.40, baseC: 0.75, edge: 0.045, edgeC: 0.30, threadAmp: 0.0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 3.8, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
+    focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -108,7 +108,7 @@ function partsOf(d) {
 // Camera (original design): looks across the sheet from in front, yawed so the
 // sheet is seen obliquely and pitched down a little; the pitch follows the mood.
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 38, yaw: -26, dist: 2.6, target: [0.8, 0.10, 0.0], near: 0.1, far: 40 };
+const CAMERA = { fovY: 18, yaw: -20, dist: 11, target: [0.8, 0.45, 0.0], near: 0.1, far: 40 }; // far back with a narrow view, so near and far parts look alike
 function cameraFor(pitchDeg, aspect) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
@@ -140,7 +140,7 @@ const WAVE = {
 };
 const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
 const BG_HL = 0.12; // strength of the drifting daytime highlight
-const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 1.2, farSoft: 1.5, focusNear: 2.6, camFade: [0.6, 1.4],
+const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 2.5, farSoft: 3.0, focusNear: 9.0, camFade: [3.0, 5.0],
   bright: 0.65, dimPow: 3.5, iri: 0.35, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10 };
 const DITHER = 0.85; // output levels, peak
 const GLARE_DESAT = 0.6; // how far the halo is pulled towards white
@@ -237,9 +237,10 @@ void main(){
   gl_Position = clip;
 }`;
 // Per fragment: c = cosine between the normal and the line of sight. A translucent
-// sheet is brighter the more obliquely it is seen, so the faces get a sheen that
-// grows smoothly towards grazing (broad light and dark bands across each pleat),
-// and where a layer turns edge-on a thin crisp line is added. Both are bounded;
+// sheet is brighter the more obliquely it is seen: the sheen falls off
+// exponentially with the cosine of the view angle (brightest edge-on, about a
+// quarter as bright face-on, so each fold shows a broad soft gradient), and
+// where a layer turns edge-on a weak line is added. Both are bounded;
 // the cell's true size scales the light where it was widened (see the vertex
 // shader), so overlapping layers add up to the right total.
 const FS_WAVE = `#version 300 es
@@ -254,7 +255,7 @@ float band(float x, float amp){ // a periodic profile, pre-filtered by its on-sc
 void main(){
   vec3 V = normalize(uCam - vP);
   float c = abs(dot(normalize(vN), V));
-  float sheen = uBase * uBaseC / (c + uBaseC);
+  float sheen = uBase * exp(-c / uBaseC);
   float edge = uEdge * exp(-c / uEdgeC);
   float t = vST.y;
   float pat = 1.0 + band(t * uThreads, uThreadAmp);

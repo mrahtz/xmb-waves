@@ -46,11 +46,14 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 - A 19 x 19 mass-spring net, driven at the far end and pulled gently at the
   near end, is simulated at 60 fixed steps per second in a Web Worker, passed
   through a slow free-form deformation lattice, and used as the control net of
-  a bicubic B-spline surface evaluated on the GPU and seen through an oblique
-  perspective camera.
-- The sheet is lit by the angle between its normal and the line of sight (a
-  faint sheen on the faces, a glow that grows towards grazing angles, dark
-  exactly edge-on so the glow sits beside each fold). Every surface cell is
+  a bicubic B-spline surface evaluated on the GPU and seen through a slightly
+  raised, oblique perspective camera placed far back with a narrow field of
+  view, so the near and far parts of the band look alike.
+- The sheet is lit by the angle between its normal and the line of sight: the
+  light falls off exponentially with the cosine of that angle (brightest
+  edge-on, about a quarter as bright face-on) plus a weak edge-on line, so
+  each fold shows a broad soft gradient and overlapping layers add up to the
+  reference's filled band with soft humps. Every surface cell is
   drawn as its own small quad into a supersampled single-channel buffer with
   additive blending; cells thinner than a pixel are widened to a pixel and
   their light scaled by their true size, so silhouettes never shimmer. The

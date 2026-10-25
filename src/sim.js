@@ -11,25 +11,25 @@ function XMBW_SIM() {
   const NET = {
     kStruct: 1.0, kBend: 5.0,      // spring constants along the length (unit masses)
     acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
-    damping: 0.006,                 // fraction of velocity removed per step
+    damping: 0.0015,                // fraction of velocity removed per step (low, so the folds persist along the length)
     noise: 0.0006,                  // velocity kick per step (std dev)
     push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.050, driveW1: 0.65,   // driven end: height amplitude, angular frequency
-    driveB: 0.050, driveW2: 0.42,   // driven end: depth amplitude, angular frequency
-    drivePhase1: 0.90, drivePhase2: -0.60, // phase change per row: the driven edge is pleated across its width; the two
+    driveA: 0.060, driveW1: 0.75,   // driven end: height amplitude, angular frequency
+    driveB: 0.100, driveW2: 0.42,   // driven end: depth amplitude, angular frequency
+    drivePhase1: 1.20, drivePhase2: -0.80, // phase change per row: the driven edge is folded across its width (about 3.5 folds); the two
                                           // families run opposite ways across, so their fold lines cross
     driveEase: 0.02,                // easing of the driving clock towards sim time
-    envLow: 0.70, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
+    envLow: 0.85, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
     warm: 1500,                     // warm-up steps before frame 0
   };
   // Free-form deformation lattice: more cells along the length than across or in depth.
   const LAT = { nu: 10, nv: 4, nw: 4, ease: 0.02,
     // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]
-    sways: [[0.030, 3.1, 0.071, 0.25], [0.028, 5.3, -0.113, 0.35], [0.012, 8.9, 0.167, 0.40]],
+    sways: [[0.060, 3.1, 0.071, 0.8], [0.050, 5.3, -0.113, 1.0], [0.020, 8.9, 0.167, 0.7]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 8.4, wid: 1.5, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 10, wid: 3.0, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
@@ -95,7 +95,7 @@ function XMBW_SIM() {
     const bumpPh = rng();
 
     let simTime = rng() * 1000, driveT = simTime, steps = 0;
-    const mood = { envCross: 0.55, latScale: [1, 1, 1], camFwd: [0, -0.26, 0.97] };
+    const mood = { envCross: 0.55, latScale: [1, 1, 1], camFwd: [-0.34, -0.12, 0.93] };
 
     // deformed scene-space nets (previous and current step)
     let netPrev = new Float32Array(NP * 3), netCur = new Float32Array(NP * 3);
