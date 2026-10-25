@@ -1,7 +1,7 @@
 #!/bin/sh
 # usage: confirm.sh NAME [motion] group.key=value ...  -> $W/var_NAME.html via mkvar, three 1080p wave-only frames at seed 5
 # and at seed 7 (static statistics), the fill measures, optionally the 30 s motion sequence
-cd "$(dirname "$0")/.." && . ./env.sh
+T=$(cd "$(dirname "$0")/.." && pwd); cd "$T" && . ./env.sh
 N=$1; shift; M=0; [ "$1" = "motion" ] && { M=1; shift; }
 python3 "$T/mkvar.py" $N "$@" || exit 1
 nice -n 5 "$T/wvar.sh" $N 5 && nice -n 5 "$T/wvar.sh" $N 7

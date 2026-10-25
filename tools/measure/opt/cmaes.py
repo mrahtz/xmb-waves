@@ -5,23 +5,23 @@ import numpy as np
 OPT = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(os.path.dirname(OPT)))
 SP = os.environ.get('MEASURE_WORK', os.path.join(ROOT, 'tools', 'measure', 'work'))
 PAGE = os.environ.get('BASE_PAGE', os.path.join(ROOT, 'index.html'))   # the build whose code is used; its tunables are the defaults
-SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count': 60, 'step': 12, 'fps': 5}
+SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count': 150, 'step': 12, 'fps': 5}
 
 # ---- parameters: (name, kind, lo, hi, x0) ; kind 'log' or 'lin'. 'delta' is drivePhase2 - drivePhase1 (> 0: depth offset larger)
 PARAMS = [
-    ('NET.noise', 'log', 2e-5, 4e-4, 1.06e-4),
-    ('NET.driveA', 'log', 0.02, 0.30, 0.0439), ('NET.driveB', 'log', 0.02, 0.50, 0.0361),
-    ('NET.driveW1', 'log', 0.15, 0.9, 0.500), ('NET.driveW2', 'log', 0.08, 0.6, 0.299),
-    ('NET.drivePhase1', 'lin', 0.36, 1.3, 1.08), ('delta', 'lin', 0.02, 0.9, 0.388),
+    ('NET.noise', 'log', 2e-5, 4e-4, 0.0003179),
+    ('NET.driveA', 'log', 0.02, 0.30, 0.04793), ('NET.driveB', 'log', 0.02, 0.50, 0.03405),
+    ('NET.driveW1', 'log', 0.15, 0.9, 0.7856), ('NET.driveW2', 'log', 0.08, 0.6, 0.1042),
+    ('NET.drivePhase1', 'lin', 0.36, 1.3, 1.1), ('delta', 'lin', 0.02, 0.9, 0.6689),
     # spec 9: across-springs comparable to the along ones (acrossK near 1), bending clearly stiffer (kBend = bendRatio x kStruct)
-    ('NET.kStruct', 'log', 0.08, 1.5, 0.202), ('bendRatio', 'log', 2.5, 12.0, 4.26), ('NET.acrossK', 'log', 0.75, 1.33, 0.869),
-    ('NET.damping', 'log', 0.0003, 0.008, 0.00407), ('NET.push', 'log', 0.002, 0.03, 0.00271),
-    ('SCENE.wid', 'lin', 3.0, 6.0, 4.69), ('camPitch', 'lin', 1.0, 12.0, 3.2),
+    ('NET.kStruct', 'log', 0.08, 1.5, 0.2237), ('bendRatio', 'log', 2.5, 12.0, 10.15), ('NET.acrossK', 'log', 0.75, 1.33, 0.9242),
+    ('NET.damping', 'log', 0.0003, 0.008, 0.007526), ('NET.push', 'log', 0.002, 0.03, 0.006023),
+    ('SCENE.wid', 'lin', 3.0, 6.0, 5.398), ('camPitch', 'lin', 1.0, 12.0, 3.608),
     # spec 11: the slow warp (rolling wave, sliding bump, bob, twist) and the uneven layout along the length
-    ('LAT.rollAmp', 'log', 0.01, 0.12, 0.040), ('LAT.rollW', 'log', 0.08, 1.2, 0.30), ('LAT.rollGrow', 'lin', 1.0, 5.0, 2.0),
-    ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.15), ('LAT.bumpAmp', 'log', 0.004, 0.06, 0.020), ('LAT.twistAmp', 'log', 0.003, 0.04, 0.010),
-    ('LAT.spread', 'log', 3.0, 15.0, 6.0), ('SCENE.len', 'lin', 6.0, 16.0, 9.0), ('SCENE.x0', 'lin', -2.0, 4.0, 0.95),
-    ('baseC', 'log', 0.15, 2.0, 0.426), ('baseK', 'lin', 1.0, 4.0, 3.13),  # the view-angle response (day mood)
+    ('LAT.rollAmp', 'log', 0.01, 0.12, 0.01835), ('LAT.rollW', 'log', 0.08, 1.2, 0.45), ('LAT.rollGrow', 'lin', 1.0, 5.0, 2.683),
+    ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.19), ('LAT.bumpAmp', 'log', 0.004, 0.06, 0.005709), ('LAT.twistAmp', 'log', 0.003, 0.04, 0.007415),
+    ('LAT.spread', 'log', 3.0, 15.0, 4.022), ('SCENE.len', 'lin', 6.0, 16.0, 9.204), ('SCENE.x0', 'lin', -2.0, 4.0, -0.6193),
+    ('baseC', 'log', 0.15, 2.0, 0.3149), ('baseK', 'lin', 1.0, 4.0, 2.365),  # the view-angle response (day mood)
 ]
 D = len(PARAMS)
 def to_z(vals):
@@ -61,7 +61,7 @@ OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value)
     ('bwidth', 23.0, 8.0, 1.5, 1.0), ('partings', 5, 2.0, 1.5, -0.7), ('a25', 0.65, 0.08, 0.5, 0.013),
     ('widthLines', 8.5, 1.2, 0.5, 0.6), ('edge', 5.5, 2.0, 0.5, 0.37), ('peaks25', 2.8, 0.5, 0.5, 0.04), ('pinch8', 2, 8, 0.25, -0.4),
     ('lines10', 6, 3, 0.25, 0.3),
-    ('shift', 0.075, 0.025, 1.0, -0.007), ('adjdiff', 5.7, 2.0, 0.75, -0.7), ('corr1', 0.41, 0.1, 2.0, 0.06), ('outer', 0.71, 0.15, 2.0, -0.018), ('cspeed', 0.015, 0.005, 0.5, 0.0),
+    ('shift', 0.075, 0.025, 3.0, -0.007), ('adjdiff', 5.7, 2.0, 0.75, -0.7), ('corr1', 0.41, 0.1, 2.0, 0.06), ('outer', 0.71, 0.15, 2.0, -0.018), ('cspeed', 0.015, 0.005, 0.5, 0.0),
 ]
 def objective(r):
     terms = {}; s = 0.0; w = 0.0; pen = {}
