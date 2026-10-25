@@ -14,6 +14,8 @@ It describes **what the viewer should see, how it should behave, and how the ori
 - Section 8 is now a list of required product features (viewer controls, settings remembered, iPad home-screen use, performance target). Section 1 adds the performance design.
 - New section 11 lists the few structural numbers the user allowed from the analysis, each one marked with where it comes from.
 
+**Version 4 (2026-10-25).** Adds 4.6 "Measured look and motion" (on-screen statistics of the original's wave measured from rendered output: band placement and thickness, strands and partings, brightness profile, streaks, motion and coarse timescales) and 4.7 "Character of the effect" (plain-language description). Exact colours, camera numbers, drive timings and decay constants are deliberately not given. Nothing else changed.
+
 **Version 2.** Section 4 required the wave to be a genuine three-dimensional surface seen through a perspective camera, and section 6 placed the sparkles in the same 3D space. Both requirements still apply.
 
 ## 1. Output and platform
@@ -73,7 +75,7 @@ All the luminous layers (wave, glare, sparkles) add light to what is behind them
 ### 4.1 Shape and motion
 
 - The wave is a **sheet**: think of a long ribbon of cloth, wider than the screen, seen from a slightly raised, slightly oblique camera, so that it crosses the screen from left to right as a band whose thickness and height vary along its length. It folds over itself gently in places, so that parts of it are seen nearly edge-on.
-- It spans the full width of the screen with both **ends off screen**. Its band sits around or a little above the vertical middle of the screen, on a gentle arch or S-curve. The curve drifts, but the band stays well inside the screen.
+- It spans the full width of the screen with both **ends off screen**. Its band sits around or a little below the vertical middle of the screen (see 4.6), on a gentle arch or S-curve. The curve drifts, but the band stays well inside the screen.
 - Its motion is slow and calm: the big shape evolves over tens of seconds while smaller ripples run along the sheet. It never repeats exactly, never settles and never moves abruptly.
 - The surface looks perfectly smooth at any resolution (no visible facets or kinks).
 - The animation advances with real time (independent of the frame rate) and stays stable whatever the frame rate.
@@ -154,6 +156,88 @@ Both terms are scaled by the projected-size factor and by the edge fade. The sca
 3. applies the exposure and writes the result.
 
 The wave is near-neutral light, and its colour on screen comes from the background it is added to.
+
+### 4.6 Measured look and motion (from rendered output)
+
+Every number in 4.6 was measured from rendered frames of the original at 1920x1080 (wave alone, isolated from the background) and cross-checked against public footage. Heights (H) are fractions of the screen height measured from the top; widths (W) are fractions of the screen width; pixels are at 1920x1080. Ranges show how much the look varies between moments and times of day; they are not targets for one frame. Timescales are deliberately rounded.
+
+**Overall band**
+
+- The band's centre line sits a little below the middle of the screen on average: typically 0.45-0.70 H, median about 0.57 H. Its top edge rarely rises above about 0.3 H and its bottom edge rarely falls below about 0.86 H. Over several minutes the average height of the band wanders between roughly 0.45 and 0.70 H. At a single point along the screen the centre can range from about 0.3 to 0.8 H.
+- Thickness (top to bottom of the visible band in one column) is typically 0.07-0.23 H, median about 0.15 H. Averaged over time it is even from left to right; at any moment the thickest part is about 1.5-4 times the thinnest. In about one column in ten the band pinches below 0.08 H, down to a thin bright line (under 0.05 H in a few percent of columns).
+- The band tilts both ways. From one side of the screen to the other its centre typically changes by up to about a third of the screen height either way. It bends into an arch or a sag of up to about 0.2 H, or lies nearly straight. On screen the centre line usually shows a single gentle S or arch (its visible wavelength is about one screen width or more). The thickness swells and narrows on a shorter scale, about half a screen width.
+
+**Strands and partings**
+
+- Counting brightness peaks down a column, the band shows 3-4 peaks in a typical column. With prominence of at least 12 % of the column's brightest point, columns have 1 / 2 / 3 / 4 / 5 / 6 / 7+ peaks in about 3 / 15 / 29 / 29 / 16 / 6 / 2 % of cases. Counting only the stronger peaks (at least 25 % or 40 % of the column's brightest point) gives 2-3 and 1-2. The left third of the screen is a little simpler (about 3) than the middle and right (about 4).
+- Between strands there are dark, eye-shaped partings: on average 1-2 per column. About 8-13 partings at least 5 % of the width long are visible at once, typically 3-14 % of the width long and rarely more than a third.
+- Strands meet (cross or touch) where a parting closes. Counting every closing gives about 25-50 per screen width; counting only those of the larger partings gives about 15-30. They are spread across the screen, slightly fewer at the far right.
+- Bright lines meet at shallow angles, typically a few degrees and rarely more than about 15 degrees. Two lines therefore run fused for a stretch of roughly 30-200 px before they separate again. Crossings read as long, slow X shapes, never sharp intersections.
+
+**Brightness profile across the band**
+
+- Faces seen face-on are faint. In a column the face level is about 0.12-0.30 of the column's brightest point (median 0.2).
+- The brightest fold in a column is typically 3-8 times the face level (median about 5, up to about 12). An average peak of any kind is about 2-5 times the face level (median about 3).
+- Overlaps: within one column the brightest face segment between peaks is typically 1.2-3 times the faintest (median about 1.8). Overlapping layers add visibly, but they do not jump to a separate, much brighter level.
+- Brightness rises smoothly from a face towards a fold over tens of pixels and peaks at the line where the sheet is seen edge-on. There are no steps or plateaus.
+- Line sharpness: bright lines have a full width at half maximum of about 4-9 px (median about 6 px; the brightest line in a column about 5-11 px, median about 8 px). They are soft, glowing lines, not 1-2 px hairlines. A typical brightest line stands out by about half of its own height above its surroundings.
+- The outer edges of the band rise from 10 % to 90 % over about 1.5-9 px, median about 3.5 px. The edge is soft, never a hard cut.
+- Broad sheen maxima inside the faces are about 8-37 px wide at half height (median about 19 px), roughly a tenth of the band's thickness.
+
+**Streaks**
+
+- What reads as streaks are thin bright lines running along the length of the band, plus broad, soft, lighter bands inside the faces, also along the length. Nothing runs across the band and no thread texture is visible.
+- About 10-17 lines at least 10 % of the screen width long are visible at once. Of these, about 1-5 are at least a quarter of the width. Typical length is 12-28 % of the width, the longest about half.
+- A line's peak is typically 1-2.5 times the band's median level in that column (median 1.5).
+- Lines gather at the band's upper and lower fringes: the outer fifth on each side holds over half of them. They also gather where the band pinches. They are a little rarer in the left third of the screen.
+- A given line stays recognisable for roughly 1-3 s while it moves. The arrangement of lines is reshuffled within a few seconds (roughly 3-6 s).
+
+**Motion** (timescales rounded)
+
+- The dominant visible motion is a slow **swell**: the band rises and falls, and that rise and fall travels along the band from left to right. It takes roughly 10-15 s to cross the screen and was seen in every sample. Up and down, the band's centre moves at typically 0.01-0.03 H per second (median about 0.02 H/s). Averaged over several seconds the whole band drifts more slowly, under 0.01 H/s.
+- Within 40 s the band's average height typically changes by 0.1-0.25 H. The tilt and the arch swing back and forth on a timescale of a few tens of seconds. The overall height wanders more slowly, over minutes. Nothing repeats regularly.
+- The strands move **together**. Adjacent bright lines differ in vertical speed by only a few pixels per second (median about 5 px/s), about a fifth of the band's common up-and-down motion. They slide past each other slowly, so a crossing drifts along gently.
+- Visible features (crossings, line ends, bulges) move along the screen slowly, typically 10-40 px/s (about 0.5-2 % of the width per second). They move rightwards slightly more often than leftwards and often reverse.
+- Crossings and partings persist from under a second to several seconds: a median of about 0.5-1 s, and the longest 6-9 s.
+- How fast the picture changes: after about 1 s the band region is still clearly the same picture (about half its detail in place). After about 5 s it is mostly re-formed, mainly because the band has moved up or down and changed its folds.
+
+**Coarse timescales and sizes** (summary, rounded on purpose)
+
+| what a viewer sees | coarse value |
+|---|---|
+| a swell travelling across the visible band | roughly 10-15 s, left to right |
+| visible wavelength along the band | centre line: about one screen width or more; thickness changes: about half a width |
+| a visible disturbance (crossing, kink, line arrangement) fading or re-forming | about 1 s to a few seconds |
+| dominant rhythms | the travelling swell; tilt and arch swinging over a few tens of seconds; slower wandering of the overall height over minutes |
+| arch / sag of the centre line | up to about 0.2 H |
+| tilt across the screen | up to about a third of the screen height either way |
+| vertical drift of the band's centre | about 0.1-0.25 H within 40 s; about 0.3 H over minutes |
+| busyness over a minute | steady and calm, with no bursts or pauses: always some swell, a few crossings drifting, line arrangement changing every few seconds; irregular, never periodic |
+
+### 4.7 Character of the effect
+
+**Motion character.** Heavy rather than light, lazy rather than restless. The sheet behaves like a long, soft cloth in a slow current. Folds form and unform gradually as the swell passes; nothing snaps, flips or jitters. The whole ribbon moves as one body: its strands rise and fall together and only slowly slide past each other. Small detail (where lines meet, where a fold pinches) keeps changing over seconds, while the large shape changes over tens of seconds.
+
+**Brightness and viewing angle.** Brightness depends smoothly on how the sheet is seen. It is faint where the sheet faces the viewer, grows steadily as the sheet turns away, and is brightest along the line where it is seen exactly edge-on. That line is soft and glowing, not a hairline. The curve has no steps, bands or plateaus.
+
+**See-through and additive.** The sheet is translucent everywhere. The background shows through every face, and where layers overlap their light adds. An overlap is brighter but still see-through, never opaque, and never hides a layer behind it.
+
+**What is absent.**
+
+- No visible texture or separate threads at normal resolutions; only smooth sheen and soft streaks along the length.
+- No shadows: the sheet casts none on itself or on the background.
+- No specular highlight from a light source; brightness comes from the viewing angle and the folds only.
+- The wave does not light the background around it, beyond the soft glare halo described in section 5.
+- No hard edges, outlines or saturated colour.
+
+**What matters most to the look, ranked.**
+
+1. One coherent, translucent ribbon that folds over itself: faint faces, soft bright edge-on folds, and overlaps that add.
+2. The slow swell travelling left to right, with the strands moving together.
+3. Placement and proportions: centre a little below the middle, about 0.15 H thick on average, even from left to right, pinching to a thin bright line in places, tilting and arching gently.
+4. The fold-to-face contrast (folds about 5 times the face level) and soft, slightly wide glowing lines and edges.
+5. Long, slow, shallow-angle crossings and eye-shaped partings between 2-4 strands.
+6. Fine streaks along the length, gathered at the band's fringes and pinches.
 
 ## 5. Glare
 
