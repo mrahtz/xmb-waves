@@ -10,14 +10,14 @@ function XMBW_SIM() {
   // ---- tunables (all original design values) ----
   const NET = {
     kStruct: 0.25, kBend: 1.25,    // spring constants along the length (unit masses); soft, so the folds travel slowly
-    alongRest: 1.03,                // the sheet carries 3 % more cloth along its length than its span, so it buckles into
-                                    // standing wrinkles: strands that touch and part, moving slowly with the material
+    alongRest: 1.0,                 // rest length of the along-springs relative to the grid spacing: 1.0 keeps the
+                                    // sheet smooth; above 1 the slack buckles into standing wrinkles (wirier than the reference)
     hold: 0.0002,                   // weak pull of every node towards its rest position: stops the slack sheet creeping
                                     // over minutes without touching the folds or the wrinkles
     acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
     damping: 0.001,                 // fraction of velocity removed per step (low, so the folds persist along the length)
     noise: 0.0001,                  // velocity kick per step (std dev); kept tiny, or the control net jitters and the fold lines stipple
-    push: 0.0,                      // steady pull on the free end, along the length (none: a pull would take up the extra cloth)
+    push: 0.005,                    // steady gentle pull on the free end, along the length, so the sheet stays extended
     driveA: 0.050, driveW1: 0.42,   // driven end: height amplitude, angular frequency
     driveB: 0.070, driveW2: 0.25,   // driven end: depth amplitude, angular frequency
     driveMix: 0.7,                  // the second family also moves the driven end in height, at this fraction of driveA, so its fold lines show and cross the first family's
@@ -32,13 +32,13 @@ function XMBW_SIM() {
     // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]; the temporal
     // frequencies are all negative so every sway travels towards the near end. The first two are slow and
     // twist the sheet across its width (so the band tilts, arches and pinches); the third is the swell: a
-    // rise and fall about a screen width long that crosses the screen in roughly 12 s and lifts the whole
-    // band, strands together
-    sways: [[0.034, 1.55, -0.082, 1.4], [0.030, 2.65, -0.130, 1.6], [0.050, 8.5, -0.50, 0.2]],
+    // gentle rise and fall about two screen widths long, with a period of about 20 s at a fixed column,
+    // that travels along the band and lifts the whole band, strands together
+    sways: [[0.034, 1.55, -0.082, 1.4], [0.030, 2.65, -0.130, 1.6], [0.040, 6.0, -0.30, 0.2]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 10, wid: 3.4, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 10, wid: 4.4, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,

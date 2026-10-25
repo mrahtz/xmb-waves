@@ -39,19 +39,19 @@ const MOOD_KEYS = [
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.43, base: 0.30, baseC: 0.30, baseK: 1.0, edge: 0.12, edgeC: 0.15, threadAmp: 0.0,
+  night: { waveBright: 0.43, base: 0.24, baseC: 0.40, baseK: 2.0, edge: 0.065, edgeC: 0.12, threadAmp: 0.0,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 6,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
     focusFar: 12.0, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
-  dawn: { waveBright: 0.30, base: 0.38, baseC: 0.30, baseK: 1.0, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
+  dawn: { waveBright: 0.30, base: 0.30, baseC: 0.40, baseK: 2.0, edge: 0.08, edgeC: 0.12, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
-  day: { waveBright: 0.30, base: 0.38, baseC: 0.30, baseK: 1.0, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
+  day: { waveBright: 0.30, base: 0.30, baseC: 0.40, baseK: 2.0, edge: 0.08, edgeC: 0.12, threadAmp: 0.0,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.5, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.45, base: 0.40, baseC: 0.30, baseK: 1.0, edge: 0.16, edgeC: 0.15, threadAmp: 0.0,
+  dusk: { waveBright: 0.45, base: 0.32, baseC: 0.40, baseK: 2.0, edge: 0.085, edgeC: 0.12, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
@@ -135,7 +135,7 @@ const WAVE = {
   threads: 400,                         // thread periods across the sheet
   fadeEnds: 0.10, fadeEdges: 0.04,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
-  filterSpread: 4.0,                    // width of the down-filter over the wave buffer, in output pixels
+  filterSpread: 5.5,                    // width of the down-filter over the wave buffer, in output pixels
   tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
 };
 const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
@@ -237,13 +237,14 @@ void main(){
   gl_Position = clip;
 }`;
 // Per fragment: c = cosine between the normal and the line of sight. A translucent
-// sheet is brighter the more obliquely it is seen: the sheen falls off
-// exponentially with the cosine of the view angle (brightest edge-on, faint
-// face-on, so each fold shows a smooth gradient and the folds stand about five
-// times above the faces), and where a layer turns edge-on a soft bright line is
-// added. Both are bounded;
-// the cell's true size scales the light where it was widened (see the vertex
-// shader), so overlapping layers add up to the right total.
+// sheet is brighter the more obliquely it is seen: the sheen response is
+// exp(-(c / baseC)^baseK), with baseK 2 a flat-topped curve that stays near full
+// brightness over the nearly edge-on faces (so a sheet seen at a shallow angle
+// is a broad, evenly lit ribbon) and falls to a faint level where the sheet
+// faces the viewer; where a layer turns exactly edge-on a weak soft line is
+// added, so the folds stand out only moderately above the lit faces, as in the
+// reference. Both are bounded; the cell's true size scales the light where it
+// was widened (see the vertex shader), so overlapping layers add up to the right total.
 const FS_WAVE = `#version 300 es
 precision highp float;
 in vec3 vP; in vec3 vN; in vec2 vST; in float vWidth;
