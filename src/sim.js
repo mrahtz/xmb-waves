@@ -9,22 +9,22 @@ function XMBW_SIM() {
 
   // ---- tunables (all original design values) ----
   const NET = {
-    kStruct: 0.33, kBend: 0.49,    // spring constants along the length (unit masses); soft, so the folds travel slowly
+    kStruct: 0.197, kBend: 0.248,    // spring constants along the length (unit masses); soft, so the folds travel slowly
     alongRest: 1.0,                 // rest length of the along-springs relative to the grid spacing: 1.0 keeps the
                                     // sheet smooth; above 1 the slack buckles into standing wrinkles (wirier than the reference)
-    acrossK: 0.125,                  // the across-the-width springs are this much softer, so pleats persist along the length
-    damping: 0.00089,                 // fraction of velocity removed per step (low, so the folds persist along the length)
-    noise: 0.00013,                  // velocity kick per step (std dev). Besides keeping the motion alive, the kicks set how
+    acrossK: 0.371,                  // the across-the-width springs are this much softer, so pleats persist along the length
+    damping: 0.00357,                 // fraction of velocity removed per step (low, so the folds persist along the length)
+    noise: 0.000195,                  // velocity kick per step (std dev). Besides keeping the motion alive, the kicks set how
                                     // many strands the band shows: the across-the-width springs have no linear stiffness at
                                     // rest length, so the kicks drive neighbouring rows apart into separate strands; 1e-4 gives
                                     // the reference's 3-4 brightness peaks and about 0.8 dark partings per column, 2e-5 a broad
                                     // ribbon of two or three layers whose lines stand too high above the band; larger values
                                     // make the net jitter and the fold lines stipple
-    push: 0.016,                    // steady gentle pull on the free end, along the length, so the sheet stays extended
-    driveA: 0.031, driveW1: 0.232,   // driven end: height amplitude, angular frequency (one plain oscillation)
-    driveB: 0.031, driveW2: 0.165,   // driven end: depth amplitude, angular frequency
-    drivePhase1: 0.69, drivePhase2: 1.33,  // phase change per row for height and depth: the shaken edge is itself wavy (about 2
-                                          // cycles across its width in height, nearly 4 in depth); the depth offset builds up more
+    push: 0.00342,                    // steady gentle pull on the free end, along the length, so the sheet stays extended
+    driveA: 0.0287, driveW1: 0.209,   // driven end: height amplitude, angular frequency (one plain oscillation)
+    driveB: 0.0356, driveW2: 0.306,   // driven end: depth amplitude, angular frequency
+    drivePhase1: 0.411, drivePhase2: 0.779,  // phase change per row for height and depth: the driven points are strung out along the
+                                          // shared path (about 1.2 cycles across the edge in height, 2.2 in depth); the depth offset builds up more
                                           // than the height offset, and that difference between the axes is what makes the folds cross
     driveEase: 0.02,                // easing of the driving clock towards sim time
     envLow: 0.85, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
@@ -37,11 +37,11 @@ function XMBW_SIM() {
     // twist the sheet across its width (so the band tilts, arches and pinches); the third is the swell: a
     // gentle rise and fall about two screen widths long, with a period of about 20 s at a fixed column,
     // that travels along the band and lifts the whole band, strands together
-    sways: [[0.016, 1.55, -0.036, 1.4], [0.012, 2.65, -0.138, 1.6], [0.044, 6.0, -0.285, 0.8]],
+    sways: [[0.0113, 1.55, -0.0456, 1.4], [0.0186, 2.65, -0.136, 1.6], [0.031, 6.0, -0.424, 0.8]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 10, wid: 4.85, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 10, wid: 5.41, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
