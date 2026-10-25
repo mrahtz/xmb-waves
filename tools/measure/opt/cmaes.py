@@ -9,15 +9,16 @@ SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count'
 
 # ---- parameters: (name, kind, lo, hi, x0) ; kind 'log' or 'lin'. 'delta' is drivePhase2 - drivePhase1 (> 0: depth offset larger)
 PARAMS = [
-    ('NET.noise', 'log', 2e-5, 4e-4, 1.3e-4),
-    ('NET.driveA', 'log', 0.02, 0.30, 0.031), ('NET.driveB', 'log', 0.02, 0.50, 0.10),
-    ('NET.driveW1', 'log', 0.15, 0.9, 0.232), ('NET.driveW2', 'log', 0.08, 0.6, 0.165),
-    ('NET.drivePhase1', 'lin', 0.36, 1.3, 0.69), ('delta', 'lin', 0.02, 0.9, 0.64),
-    ('NET.kStruct', 'log', 0.08, 1.0, 0.33), ('NET.kBend', 'log', 0.2, 4.0, 0.49), ('NET.acrossK', 'log', 0.08, 1.0, 0.125),
-    ('NET.damping', 'log', 0.0003, 0.004, 0.00089), ('NET.push', 'log', 0.002, 0.03, 0.016),
-    ('SCENE.wid', 'lin', 3.0, 6.0, 4.85), ('camPitch', 'lin', 3.0, 12.0, 4.6),
-    ('LAT.sways.0.0', 'log', 0.008, 0.09, 0.016), ('LAT.sways.1.0', 'log', 0.008, 0.09, 0.012), ('LAT.sways.2.0', 'log', 0.008, 0.09, 0.044),
-    ('swayF0', 'log', 0.02, 0.7, 0.036), ('swayF1', 'log', 0.03, 0.7, 0.138), ('swayF2', 'log', 0.03, 0.7, 0.285),  # magnitudes of the (negative) temporal frequencies
+    ('NET.noise', 'log', 2e-5, 4e-4, 1.95e-4),
+    ('NET.driveA', 'log', 0.02, 0.30, 0.0287), ('NET.driveB', 'log', 0.02, 0.50, 0.0356),
+    ('NET.driveW1', 'log', 0.15, 0.9, 0.209), ('NET.driveW2', 'log', 0.08, 0.6, 0.306),
+    ('NET.drivePhase1', 'lin', 0.36, 1.3, 0.411), ('delta', 'lin', 0.02, 0.9, 0.368),
+    # spec 9: across-springs comparable to the along ones (acrossK near 1), bending clearly stiffer (kBend = bendRatio x kStruct)
+    ('NET.kStruct', 'log', 0.08, 1.0, 0.197), ('bendRatio', 'log', 2.5, 12.0, 4.0), ('NET.acrossK', 'log', 0.75, 1.33, 1.0),
+    ('NET.damping', 'log', 0.0003, 0.006, 0.00357), ('NET.push', 'log', 0.002, 0.03, 0.0034),
+    ('SCENE.wid', 'lin', 3.0, 6.0, 5.41), ('camPitch', 'lin', 2.0, 12.0, 3.3),
+    ('LAT.sways.0.0', 'log', 0.008, 0.09, 0.0113), ('LAT.sways.1.0', 'log', 0.008, 0.09, 0.0186), ('LAT.sways.2.0', 'log', 0.008, 0.09, 0.031),
+    ('swayF0', 'log', 0.02, 0.7, 0.0456), ('swayF1', 'log', 0.03, 0.7, 0.136), ('swayF2', 'log', 0.03, 0.7, 0.424),  # magnitudes of the (negative) temporal frequencies
 ]
 D = len(PARAMS)
 def to_z(vals):
@@ -35,12 +36,13 @@ def from_z(z):
 def candidate(vals, cid):
     tune = {}; mood = {}
     for (n, k, lo, hi, x0), v in zip(PARAMS, vals):
-        if n == 'delta': continue
+        if n in ('delta', 'bendRatio'): continue
         if n == 'camPitch': mood['camPitch'] = v
         elif n.startswith('swayF'): tune['LAT.sways.%s.2' % n[-1]] = -v
         else: tune[n] = v
     p1 = dict(zip([p[0] for p in PARAMS], vals))
     tune['NET.drivePhase2'] = p1['NET.drivePhase1'] + p1['delta']
+    tune['NET.kBend'] = p1['NET.kStruct'] * p1['bendRatio']
     return {'id': cid, 'tune': tune, 'mood': mood, 'seeds': SEEDS, 'stillFrames': STILLS, 'motion': MOTION}
 def mkvar_args(vals):
     c = candidate(vals, 'x'); out = []
@@ -48,7 +50,7 @@ def mkvar_args(vals):
         if k.startswith('LAT.sways'): continue
         grp, key = k.split('.', 1); out.append('%s.%s=%s' % (grp.lower(), key, fmt(v)))
     out.append('day.camPitch=%s' % fmt(c['mood']['camPitch']))
-    sw = [[0.016, 1.55, -0.036, 1.4], [0.012, 2.65, -0.138, 1.6], [0.044, 6.0, -0.285, 0.8]]
+    sw = [[0.0113, 1.55, -0.0456, 1.4], [0.0186, 2.65, -0.136, 1.6], [0.031, 6.0, -0.424, 0.8]]
     for k, v in c['tune'].items():
         if k.startswith('LAT.sways'): _, _, i, j = k.split('.'); sw[int(i)][int(j)] = float(fmt(v))
     out.append('lat.sways=' + json.dumps(sw, separators=(',', ':')))
