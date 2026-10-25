@@ -23,8 +23,9 @@ function XMBW_SIM() {
     push: 0.005,                    // steady gentle pull on the free end, along the length, so the sheet stays extended
     driveA: 0.060, driveW1: 0.42,   // driven end: height amplitude, angular frequency (one plain oscillation)
     driveB: 0.070, driveW2: 0.25,   // driven end: depth amplitude, angular frequency
-    drivePhase1: 0.87, drivePhase2: -0.58, // phase change per row for height and depth: the shaken edge is itself wavy (about 2.5
-                                          // cycles across its width) and the two axes run opposite ways across, so the folds they make cross
+    drivePhase1: 0.50, drivePhase2: 0.75,  // phase change per row for height and depth: the shaken edge is itself wavy (about 1.4
+                                          // cycles across its width in height, 2.1 in depth); the depth offset builds up somewhat more
+                                          // than the height offset, and that difference between the axes is what makes the folds cross
     driveEase: 0.02,                // easing of the driving clock towards sim time
     envLow: 0.85, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
     warm: 1500,                     // warm-up steps before frame 0

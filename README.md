@@ -85,9 +85,10 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   free end, is simulated at 60 fixed steps per second in a Web Worker. Each
   point of the shaken edge moves up and down by one slow oscillation and
   towards and away by another, with the timing offset building up across the
-  width to about two and a half cycles in opposite directions for the two
-  axes, so the edge is itself wavy and the folds it sends along the sheet
-  cross at shallow angles; the springs are soft, so the folds travel slowly.
+  width to about one and a half cycles for the height and two for the depth,
+  so the edge is itself wavy and, because the two offsets differ, the folds
+  it sends along the sheet cross at shallow angles; the springs are soft, so
+  the folds travel slowly.
   Nothing pulls the net towards a rest shape: its form comes from the
   springs, the damping, the steady push and the shaking alone. Tiny random
   velocity kicks keep the motion alive and, because the across-the-width
