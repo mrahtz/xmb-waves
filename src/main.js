@@ -108,7 +108,7 @@ function partsOf(d) {
 // Camera (original design): looks across the sheet from in front, yawed so the
 // sheet is seen obliquely and pitched down a little; the pitch follows the mood.
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 18, yaw: -20, dist: 11, target: [0.8, 0.45, 0.0], near: 0.1, far: 40 }; // far back with a narrow view, so near and far parts look alike
+const CAMERA = { fovY: 18, yaw: -20, dist: 11, target: [0.8, 0.40, 0.0], near: 0.1, far: 40 }; // far back with a narrow view, so near and far parts look alike
 function cameraFor(pitchDeg, aspect) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
