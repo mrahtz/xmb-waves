@@ -43,27 +43,27 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 
 ## How it works (short)
 
-- A 19 x 19 mass-spring net, driven at the far end, is simulated at 60 fixed
-  steps per second in a Web Worker. The sheet carries a little more cloth
-  along its length than its span, so it hangs slack and buckles into standing
-  wrinkles: strands that touch and part and drift slowly with the material,
-  while two fold families from the driven end cross them at shallow angles. A
-  weak pull towards the rest shape stops the slack sheet creeping over
-  minutes. The net is passed through a slow free-form deformation lattice
-  (two slow twisting sways and a swell about a screen width long that crosses
-  the screen in roughly 12 s, lifting the whole band) and used as the control net of
-  a bicubic B-spline surface evaluated on the GPU and seen through a slightly
-  raised, oblique perspective camera placed far back with a narrow field of
-  view, so the near and far parts of the band look alike.
-- The sheet is lit by the angle between its normal and the line of sight: the
-  light falls off exponentially with the cosine of that angle (brightest
-  edge-on, about a quarter as bright face-on) plus a weak edge-on line, so
-  each fold shows a broad soft gradient and overlapping layers add up to the
-  reference's filled band with soft humps. Every surface cell is
-  drawn as its own small quad into a supersampled single-channel buffer with
-  additive blending; cells thinner than a pixel are widened to a pixel and
-  their light scaled by their true size, so silhouettes never shimmer. The
-  buffer is filtered down in the final pass.
+- A 19 x 19 mass-spring net, driven at the far end and gently pulled at the
+  free end, is simulated at 60 fixed steps per second in a Web Worker. Two
+  fold families run from the driven end along the sheet and cross at shallow
+  angles; the springs are soft, so the folds travel slowly. The net is passed
+  through a slow free-form deformation lattice (two slow twisting sways and a
+  gentle swell about two screen widths long that travels along the band and
+  lifts it, strands together) and used as the control net of a bicubic
+  B-spline surface evaluated on the GPU and seen through a slightly raised
+  (7 degrees), oblique perspective camera placed far back with a narrow field
+  of view, so the near and far parts of the band look alike.
+- The sheet is lit by the angle between its normal and the line of sight
+  with a flat-topped response: the nearly edge-on faces of the shallowly
+  seen sheet stay near full brightness, faces that turn towards the viewer
+  fade to a faint level, and where a layer turns exactly edge-on a weak soft
+  line is added. The band is therefore a broad, evenly lit ribbon whose folds
+  stand only moderately above the faces, as in the reference, and overlapping
+  layers add up. Every surface cell is drawn as its own small quad into a
+  supersampled single-channel buffer with additive blending; cells thinner
+  than a pixel are widened to a pixel and their light scaled by their true
+  size, so silhouettes never shimmer. The buffer is filtered down in the
+  final pass.
 - The background is a small image per month and per day/night, blended by
   the day of the month and by the hour, upscaled with a B-spline filter and
   eased from frame to frame. A bright-pass bloom pyramid of background plus
@@ -91,15 +91,17 @@ same browser and GPU; `layers=bg,wave,glare,sparkles,dither` picks layers.
 ## Status
 
 Verified side by side against public recordings (see `docs/REFERENCES.md`)
-and against the measured statistics of the original's wave in section 4.6
-of the spec: the band's placement and thickness, its brightness over the
-day, the number of strands per column, the face-to-fold contrast, the width
-of its lines and edges, the crossings and partings between strands, the
-swell travelling left to right with the strands moving together, and the
-slow drift of its features. Still short of the spec: the brightest line in
-a column is broader than the original's (about 15 px against 8), there are
-somewhat fewer thin lines and partings, and the face-to-face contrast within
-a column is a little higher;
+and, like for like, against the reference frames and clips run through the
+same measurement tools as my renders (the spec's section 4.6 statistics,
+re-measured that way): the band's placement, its brightness over the day,
+the number of strands per column, how much of the band is lit, the
+face-to-fold contrast, the width of its lines and edges, the line-to-band
+contrast, the partings between strands, the strands moving together, the
+gentle swell and the slow drift of features. Still short of the reference:
+the band is a little thinner (about 0.13 of the screen height against 0.17),
+it shows two or three overlapping layers where the reference often shows
+three or four, and its picture changes a little faster (0.3 correlation
+after one second against 0.4);
 the night look; the palettes for February, April (through a late-March
 capture), May, August, October/November and September (purple); the sparkle
 population and look; the glare's subtlety.
