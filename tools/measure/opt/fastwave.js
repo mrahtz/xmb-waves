@@ -32,6 +32,9 @@ function loadPage(path) {
   for (const k of ['waveBright', 'base', 'baseC', 'baseK', 'edge', 'edgeC', 'envCross', 'camPitch', 'latX', 'latY', 'latZ']) mood[k] = num(dayTxt, k, undefined);
   if (!/uBaseK/.test(fsWave)) mood.baseK = 1; // older shading: sheen = base * exp(-c / baseC)
   if (mood.latX == null) { mood.latX = mood.latY = mood.latZ = 1; }
+  // spec-10 shading: light times the projected size (c x (sizeRef / distance)^2), no edge-on line
+  if (/uSizeRef/.test(fsWave)) { mood.sizeRef = num(camLine, 'dist', 11); mood.edge = 0; mood.edgeC = 1; }
+  if (mood.edge == null) { mood.edge = 0; mood.edgeC = 1; }
   const waveTxt = src.match(/const WAVE = \{[\s\S]*?\n\};/)[0];
   const tint = (name) => { const m = waveTxt.match(new RegExp(name + ': \\[([^\\]]*)\\]')); return m ? m[1].split(',').map(Number) : [1, 1, 1]; };
   const WAVE = { fadeEnds: num(waveTxt, 'fadeEnds', 0.1), fadeEdges: num(waveTxt, 'fadeEdges', 0.04), filterSpread: num(waveTxt, 'filterSpread', 5.5), tintL: tint('tintL'), tintR: tint('tintR') };
@@ -162,7 +165,7 @@ class Raster {
     const v0 = v[0], v4 = v[4], v8 = v[8], v12 = v[12], v1 = v[1], v5 = v[5], v9 = v[9], v13 = v[13], v3 = v[3], v7 = v[7], v11 = v[11], v15 = v[15];
     const Wpx = this.W, Hpx = H, dsdt = (16 / S) * (16 / T);
     const bright = shade.bright, base = shade.base, baseC = shade.baseC, baseK = shade.baseK, edge = shade.edge, edgeC = shade.edgeC;
-    const kIs2 = Math.abs(baseK - 2) < 1e-9;
+    const kIs2 = Math.abs(baseK - 2) < 1e-9, sizeRef2 = shade.sizeRef * shade.sizeRef;
     let total = 0;
     for (let k = 0; k < T; k++) {
       const o = k * 57, ft = this.tFade[k];
@@ -196,7 +199,7 @@ class Raster {
         const c = nl > 0 ? Math.abs(nx * vx + ny * vy + nz * vz) / (nl * vl) : 0;
         const r = c / baseC;
         const sheen = base * Math.exp(-(kIs2 ? r * r : Math.pow(r, baseK)));
-        const I = bright * (sheen + edge * Math.exp(-c / edgeC)) * fade;
+        const I = sizeRef2 > 0 ? bright * sheen * c * sizeRef2 / (vl * vl) * fade : bright * (sheen + edge * Math.exp(-c / edgeC)) * fade;
         const val = I * area / cw; // light density per raster cell (cw px wide, 1 px tall)
         total += I * area;
         // bilinear splat
@@ -504,7 +507,7 @@ function motionStats(frames, fps, ras) {
 }
 
 // ------------------------------------------------------------------ driving the simulation
-function makeShade(mood) { return { bright: mood.waveBright, base: mood.base, baseC: mood.baseC, baseK: mood.baseK, edge: mood.edge, edgeC: mood.edgeC }; }
+function makeShade(mood) { return { bright: mood.waveBright, base: mood.base, baseC: mood.baseC, baseK: mood.baseK, edge: mood.edge, edgeC: mood.edgeC, sizeRef: mood.sizeRef || 0 }; }
 
 // A page-derived evaluator. tune: dotted-path overrides for the sim tunables (NET.noise, LAT.sways.2.2, SCENE.wid ...),
 // moodOver: overrides of the day mood (camPitch, envCross, ...).

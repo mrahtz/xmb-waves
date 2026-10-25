@@ -125,7 +125,7 @@ group('Wave motion', [
 ]);
 group('Wave look', [
   mood('waveBright', 'brightness', 0, 1.5, 0.01), mood('base', 'sheen level', 0, 1, 0.01), mood('baseC', 'sheen width', 0.05, 1, 0.01),
-  mood('baseK', 'sheen exponent', 0.5, 6, 0.05), mood('edge', 'edge line', 0, 0.3, 0.005), mood('edgeC', 'edge width', 0.02, 0.5, 0.005),
+  mood('baseK', 'sheen exponent', 0.5, 6, 0.05),
   mood('threadAmp', 'thread amplitude', 0, 1, 0.01), field('WAVE', WAVE, 'threads', 'thread periods', 10, 800, 1),
   field('WAVE', WAVE, 'fadeEnds', 'end fade', 0, 0.4, 0.005), field('WAVE', WAVE, 'fadeEdges', 'edge fade', 0, 0.3, 0.005),
   field('WAVE', WAVE, 'minWidth', 'minimum cell width', 0.5, 3, 0.05), field('WAVE', WAVE, 'filterSpread', 'filter spread', 1, 8, 0.1),

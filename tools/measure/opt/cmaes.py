@@ -9,16 +9,17 @@ SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count'
 
 # ---- parameters: (name, kind, lo, hi, x0) ; kind 'log' or 'lin'. 'delta' is drivePhase2 - drivePhase1 (> 0: depth offset larger)
 PARAMS = [
-    ('NET.noise', 'log', 2e-5, 4e-4, 1.95e-4),
-    ('NET.driveA', 'log', 0.02, 0.30, 0.0287), ('NET.driveB', 'log', 0.02, 0.50, 0.0356),
-    ('NET.driveW1', 'log', 0.15, 0.9, 0.209), ('NET.driveW2', 'log', 0.08, 0.6, 0.306),
-    ('NET.drivePhase1', 'lin', 0.36, 1.3, 0.411), ('delta', 'lin', 0.02, 0.9, 0.368),
+    ('NET.noise', 'log', 2e-5, 4e-4, 2.39e-4),
+    ('NET.driveA', 'log', 0.02, 0.30, 0.0289), ('NET.driveB', 'log', 0.02, 0.50, 0.0266),
+    ('NET.driveW1', 'log', 0.15, 0.9, 0.266), ('NET.driveW2', 'log', 0.08, 0.6, 0.453),
+    ('NET.drivePhase1', 'lin', 0.36, 1.3, 0.400), ('delta', 'lin', 0.02, 0.9, 0.447),
     # spec 9: across-springs comparable to the along ones (acrossK near 1), bending clearly stiffer (kBend = bendRatio x kStruct)
-    ('NET.kStruct', 'log', 0.08, 1.0, 0.197), ('bendRatio', 'log', 2.5, 12.0, 4.0), ('NET.acrossK', 'log', 0.75, 1.33, 1.0),
-    ('NET.damping', 'log', 0.0003, 0.006, 0.00357), ('NET.push', 'log', 0.002, 0.03, 0.0034),
-    ('SCENE.wid', 'lin', 3.0, 6.0, 5.41), ('camPitch', 'lin', 2.0, 12.0, 3.3),
-    ('LAT.sways.0.0', 'log', 0.008, 0.09, 0.0113), ('LAT.sways.1.0', 'log', 0.008, 0.09, 0.0186), ('LAT.sways.2.0', 'log', 0.008, 0.09, 0.031),
-    ('swayF0', 'log', 0.02, 0.7, 0.0456), ('swayF1', 'log', 0.03, 0.7, 0.136), ('swayF2', 'log', 0.03, 0.7, 0.424),  # magnitudes of the (negative) temporal frequencies
+    ('NET.kStruct', 'log', 0.08, 1.5, 0.699), ('bendRatio', 'log', 2.5, 12.0, 3.0), ('NET.acrossK', 'log', 0.75, 1.33, 0.781),
+    ('NET.damping', 'log', 0.0003, 0.008, 0.0059), ('NET.push', 'log', 0.002, 0.03, 0.00297),
+    ('SCENE.wid', 'lin', 3.0, 6.0, 4.95), ('camPitch', 'lin', 1.0, 12.0, 2.5),
+    ('LAT.sways.0.0', 'log', 0.008, 0.09, 0.0151), ('LAT.sways.1.0', 'log', 0.008, 0.09, 0.0279), ('LAT.sways.2.0', 'log', 0.008, 0.09, 0.0407),
+    ('swayF0', 'log', 0.02, 0.7, 0.158), ('swayF1', 'log', 0.03, 0.7, 0.397), ('swayF2', 'log', 0.03, 0.7, 0.204),  # magnitudes of the (negative) temporal frequencies
+    ('baseC', 'log', 0.15, 2.0, 0.40), ('baseK', 'lin', 1.0, 4.0, 2.0),  # the view-angle response (day mood)
 ]
 D = len(PARAMS)
 def to_z(vals):
@@ -37,7 +38,7 @@ def candidate(vals, cid):
     tune = {}; mood = {}
     for (n, k, lo, hi, x0), v in zip(PARAMS, vals):
         if n in ('delta', 'bendRatio'): continue
-        if n == 'camPitch': mood['camPitch'] = v
+        if n in ('camPitch', 'baseC', 'baseK'): mood[n] = v
         elif n.startswith('swayF'): tune['LAT.sways.%s.2' % n[-1]] = -v
         else: tune[n] = v
     p1 = dict(zip([p[0] for p in PARAMS], vals))
@@ -49,8 +50,8 @@ def mkvar_args(vals):
     for k, v in c['tune'].items():
         if k.startswith('LAT.sways'): continue
         grp, key = k.split('.', 1); out.append('%s.%s=%s' % (grp.lower(), key, fmt(v)))
-    out.append('day.camPitch=%s' % fmt(c['mood']['camPitch']))
-    sw = [[0.0113, 1.55, -0.0456, 1.4], [0.0186, 2.65, -0.136, 1.6], [0.031, 6.0, -0.424, 0.8]]
+    for k in ('camPitch', 'baseC', 'baseK'): out.append('day.%s=%s' % (k, fmt(c['mood'][k])))
+    sw = [[0.0151, 1.55, -0.158, 1.4], [0.0279, 2.65, -0.397, 1.6], [0.0407, 6.0, -0.204, 0.8]]
     for k, v in c['tune'].items():
         if k.startswith('LAT.sways'): _, _, i, j = k.split('.'); sw[int(i)][int(j)] = float(fmt(v))
     out.append('lat.sways=' + json.dumps(sw, separators=(',', ':')))
@@ -61,7 +62,7 @@ def fmt(v): return '%.4g' % v
 OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value)
     ('thick', 0.165, 0.02, 1.0, 0.002), ('peaks12', 3.3, 0.5, 1.0, 0.18), ('face', 0.21, 0.06, 1.0, -0.01), ('foldface', 5.6, 1.5, 1.0, 0.41),
     ('partcol', 0.85, 0.3, 3.0, 0.14), ('linepk', 1.67, 0.2, 1.0, -0.21), ('a40', 0.48, 0.08, 1.0, 0.014), ('dark', 0.14, 0.05, 3.0, 0.0),
-    ('bwidth', 23.0, 8.0, 1.0, 1.0), ('partings', 5, 2.0, 1.5, -0.7), ('a25', 0.65, 0.08, 0.5, 0.013),
+    ('bwidth', 23.0, 8.0, 1.5, 1.0), ('partings', 5, 2.0, 1.5, -0.7), ('a25', 0.65, 0.08, 0.5, 0.013),
     ('widthLines', 8.5, 1.2, 0.5, 0.6), ('edge', 5.5, 2.0, 0.5, 0.37), ('peaks25', 2.8, 0.5, 0.5, 0.04), ('pinch8', 2, 8, 0.25, -0.4),
     ('lines10', 6, 3, 0.25, 0.3),
     ('shift', 0.075, 0.025, 1.0, -0.007), ('adjdiff', 5.7, 2.0, 0.75, -0.7), ('corr1', 0.41, 0.1, 2.0, 0.06), ('outer', 0.71, 0.15, 2.0, -0.018), ('cspeed', 0.015, 0.005, 0.5, 0.0),

@@ -77,34 +77,35 @@ void main(){
   clip.xy = p / (0.5 * uRes) * clip.w;
   gl_Position = clip;
 }`;
-// Per fragment: c = cosine between the normal and the line of sight. A translucent
-// sheet is brighter the more obliquely it is seen: the sheen response is
-// exp(-(c / baseC)^baseK), with baseK 2 a flat-topped curve that stays near full
-// brightness over the nearly edge-on faces (so a sheet seen at a shallow angle
-// is a broad, evenly lit ribbon) and falls to a faint level where the sheet
-// faces the viewer; where a layer turns exactly edge-on a weak soft line is
-// added, so the folds stand out only moderately above the lit faces, as in the
-// reference. Both are bounded; the cell's true size scales the light where it
-// was widened (see the vertex shader), so overlapping layers add up to the right total.
+// Per fragment: c = cosine between the normal and the line of sight. The light of
+// each bit of sheet is a response to the view angle, exp(-(c / baseC)^baseK), times
+// its projected size: how large it appears on screen, the cosine (foreshortening)
+// times the inverse square of its distance (relative to the camera's distance from
+// its target). A bit spread over many pixels therefore gives more light per pixel
+// than the same bit squeezed into a sliver, and the light falls towards nothing
+// exactly where the sheet turns edge-on: a fold's glow sits just inside the turn as a
+// soft strip, with no separate hard line at the silhouette. The cell's true size also
+// scales the light where it was widened (see the vertex shader), so overlapping
+// layers add up to the right total.
 const FS_WAVE = `#version 300 es
 precision highp float;
 in vec3 vP; in vec3 vN; in vec2 vST; in float vWidth;
-uniform vec3 uCam; uniform float uBright, uBase, uBaseC, uBaseK, uEdge, uEdgeC, uThreads, uThreadAmp, uFadeEnds, uFadeEdges;
+uniform vec3 uCam; uniform float uBright, uBase, uBaseC, uBaseK, uSizeRef, uThreads, uThreadAmp, uFadeEnds, uFadeEdges;
 out vec4 o;
 float band(float x, float amp){ // a periodic profile, pre-filtered by its on-screen density
   float w = fwidth(x);
   return amp * cos(6.2831853 * x) * (1.0 - smoothstep(0.2, 0.6, w));
 }
 void main(){
-  vec3 V = normalize(uCam - vP);
+  vec3 D = uCam - vP; vec3 V = normalize(D);
   float c = abs(dot(normalize(vN), V));
-  float sheen = uBase * exp(-pow(c / uBaseC, uBaseK));
-  float edge = uEdge * exp(-c / uEdgeC);
+  float size = c * uSizeRef * uSizeRef / dot(D, D);   // projected size of this bit of sheet
+  float sheen = uBase * exp(-pow(c / uBaseC, uBaseK)) * size;
   float t = vST.y;
   float pat = 1.0 + band(t * uThreads, uThreadAmp);
   float fade = smoothstep(0.0, uFadeEnds, vST.x) * smoothstep(1.0, 1.0 - uFadeEnds, vST.x)
              * smoothstep(0.0, uFadeEdges, t) * smoothstep(1.0, 1.0 - uFadeEdges, t);
-  o = vec4(uBright * (sheen + edge) * pat * fade * vWidth, 0.0, 0.0, 1.0);
+  o = vec4(uBright * sheen * pat * fade * vWidth, 0.0, 0.0, 1.0);
 }`;
 
 // B-spline filtered upscale of the small background image (four bilinear taps).
