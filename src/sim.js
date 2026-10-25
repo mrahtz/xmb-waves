@@ -14,8 +14,9 @@ function XMBW_SIM() {
     damping: 0.0015,                // fraction of velocity removed per step (low, so the folds persist along the length)
     noise: 0.0006,                  // velocity kick per step (std dev)
     push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.060, driveW1: 0.75,   // driven end: height amplitude, angular frequency
-    driveB: 0.100, driveW2: 0.42,   // driven end: depth amplitude, angular frequency
+    driveA: 0.060, driveW1: 0.85,   // driven end: height amplitude, angular frequency
+    driveB: 0.070, driveW2: 0.50,   // driven end: depth amplitude, angular frequency
+    driveMix: 0.7,                  // the second family also moves the driven end in height, at this fraction of driveA, so its fold lines show and cross the first family's
     drivePhase1: 1.20, drivePhase2: -0.80, // phase change per row: the driven edge is folded across its width (about 3.5 folds); the two
                                           // families run opposite ways across, so their fold lines cross
     driveEase: 0.02,                // easing of the driving clock towards sim time
@@ -25,7 +26,7 @@ function XMBW_SIM() {
   // Free-form deformation lattice: more cells along the length than across or in depth.
   const LAT = { nu: 10, nv: 4, nw: 4, ease: 0.02,
     // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]
-    sways: [[0.060, 3.1, 0.071, 0.8], [0.050, 5.3, -0.113, 1.0], [0.020, 8.9, 0.167, 0.7]],
+    sways: [[0.050, 3.1, 0.082, 0.8], [0.045, 5.3, -0.130, 1.0], [0.020, 8.9, 0.190, 0.7]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
@@ -186,7 +187,7 @@ function XMBW_SIM() {
       for (let j = 0; j < N; j++) {
         const k = (j * N) * 3;
         pos[k] = rest[k];
-        pos[k + 1] = NET.driveA * Math.sin(NET.driveW1 * driveT + j * NET.drivePhase1);
+        pos[k + 1] = NET.driveA * (Math.sin(NET.driveW1 * driveT + j * NET.drivePhase1) + NET.driveMix * Math.sin(NET.driveW2 * driveT + j * NET.drivePhase2));
         pos[k + 2] = rest[k + 2] + NET.driveB * Math.sin(NET.driveW2 * driveT + j * NET.drivePhase2 + 1.3);
         vel[k] = vel[k + 1] = vel[k + 2] = 0;
       }

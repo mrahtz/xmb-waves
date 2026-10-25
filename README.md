@@ -84,8 +84,11 @@ same browser and GPU; `layers=bg,wave,glare,sparkles,dither` picks layers.
 
 ## Status
 
-Verified side by side against public recordings (see `docs/REFERENCES.md`):
-the wave's shape, taper, placement, folds, brightness, translucency and pace;
+Verified side by side against public recordings (see `docs/REFERENCES.md`),
+most closely against 4K frames and a 10 s clip of one emulator recording:
+the wave's placement, band height, brightness, its filled stack of soft
+translucent layers with crossing fold lines, and its pace. Still weaker
+than the reference: the brightness gradient within each layer;
 the night look; the palettes for February, April (through a late-March
 capture), May, August, October/November and September (purple); the sparkle
 population and look; the glare's subtlety.
