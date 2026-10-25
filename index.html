@@ -58,13 +58,17 @@ function XMBW_SIM() {
 
   // ---- tunables (all original design values) ----
   const NET = {
-    kStruct: 1.0, kBend: 5.0,      // spring constants along the length (unit masses)
+    kStruct: 0.25, kBend: 1.25,    // spring constants along the length (unit masses); soft, so the folds travel slowly
+    alongRest: 1.03,                // the sheet carries 3 % more cloth along its length than its span, so it buckles into
+                                    // standing wrinkles: strands that touch and part, moving slowly with the material
+    hold: 0.0002,                   // weak pull of every node towards its rest position: stops the slack sheet creeping
+                                    // over minutes without touching the folds or the wrinkles
     acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
-    damping: 0.0015,                // fraction of velocity removed per step (low, so the folds persist along the length)
+    damping: 0.001,                 // fraction of velocity removed per step (low, so the folds persist along the length)
     noise: 0.0001,                  // velocity kick per step (std dev); kept tiny, or the control net jitters and the fold lines stipple
-    push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.050, driveW1: 0.85,   // driven end: height amplitude, angular frequency
-    driveB: 0.070, driveW2: 0.50,   // driven end: depth amplitude, angular frequency
+    push: 0.0,                      // steady pull on the free end, along the length (none: a pull would take up the extra cloth)
+    driveA: 0.050, driveW1: 0.42,   // driven end: height amplitude, angular frequency
+    driveB: 0.070, driveW2: 0.25,   // driven end: depth amplitude, angular frequency
     driveMix: 0.7,                  // the second family also moves the driven end in height, at this fraction of driveA, so its fold lines show and cross the first family's
     drivePhase1: 0.87, drivePhase2: -0.58, // phase change per row: the driven edge is folded across its width (about 2.5 folds); the two
                                           // families run opposite ways across, so their fold lines cross
@@ -75,13 +79,15 @@ function XMBW_SIM() {
   // Free-form deformation lattice: more cells along the length than across or in depth.
   const LAT = { nu: 10, nv: 4, nw: 4, ease: 0.02,
     // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]; the temporal
-    // frequencies are all negative so every sway travels towards the near end: the band's pattern drifts
-    // along it, as in the reference clip (about 4-6 % of the screen width per second), instead of standing still
-    sways: [[0.034, 1.55, -0.082, 0.8], [0.030, 2.65, -0.130, 1.0], [0.015, 4.45, -0.190, 0.7]],
+    // frequencies are all negative so every sway travels towards the near end. The first two are slow and
+    // twist the sheet across its width (so the band tilts, arches and pinches); the third is the swell: a
+    // rise and fall about a screen width long that crosses the screen in roughly 12 s and lifts the whole
+    // band, strands together
+    sways: [[0.034, 1.55, -0.082, 1.4], [0.030, 2.65, -0.130, 1.6], [0.050, 8.5, -0.50, 0.2]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 10, wid: 3.0, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 10, wid: 3.4, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
@@ -132,9 +138,9 @@ function XMBW_SIM() {
     const springs = [];
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const a = j * N + i;
-      if (i + 1 < N) springs.push([a, a + 1, H, NET.kStruct]);
+      if (i + 1 < N) springs.push([a, a + 1, H * NET.alongRest, NET.kStruct]);
       if (j + 1 < N) springs.push([a, a + N, H, NET.kStruct * NET.acrossK]);
-      if (i + 2 < N) springs.push([a, a + 2, 2 * H, NET.kBend]);
+      if (i + 2 < N) springs.push([a, a + 2, 2 * H * NET.alongRest, NET.kBend]);
       if (j + 2 < N) springs.push([a, a + 2 * N, 2 * H, NET.kBend * NET.acrossK]);
     }
     const SA = Int32Array.from(springs.map(s => s[0])), SB = Int32Array.from(springs.map(s => s[1]));
@@ -225,6 +231,7 @@ function XMBW_SIM() {
         acc[b] -= f * dx; acc[b + 1] -= f * dy; acc[b + 2] -= f * dz;
       }
       for (let j = 0; j < N; j++) acc[(j * N + N - 1) * 3] += NET.push; // free end i = N-1, pulled outwards
+      for (let k = 0; k < NP * 3; k++) acc[k] -= NET.hold * (pos[k] - rest[k]); // the weak hold towards the rest shape
       for (let p = 0; p < N * N; p++) {
         const k = p * 3;
         vel[k] += acc[k] * DT + NET.noise * gauss();
@@ -431,19 +438,19 @@ const MOOD_KEYS = [
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.30, base: 0.30, baseC: 0.75, edge: 0.03, edgeC: 0.30, threadAmp: 0.0,
+  night: { waveBright: 0.43, base: 0.30, baseC: 0.30, edge: 0.12, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 6,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
     focusFar: 12.0, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
-  dawn: { waveBright: 0.21, base: 0.38, baseC: 0.75, edge: 0.04, edgeC: 0.30, threadAmp: 0.0,
+  dawn: { waveBright: 0.30, base: 0.38, baseC: 0.30, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
-  day: { waveBright: 0.21, base: 0.38, baseC: 0.75, edge: 0.04, edgeC: 0.30, threadAmp: 0.0,
+  day: { waveBright: 0.30, base: 0.38, baseC: 0.30, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.5, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.315, base: 0.40, baseC: 0.75, edge: 0.045, edgeC: 0.30, threadAmp: 0.0,
+  dusk: { waveBright: 0.45, base: 0.40, baseC: 0.30, edge: 0.16, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
@@ -500,7 +507,7 @@ function partsOf(d) {
 // Camera (original design): looks across the sheet from in front, yawed so the
 // sheet is seen obliquely and pitched down a little; the pitch follows the mood.
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 18, yaw: -20, dist: 11, target: [0.8, 0.40, 0.0], near: 0.1, far: 40 }; // far back with a narrow view, so near and far parts look alike
+const CAMERA = { fovY: 18, yaw: -20, dist: 11, target: [0.8, 0.30, 0.0], near: 0.1, far: 40 }; // far back with a narrow view, so near and far parts look alike
 function cameraFor(pitchDeg, aspect) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
@@ -525,7 +532,7 @@ function cameraFor(pitchDeg, aspect) {
 const WAVE = {
   samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
   threads: 400,                         // thread periods across the sheet
-  fadeEnds: 0.10, fadeEdges: 0.12,      // fraction of the sheet over which it fades out
+  fadeEnds: 0.10, fadeEdges: 0.04,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
   filterSpread: 4.0,                    // width of the down-filter over the wave buffer, in output pixels
   tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
@@ -630,9 +637,10 @@ void main(){
 }`;
 // Per fragment: c = cosine between the normal and the line of sight. A translucent
 // sheet is brighter the more obliquely it is seen: the sheen falls off
-// exponentially with the cosine of the view angle (brightest edge-on, about a
-// quarter as bright face-on, so each fold shows a broad soft gradient), and
-// where a layer turns edge-on a weak line is added. Both are bounded;
+// exponentially with the cosine of the view angle (brightest edge-on, faint
+// face-on, so each fold shows a smooth gradient and the folds stand about five
+// times above the faces), and where a layer turns edge-on a soft bright line is
+// added. Both are bounded;
 // the cell's true size scales the light where it was widened (see the vertex
 // shader), so overlapping layers add up to the right total.
 const FS_WAVE = `#version 300 es

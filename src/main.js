@@ -39,19 +39,19 @@ const MOOD_KEYS = [
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.30, base: 0.30, baseC: 0.75, edge: 0.03, edgeC: 0.30, threadAmp: 0.0,
+  night: { waveBright: 0.43, base: 0.30, baseC: 0.30, edge: 0.12, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 6,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
     focusFar: 12.0, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
-  dawn: { waveBright: 0.21, base: 0.38, baseC: 0.75, edge: 0.04, edgeC: 0.30, threadAmp: 0.0,
+  dawn: { waveBright: 0.30, base: 0.38, baseC: 0.30, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
-  day: { waveBright: 0.21, base: 0.38, baseC: 0.75, edge: 0.04, edgeC: 0.30, threadAmp: 0.0,
+  day: { waveBright: 0.30, base: 0.38, baseC: 0.30, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.5, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.315, base: 0.40, baseC: 0.75, edge: 0.045, edgeC: 0.30, threadAmp: 0.0,
+  dusk: { waveBright: 0.45, base: 0.40, baseC: 0.30, edge: 0.16, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
@@ -108,7 +108,7 @@ function partsOf(d) {
 // Camera (original design): looks across the sheet from in front, yawed so the
 // sheet is seen obliquely and pitched down a little; the pitch follows the mood.
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 18, yaw: -20, dist: 11, target: [0.8, 0.40, 0.0], near: 0.1, far: 40 }; // far back with a narrow view, so near and far parts look alike
+const CAMERA = { fovY: 18, yaw: -20, dist: 11, target: [0.8, 0.30, 0.0], near: 0.1, far: 40 }; // far back with a narrow view, so near and far parts look alike
 function cameraFor(pitchDeg, aspect) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
@@ -133,7 +133,7 @@ function cameraFor(pitchDeg, aspect) {
 const WAVE = {
   samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
   threads: 400,                         // thread periods across the sheet
-  fadeEnds: 0.10, fadeEdges: 0.12,      // fraction of the sheet over which it fades out
+  fadeEnds: 0.10, fadeEdges: 0.04,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
   filterSpread: 4.0,                    // width of the down-filter over the wave buffer, in output pixels
   tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
@@ -238,9 +238,10 @@ void main(){
 }`;
 // Per fragment: c = cosine between the normal and the line of sight. A translucent
 // sheet is brighter the more obliquely it is seen: the sheen falls off
-// exponentially with the cosine of the view angle (brightest edge-on, about a
-// quarter as bright face-on, so each fold shows a broad soft gradient), and
-// where a layer turns edge-on a weak line is added. Both are bounded;
+// exponentially with the cosine of the view angle (brightest edge-on, faint
+// face-on, so each fold shows a smooth gradient and the folds stand about five
+// times above the faces), and where a layer turns edge-on a soft bright line is
+// added. Both are bounded;
 // the cell's true size scales the light where it was widened (see the vertex
 // shader), so overlapping layers add up to the right total.
 const FS_WAVE = `#version 300 es

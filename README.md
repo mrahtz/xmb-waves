@@ -43,9 +43,15 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 
 ## How it works (short)
 
-- A 19 x 19 mass-spring net, driven at the far end and pulled gently at the
-  near end, is simulated at 60 fixed steps per second in a Web Worker, passed
-  through a slow free-form deformation lattice, and used as the control net of
+- A 19 x 19 mass-spring net, driven at the far end, is simulated at 60 fixed
+  steps per second in a Web Worker. The sheet carries a little more cloth
+  along its length than its span, so it hangs slack and buckles into standing
+  wrinkles: strands that touch and part and drift slowly with the material,
+  while two fold families from the driven end cross them at shallow angles. A
+  weak pull towards the rest shape stops the slack sheet creeping over
+  minutes. The net is passed through a slow free-form deformation lattice
+  (two slow twisting sways and a swell about a screen width long that crosses
+  the screen in roughly 12 s, lifting the whole band) and used as the control net of
   a bicubic B-spline surface evaluated on the GPU and seen through a slightly
   raised, oblique perspective camera placed far back with a narrow field of
   view, so the near and far parts of the band look alike.
@@ -84,12 +90,16 @@ same browser and GPU; `layers=bg,wave,glare,sparkles,dither` picks layers.
 
 ## Status
 
-Verified side by side against public recordings (see `docs/REFERENCES.md`),
-most closely against 4K frames and a 10 s clip of one emulator recording:
-the wave's placement, band height, brightness over the day, its filled
-stack of broad soft translucent layers with crossing fold lines, its
-softness at 4K, its pace, and the drift of its pattern along the band. The layers' brightness gradients are still a
-little flatter than the reference's;
+Verified side by side against public recordings (see `docs/REFERENCES.md`)
+and against the measured statistics of the original's wave in section 4.6
+of the spec: the band's placement and thickness, its brightness over the
+day, the number of strands per column, the face-to-fold contrast, the width
+of its lines and edges, the crossings and partings between strands, the
+swell travelling left to right with the strands moving together, and the
+slow drift of its features. Still short of the spec: the brightest line in
+a column is broader than the original's (about 15 px against 8), there are
+somewhat fewer thin lines and partings, and the face-to-face contrast within
+a column is a little higher;
 the night look; the palettes for February, April (through a late-March
 capture), May, August, October/November and September (purple); the sparkle
 population and look; the glare's subtlety.

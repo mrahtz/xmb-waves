@@ -9,13 +9,17 @@ function XMBW_SIM() {
 
   // ---- tunables (all original design values) ----
   const NET = {
-    kStruct: 1.0, kBend: 5.0,      // spring constants along the length (unit masses)
+    kStruct: 0.25, kBend: 1.25,    // spring constants along the length (unit masses); soft, so the folds travel slowly
+    alongRest: 1.03,                // the sheet carries 3 % more cloth along its length than its span, so it buckles into
+                                    // standing wrinkles: strands that touch and part, moving slowly with the material
+    hold: 0.0002,                   // weak pull of every node towards its rest position: stops the slack sheet creeping
+                                    // over minutes without touching the folds or the wrinkles
     acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
-    damping: 0.0015,                // fraction of velocity removed per step (low, so the folds persist along the length)
+    damping: 0.001,                 // fraction of velocity removed per step (low, so the folds persist along the length)
     noise: 0.0001,                  // velocity kick per step (std dev); kept tiny, or the control net jitters and the fold lines stipple
-    push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.050, driveW1: 0.85,   // driven end: height amplitude, angular frequency
-    driveB: 0.070, driveW2: 0.50,   // driven end: depth amplitude, angular frequency
+    push: 0.0,                      // steady pull on the free end, along the length (none: a pull would take up the extra cloth)
+    driveA: 0.050, driveW1: 0.42,   // driven end: height amplitude, angular frequency
+    driveB: 0.070, driveW2: 0.25,   // driven end: depth amplitude, angular frequency
     driveMix: 0.7,                  // the second family also moves the driven end in height, at this fraction of driveA, so its fold lines show and cross the first family's
     drivePhase1: 0.87, drivePhase2: -0.58, // phase change per row: the driven edge is folded across its width (about 2.5 folds); the two
                                           // families run opposite ways across, so their fold lines cross
@@ -26,13 +30,15 @@ function XMBW_SIM() {
   // Free-form deformation lattice: more cells along the length than across or in depth.
   const LAT = { nu: 10, nv: 4, nw: 4, ease: 0.02,
     // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]; the temporal
-    // frequencies are all negative so every sway travels towards the near end: the band's pattern drifts
-    // along it, as in the reference clip (about 4-6 % of the screen width per second), instead of standing still
-    sways: [[0.034, 1.55, -0.082, 0.8], [0.030, 2.65, -0.130, 1.0], [0.015, 4.45, -0.190, 0.7]],
+    // frequencies are all negative so every sway travels towards the near end. The first two are slow and
+    // twist the sheet across its width (so the band tilts, arches and pinches); the third is the swell: a
+    // rise and fall about a screen width long that crosses the screen in roughly 12 s and lifts the whole
+    // band, strands together
+    sways: [[0.034, 1.55, -0.082, 1.4], [0.030, 2.65, -0.130, 1.6], [0.050, 8.5, -0.50, 0.2]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 10, wid: 3.0, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 10, wid: 3.4, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
@@ -83,9 +89,9 @@ function XMBW_SIM() {
     const springs = [];
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const a = j * N + i;
-      if (i + 1 < N) springs.push([a, a + 1, H, NET.kStruct]);
+      if (i + 1 < N) springs.push([a, a + 1, H * NET.alongRest, NET.kStruct]);
       if (j + 1 < N) springs.push([a, a + N, H, NET.kStruct * NET.acrossK]);
-      if (i + 2 < N) springs.push([a, a + 2, 2 * H, NET.kBend]);
+      if (i + 2 < N) springs.push([a, a + 2, 2 * H * NET.alongRest, NET.kBend]);
       if (j + 2 < N) springs.push([a, a + 2 * N, 2 * H, NET.kBend * NET.acrossK]);
     }
     const SA = Int32Array.from(springs.map(s => s[0])), SB = Int32Array.from(springs.map(s => s[1]));
@@ -176,6 +182,7 @@ function XMBW_SIM() {
         acc[b] -= f * dx; acc[b + 1] -= f * dy; acc[b + 2] -= f * dz;
       }
       for (let j = 0; j < N; j++) acc[(j * N + N - 1) * 3] += NET.push; // free end i = N-1, pulled outwards
+      for (let k = 0; k < NP * 3; k++) acc[k] -= NET.hold * (pos[k] - rest[k]); // the weak hold towards the rest shape
       for (let p = 0; p < N * N; p++) {
         const k = p * 3;
         vel[k] += acc[k] * DT + NET.noise * gauss();
