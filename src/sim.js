@@ -34,11 +34,11 @@ function XMBW_SIM() {
     // twist the sheet across its width (so the band tilts, arches and pinches); the third is the swell: a
     // gentle rise and fall about two screen widths long, with a period of about 20 s at a fixed column,
     // that travels along the band and lifts the whole band, strands together
-    sways: [[0.034, 1.55, -0.082, 1.4], [0.030, 2.65, -0.130, 1.6], [0.040, 6.0, -0.30, 0.2]],
+    sways: [[0.034, 1.55, -0.082, 1.4], [0.030, 2.65, -0.130, 1.6], [0.040, 6.0, -0.30, 0.8]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 10, wid: 4.4, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 10, wid: 4.0, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
