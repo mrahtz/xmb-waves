@@ -13,39 +13,73 @@
 <title>xmb-waves</title>
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; -webkit-user-select: none; user-select: none; }
-  canvas { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; }
-  #gear { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom));
-    width: 36px; height: 36px; border-radius: 18px; border: 0; background: rgba(0,0,0,.35); color: #fff; font-size: 20px;
-    opacity: 0; transition: opacity .4s; cursor: pointer; }
-  body.active #gear, #panel.open ~ #gear { opacity: .8; }
-  #panel { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: calc(max(10px, env(safe-area-inset-bottom)) + 44px);
-    font: 13px/1.5 system-ui, sans-serif; color: #fff; background: rgba(0,0,0,.6); padding: 10px 12px; border-radius: 10px;
-    display: none; min-width: 220px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  /* the picture: placed and sized by the Picture settings (see layout() in the script) */
+  #c { display: block; position: fixed; left: 0; top: 0; }
+  /* the round settings button: a menu icon while the panel is closed, a close icon while it is open */
+  #gear { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); z-index: 3;
+    width: 40px; height: 40px; border-radius: 20px; border: 0; padding: 0; background: rgba(10, 12, 18, .55); color: #fff;
+    opacity: 0; transition: opacity .4s; cursor: pointer; display: grid; place-items: center;
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  body.active #gear, #gear.open, #gear:focus-visible { opacity: .9; }
+  #gear svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  #gear .ic-close, #gear.open .ic-menu { display: none; }
+  #gear.open .ic-close { display: block; }
+  /* the side panel: floats over the picture, scrolls, collapsible sections */
+  #panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 2; width: min(330px, calc(100vw - 24px)); box-sizing: border-box;
+    padding: max(8px, env(safe-area-inset-top)) 12px calc(max(12px, env(safe-area-inset-bottom)) + 56px) 12px;
+    overflow-y: auto; overscroll-behavior: contain; display: none;
+    font: 13px/1.45 system-ui, sans-serif; color: #eee; background: rgba(10, 12, 18, .66);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
   #panel.open { display: block; }
-  #panel label { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin: 3px 0; }
-  #panel .row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-  #panel .row label { margin: 0; }
-  #panel input, #panel select, #panel button { font: inherit; }
-  #fps { position: fixed; left: max(8px, env(safe-area-inset-left)); top: max(8px, env(safe-area-inset-top));
-    font: 12px/1 ui-monospace, monospace; color: #fff; background: rgba(0,0,0,.45); padding: 4px 6px; border-radius: 4px; display: none; }
+  #panel details { border-top: 1px solid rgba(255, 255, 255, .12); }
+  #panel summary { cursor: pointer; padding: 8px 0; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 8px; }
+  #panel summary::-webkit-details-marker { display: none; }
+  #panel summary::before { content: ''; width: 6px; height: 6px; margin-left: 2px; border-right: 2px solid #ccc; border-bottom: 2px solid #ccc;
+    transform: rotate(-45deg); transition: transform .15s; }
+  #panel details[open] > summary::before { transform: rotate(45deg); }
+  #panel .body { padding: 0 0 10px; }
+  #panel .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; flex-wrap: wrap; }
+  #panel .row .lbl { flex: 0 0 100px; color: #bbb; }
+  #panel .row .ctl { flex: 1 1 auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+  #panel .note, #panel .hint { color: #9a9a9a; font-size: 12px; margin: -2px 0 6px; }
+  #panel .note { margin-left: 108px; }
+  #panel h4 { margin: 12px 0 2px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #9ab; }
+  #panel .seg { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+  #panel .seg button { background: rgba(255, 255, 255, .08); color: #ddd; border: 0; border-radius: 6px; padding: 3px 8px; font: inherit; cursor: pointer; }
+  #panel .seg button.on { background: #e8e8f0; color: #111; }
+  #panel .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+  #panel .btns button, #panel button.act { background: rgba(255, 255, 255, .12); color: #eee; border: 0; border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer; }
+  #panel .btns button:hover, #panel button.act:hover, #panel .seg button:hover { background: rgba(255, 255, 255, .22); }
+  #panel .seg button.on:hover { background: #fff; }
+  #panel .btns button:disabled { opacity: .4; cursor: default; }
+  #panel label.chk { display: flex; align-items: center; gap: 8px; margin: 4px 0; cursor: pointer; }
+  #panel input[type=range] { flex: 1 1 70px; min-width: 50px; margin: 0; }
+  #panel input[type=number], #panel input[type=datetime-local], #panel select { font: inherit; font-size: 12px; background: rgba(0, 0, 0, .35);
+    color: #eee; border: 1px solid rgba(255, 255, 255, .2); border-radius: 4px; padding: 2px 4px; max-width: 100%; }
+  #panel input[type=number] { width: 66px; }
+  #panel .param .lbl { font-size: 12px; }
+  #panel .param.follow input[type=range] { opacity: .5; }
+  #panel .param .reset { background: none; border: 0; color: #bbb; cursor: pointer; padding: 0 3px; font: inherit; font-size: 15px; line-height: 1; }
+  #panel .param .reset:disabled { opacity: .25; cursor: default; }
+  #panel .val { min-width: 40px; color: #ddd; }
+  #panel pre.out { font: 11px/1.4 ui-monospace, monospace; white-space: pre-wrap; margin: 4px 0; color: #cfd; }
+  /* the frame-rate counter overlay */
+  #fps { position: fixed; left: max(8px, env(safe-area-inset-left)); top: max(8px, env(safe-area-inset-top)); z-index: 2; display: none;
+    font: 12px/1.3 ui-monospace, monospace; color: #fff; background: rgba(0, 0, 0, .45); padding: 5px 7px; border-radius: 5px; }
+  #fps.on { display: block; }
+  #fps canvas { display: block; margin-top: 4px; width: 120px; height: 28px; }
+  #fps pre { margin: 4px 0 0; font: inherit; white-space: pre; }
+  #fps div[hidden], #fps canvas[hidden], #fps pre[hidden] { display: none; }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="fps"></div>
-<div id="panel">
-  <label>theme <select id="pTheme"></select></label>
-  <label><span><input id="pFixed" type="checkbox"> fixed time</span> <input id="pTime" type="datetime-local"></label>
-  <label>time speed <select id="pSpeed"><option value="1">1x</option><option value="60">60x</option><option value="600">600x</option><option value="3600">3600x</option></select></label>
-  <label>render scale <span><input id="pScale" type="range" min="0" max="4" step="0.25"> <span id="pScaleV"></span></span></label>
-  <div class="row"><button id="pPause">pause</button><button id="pStep">step</button>
-    <label><input id="pFps" type="checkbox"> fps</label></div>
-  <div class="row">
-    <label><input id="pL_bg" type="checkbox">bg</label><label><input id="pL_wave" type="checkbox">wave</label>
-    <label><input id="pL_glare" type="checkbox">glare</label><label><input id="pL_sparkles" type="checkbox">sparkles</label>
-    <label><input id="pL_dither" type="checkbox">dither</label></div>
-</div>
-<button id="gear" aria-label="settings">&#9881;</button>
+<div id="fps"><div id="fpsText"></div><canvas id="fpsGraph" width="120" height="28"></canvas><pre id="stats"></pre></div>
+<aside id="panel" aria-label="settings"></aside>
+<button id="gear" aria-label="settings" aria-expanded="false">
+  <svg class="ic-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  <svg class="ic-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+</button>
 <script>
 // Simulation module: the wave's spring net, its free-form deformation, and the
 // sparkle pool. Pure JavaScript with no DOM access, so the same source runs in a
@@ -564,11 +598,13 @@ const WAVE = {
   tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
 };
 const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
-const BG_HL = 0.12; // strength of the drifting daytime highlight
+// (these scalars are let, not const, only so the settings menu can change them live)
+let BG_HL = 0.12; // strength of the drifting daytime highlight
+let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 2.5, farSoft: 3.0, focusNear: 9.0, camFade: [3.0, 5.0],
   bright: 0.65, dimPow: 3.5, iri: 0.35, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10 };
-const DITHER = 0.85; // output levels, peak
-const GLARE_DESAT = 0.6; // how far the halo is pulled towards white
+let DITHER = 0.85; // output levels, peak
+let GLARE_DESAT = 0.6; // how far the halo is pulled towards white
 
 // ---------------------------------------------------------------------------
 // WebGL setup
@@ -827,6 +863,77 @@ void main(){
   o = vec4(vC * vI * k, 1.0);
 }`;
 
+// ---------------------------------------------------------------------------
+// Settings-menu passes (normal mode only; none of these runs in score mode)
+// ---------------------------------------------------------------------------
+// Wireframes: line overlays of the real geometry in a flat colour.
+const FS_FLAT = `#version 300 es
+precision highp float;
+uniform vec4 uColor; out vec4 o;
+void main(){ o = uColor; }`;
+// The wave surface's mesh: the edges of the surface cells, evaluated on the same
+// B-spline over the same interpolated control net as the wave pass (without the
+// sliver widening). Lines run along the length (one per sample row) and across
+// (one per sample column). uSA x uSV may be a coarser divisor of the real grid so
+// the overlay stays readable; every line drawn is then still a line of the mesh.
+const VS_WIRE_MESH = `#version 300 es
+precision highp float;
+uniform highp sampler2D uNet0, uNet1; uniform float uAlpha; uniform mat4 uVP; uniform int uSA, uSV;
+vec3 cp(ivec2 ij){ return mix(texelFetch(uNet0, ij, 0).xyz, texelFetch(uNet1, ij, 0).xyz, uAlpha); }
+vec4 basisB(float t){ float t2 = t * t, t3 = t2 * t, u = 1.0 - t; return vec4(u * u * u, 3.0 * t3 - 6.0 * t2 + 4.0, -3.0 * t3 + 3.0 * t2 + 3.0 * t + 1.0, t3) / 6.0; }
+void main(){
+  int seg = gl_VertexID >> 1, end_ = gl_VertexID & 1, i, row;
+  int nAlong = (uSV + 1) * uSA;                                        // segments of the lines along the length
+  if (seg < nAlong) { row = seg / uSA; i = seg - row * uSA + end_; }
+  else { seg -= nAlong; i = seg / uSV; row = seg - i * uSV + end_; }   // the lines across
+  float s = float(i) / float(uSA) * ${NN - 3}.0, t = float(row) / float(uSV) * ${NN - 3}.0;
+  int is_ = min(int(floor(s)), ${NN - 4}), it = min(int(floor(t)), ${NN - 4});
+  vec4 bs = basisB(s - float(is_)), bt = basisB(t - float(it));
+  vec3 P = vec3(0.0);
+  for (int b = 0; b < 4; b++) { vec3 rb = vec3(0.0); for (int a = 0; a < 4; a++) rb += bs[a] * cp(ivec2(is_ + a, it + b)); P += bt[b] * rb; }
+  gl_Position = uVP * vec4(P, 1.0);
+}`;
+// The control grid: the interpolated control net's points, joined along both directions.
+const VS_WIRE_GRID = `#version 300 es
+precision highp float;
+uniform highp sampler2D uNet0, uNet1; uniform float uAlpha; uniform mat4 uVP; uniform int uPoints;
+vec3 cp(ivec2 ij){ return mix(texelFetch(uNet0, ij, 0).xyz, texelFetch(uNet1, ij, 0).xyz, uAlpha); }
+void main(){
+  int i, j;
+  if (uPoints == 1) { i = gl_VertexID % ${NN}; j = gl_VertexID / ${NN}; }
+  else {
+    int seg = gl_VertexID >> 1, end_ = gl_VertexID & 1, n1 = ${NN} * ${NN - 1};
+    if (seg < n1) { j = seg / ${NN - 1}; i = seg - j * ${NN - 1} + end_; }      // along the length
+    else { seg -= n1; i = seg / ${NN - 1}; j = seg - i * ${NN - 1} + end_; }    // across
+  }
+  gl_Position = uVP * vec4(cp(ivec2(i, j)), 1.0); gl_PointSize = 5.0;
+}`;
+// The sparkle quads: each sparkle's billboard as a line loop, placed and sized
+// exactly as the sparkle pass places it (its vertex shader with the corners
+// reordered, so the loop goes round the quad instead of across it).
+const VS_SPARK_WIRE = VS_SPARK.replace('vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)) * 2.0 - 1.0;',
+  'int ci = gl_VertexID == 2 ? 3 : (gl_VertexID == 3 ? 2 : gl_VertexID); vec2 corner = vec2(float(ci & 1), float(ci >> 1)) * 2.0 - 1.0;');
+if (VS_SPARK_WIRE === VS_SPARK) throw new Error('sparkle wireframe shader: the corner line was not found');
+// Inspect: show any intermediate buffer, scaled by a gain; single-channel buffers as grey.
+const FS_INSPECT = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o; uniform sampler2D uT; uniform float uGain; uniform int uMono;
+void main(){ vec4 c = texture(uT, vUv); vec3 v = uMono == 1 ? c.rrr : c.rgb; o = vec4(clamp(v * uGain, 0.0, 1.0), 1.0); }`;
+// Inspect's automatic gain: the brightest value of a buffer, found on the GPU by
+// taking the maximum over blocks of its texels into a small probe image (large
+// blocks are strided), which is then read back.
+const FS_PEAK = `#version 300 es
+precision highp float;
+out vec4 o; uniform sampler2D uT; uniform ivec2 uProbe;
+void main(){
+  ivec2 sz = textureSize(uT, 0), cell = ivec2(gl_FragCoord.xy);
+  ivec2 a = cell * sz / uProbe, b = max((cell + 1) * sz / uProbe, a + 1);
+  ivec2 st = max((b - a) / 48, ivec2(1));
+  float m = 0.0;
+  for (int y = a.y; y < b.y; y += st.y) for (int x = a.x; x < b.x; x += st.x) { vec4 c = texelFetch(uT, ivec2(x, y), 0); m = max(m, max(c.r, max(c.g, c.b))); }
+  o = vec4(m, m, m, 1.0);
+}`;
+
 function compile(vs, fs) {
   const p = gl.createProgram();
   for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
@@ -845,6 +952,9 @@ const PR = {
   bgGen: compile(VS_QUAD, FS_BGGEN), wave: compile(VS_WAVE, FS_WAVE),
   bright: compile(VS_QUAD, FS_BRIGHT), down: compile(VS_QUAD, FS_DOWN), blur: compile(VS_QUAD, FS_BLUR),
   combine: compile(VS_QUAD, FS_COMBINE), spark: compile(VS_SPARK, FS_SPARK), final: compile(VS_QUAD, FS_FINAL),
+  // settings-menu passes
+  wireMesh: compile(VS_WIRE_MESH, FS_FLAT), wireGrid: compile(VS_WIRE_GRID, FS_FLAT), sparkWire: compile(VS_SPARK_WIRE, FS_FLAT),
+  inspect: compile(VS_QUAD, FS_INSPECT), peak: compile(VS_QUAD, FS_PEAK),
 };
 const emptyVao = gl.createVertexArray();
 function quad() { gl.bindVertexArray(emptyVao); gl.drawArrays(gl.TRIANGLES, 0, 3); }
@@ -972,11 +1082,19 @@ function setBgAndWave(pr, bgT, bgOn, waveOn, dstW, dstH) {
 }
 
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
+// The settings menu may add: view {x, y} (where the picture sits in the output
+// target), stopAfter (the last pass to run: 1 background, 2 wave, 3 glare,
+// 4 composite, 5 sparkles, 6 glints), timer ({begin(name), end()}, the GPU
+// timing of the Performance section) and wire (the line overlays). Score mode
+// passes none of them, and every call below is then exactly as without them.
 function renderFrame(st, outTarget) {
   const L = st.layers, sc = st.scene, m = sc.mood, cam = st.cam;
   const { ww, wh, ow, oh } = RT;
+  const T = st.timer || null, stopAfter = st.stopAfter || 99;
+  const vx = st.view ? st.view.x : 0, vy = st.view ? st.view.y : 0;
 
   // 1. background gradient (small), eased over the previous frame
+  if (T) T.begin('background');
   {
     const pr = PR.bgGen; gl.useProgram(pr.p);
     const src = RT.bgA, dst = RT.bgB;
@@ -989,10 +1107,13 @@ function renderFrame(st, outTarget) {
     quad(); RT.bgFresh = false;
     RT.bgA = dst; RT.bgB = src;
   }
+  if (T) T.end();
   const bgT = RT.bgA;
+  if (stopAfter < 2) return;
 
   // 2. wave intensity, supersampled, additive
   if (L.wave) {
+    if (T) T.begin('wave');
     uploadNet(netTex[0], st.net0); uploadNet(netTex[1], st.net1);
     const pr = PR.wave; gl.useProgram(pr.p);
     bindTarget(RT.wave); gl.viewport(0, 0, ww, wh);
@@ -1011,16 +1132,24 @@ function renderFrame(st, outTarget) {
     gl.bindVertexArray(emptyVao);
     gl.drawArrays(gl.TRIANGLES, 0, 6 * SA * SV);
     gl.disable(gl.BLEND);
+    if (T) T.end();
   }
+  if (stopAfter < 3) return;
 
   // 3. glare from the background and wave
   let glareT = null, glareK = 0;
-  if (L.glare && (L.bg || L.wave)) { glareT = buildGlare(m, bgT, L.bg, L.wave, L.bg ? bgPeak(sc) : 0); glareK = RT.glareScale; }
+  if (L.glare && (L.bg || L.wave)) {
+    if (T) T.begin('glare');
+    glareT = buildGlare(m, bgT, L.bg, L.wave, L.bg ? bgPeak(sc) : 0); glareK = RT.glareScale;
+    if (T) T.end();
+  }
+  if (stopAfter < 4) return;
 
   // 4. final pass at the output size
   {
+    if (T) T.begin('composite');
     const pr = PR.final; gl.useProgram(pr.p);
-    bindTarget(outTarget); gl.viewport(0, 0, ow, oh);
+    bindTarget(outTarget); gl.viewport(vx, vy, ow, oh);
     setBgAndWave(pr, bgT, L.bg, L.wave, ow, oh);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT.tex : bgT.tex); gl.uniform1i(pr.u.uGlare, 2);
     gl.uniform1i(pr.u.uGlareOn, glareT ? 1 : 0); gl.uniform1f(pr.u.uGlareK, glareK);
@@ -1028,30 +1157,46 @@ function renderFrame(st, outTarget) {
     gl.uniform1f(pr.u.uFrame, st.frameNo % 1024);
     gl.activeTexture(gl.TEXTURE0);
     quad();
+    if (T) T.end();
   }
+  if (stopAfter < 5) return;
 
   // 5. sparkles, then their glint pass, additively on top
   if (L.sparkles && st.nSparks > 0) {
+    if (T) T.begin('sparkles');
     gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, st.sparks, 0, st.nSparks * SPARK_STRIDE);
     const pr = PR.spark; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
-    gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp); gl.uniform3fv(pr.u.uCam, cam.pos); gl.uniform3fv(pr.u.uCamFwd, cam.fwd);
-    gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniform1f(pr.u.uPxScale, oh / 1080);
-    gl.uniform1f(pr.u.uSize, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
-    gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
-    gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
-    gl.uniform1f(pr.u.uCamFade0, SPARKR.camFade[0]); gl.uniform1f(pr.u.uCamFade1, SPARKR.camFade[1]);
-    gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uIri, SPARKR.iri);
-    gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare); gl.uniform1f(pr.u.uDimPow, SPARKR.dimPow);
-    gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow);
-    gl.uniform2f(pr.u.uRes, ow, oh);
+    sparkUniforms(pr, m, cam, st);
     gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.6);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
-    gl.uniform1f(pr.u.uGlint, SPARKR.glintBright * m.glint / 0.35); gl.uniform1f(pr.u.uExt, SPARKR.glintSize);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
+    if (T) T.end();
+    if (L.glints !== false && stopAfter >= 6) { // the glints are a layer of their own in the menu
+      if (T) T.begin('glints');
+      gl.uniform1f(pr.u.uGlint, SPARKR.glintBright * m.glint / 0.35); gl.uniform1f(pr.u.uExt, SPARKR.glintSize);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
+      if (T) T.end();
+    }
     gl.disable(gl.BLEND); gl.bindVertexArray(null);
   }
+
+  // 6. wireframe overlays (settings menu)
+  if (st.wire && stopAfter >= 7) drawWireframes(st);
+}
+// The sparkle pass's uniforms (shared with its wireframe overlay).
+function sparkUniforms(pr, m, cam, st) {
+  const { ow, oh } = RT;
+  gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp); gl.uniform3fv(pr.u.uCam, cam.pos); gl.uniform3fv(pr.u.uCamFwd, cam.fwd);
+  gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniform1f(pr.u.uPxScale, oh / 1080);
+  gl.uniform1f(pr.u.uSize, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
+  gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
+  gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
+  gl.uniform1f(pr.u.uCamFade0, SPARKR.camFade[0]); gl.uniform1f(pr.u.uCamFade1, SPARKR.camFade[1]);
+  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uIri, SPARKR.iri);
+  gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare); gl.uniform1f(pr.u.uDimPow, SPARKR.dimPow);
+  gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow);
+  gl.uniform2f(pr.u.uRes, ow, oh);
 }
 
 function buildGlare(m, bgT, bgOn, waveOn, peak) {
@@ -1093,6 +1238,72 @@ function buildGlare(m, bgT, bgOn, waveOn, peak) {
   gl.activeTexture(gl.TEXTURE0);
   RT.glareScale = m.glareStrength / wsum;
   return acc;
+}
+
+// Wireframe overlays of the real geometry, drawn over the finished picture
+// (settings menu). st.wire: { mesh, grid, quads, meshSA, meshSV }.
+function drawWireframes(st) {
+  const W = st.wire, cam = st.cam, m = st.scene.mood;
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  if ((W.mesh || W.grid) && st.net0) {
+    if (!st.layers.wave) { uploadNet(netTex[0], st.net0); uploadNet(netTex[1], st.net1); } // the wave pass did not run
+    gl.bindVertexArray(emptyVao);
+    for (const [on, pr] of [[W.mesh, PR.wireMesh], [W.grid, PR.wireGrid]]) {
+      if (!on) continue;
+      gl.useProgram(pr.p);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, netTex[0]); gl.uniform1i(pr.u.uNet0, 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, netTex[1]); gl.uniform1i(pr.u.uNet1, 1);
+      gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp);
+      if (pr === PR.wireMesh) {
+        const SA = W.meshSA, SV = W.meshSV;
+        gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV); gl.uniform4f(pr.u.uColor, 0.3, 0.9, 1.0, 0.45);
+        gl.drawArrays(gl.LINES, 0, 2 * ((SV + 1) * SA + (SA + 1) * SV));
+      } else {
+        gl.uniform1i(pr.u.uPoints, 0); gl.uniform4f(pr.u.uColor, 1.0, 0.7, 0.2, 0.8);
+        gl.drawArrays(gl.LINES, 0, 4 * NN * (NN - 1));
+        gl.uniform1i(pr.u.uPoints, 1); gl.uniform4f(pr.u.uColor, 1.0, 0.85, 0.4, 1.0);
+        gl.drawArrays(gl.POINTS, 0, NN * NN);
+      }
+    }
+    gl.activeTexture(gl.TEXTURE0);
+  }
+  if (W.quads && st.sparks && st.nSparks > 0) {
+    if (!st.layers.sparkles) { gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, st.sparks, 0, st.nSparks * SPARK_STRIDE); }
+    const pr = PR.sparkWire; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
+    sparkUniforms(pr, m, cam, st);
+    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.6); gl.uniform4f(pr.u.uColor, 1.0, 0.35, 0.8, 0.6);
+    gl.drawArraysInstanced(gl.LINE_LOOP, 0, 4, st.nSparks);
+  }
+  gl.disable(gl.BLEND); gl.bindVertexArray(null);
+}
+
+// Inspect (settings menu): show one intermediate buffer over the picture area,
+// scaled by a gain. The texture is sampled with the given filter for this draw
+// only (own is its usual filter, put back afterwards).
+function drawInspect(tex, mono, gain, filter, own, view) {
+  const { ow, oh } = RT, pr = PR.inspect; gl.useProgram(pr.p);
+  bindTarget(null); gl.viewport(view ? view.x : 0, view ? view.y : 0, ow, oh);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(pr.u.uT, 0);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.uniform1f(pr.u.uGain, gain); gl.uniform1i(pr.u.uMono, mono ? 1 : 0);
+  quad();
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, own); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, own);
+}
+// The brightest value in a buffer, for Inspect's automatic gain: a GPU maximum
+// into a 32 x 32 probe, then a small read-back (inspect mode only, a few times a second).
+let probeT = null;
+function bufferPeak(tex) {
+  const PW = 32, PH = 32;
+  if (!probeT) probeT = makeTarget(PW, PH, 'rgba16f');
+  const pr = PR.peak; gl.useProgram(pr.p);
+  bindTarget(probeT); gl.viewport(0, 0, PW, PH);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(pr.u.uT, 0); gl.uniform2i(pr.u.uProbe, PW, PH);
+  quad();
+  let peak = 0;
+  if (floatRT) { const px = new Float32Array(PW * PH * 4); gl.readPixels(0, 0, PW, PH, gl.RGBA, gl.FLOAT, px); for (let i = 0; i < px.length; i += 4) if (px[i] > peak) peak = px[i]; }
+  else { const px = new Uint8Array(PW * PH * 4); gl.readPixels(0, 0, PW, PH, gl.RGBA, gl.UNSIGNED_BYTE, px); for (let i = 0; i < px.length; i += 4) if (px[i] > peak) peak = px[i]; peak /= 255; }
+  bindTarget(null);
+  return peak;
 }
 
 // ---------------------------------------------------------------------------
@@ -1153,81 +1364,219 @@ window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS,
 if (SCORE) { canvas.style.display = 'none'; return; }
 
 // ---------------------------------------------------------------------------
-// Normal mode: settings, panel, worker, draw loop
+// Normal mode: settings, the settings menu, worker, draw loop
 // ---------------------------------------------------------------------------
-const STORE_KEY = 'xmb-waves-settings-v1';
-const DEFAULTS = { theme: 0, useFixed: false, fixedTime: '', speed: 1, scale: 0, fps: false,
-  layers: { bg: true, wave: true, glare: true, sparkles: true, dither: true } };
+const STORE_KEY = 'xmb-waves-settings-v2';
+const SCALES = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];           // render scales offered; a URL scale= snaps to the nearest
+const CLOCK_SPEEDS = [[0, 'stopped'], [1, 'real time'], [60, '1 min/s'], [600, '10 min/s'], [3600, '1 h/s'], [21600, '6 h/s']];
+const WAVE_SPEEDS = [[0, 'frozen'], [0.25, '0.25x'], [0.5, '0.5x'], [1, '1x'], [2, '2x'], [4, '4x']];
+const THEME_NAMES = ['silver', 'yellow', 'light green', 'pink', 'green', 'lavender', 'teal', 'blue', 'purple', 'gold', 'brown', 'red'];
+const PASSES = ['background', 'wave', 'glare', 'composite', 'sparkles', 'glints']; // in drawing order; "stop after pass" counts from 1
+const LAYER_NAMES = [['bg', 'background gradient'], ['wave', 'wave'], ['glare', 'glare'], ['sparkles', 'sparkles'],
+  ['glints', 'sparkle glints'], ['dither', 'dither'], ['bgEase', 'background easing (frame to frame)']];
+const INSPECT_BUFFERS = [['output', 'the picture'], ['bg', 'background gradient'], ['wave', 'wave buffer (intensity)'],
+  ['glareA', 'glare: bright pass / downsampled'], ['glareC', 'glare: blurred'], ['glareB', 'glare: combined'], ['net', 'control net texture']];
+const DEFAULTS = {
+  shape: '16:9', scale: 1, fit: 'fill', pixelated: false,                          // Picture
+  fps: false, stats: false, fpsCap: 60, waveQuality: 'auto',                       // Performance
+  useFixed: false, fixedTime: '', speed: 1, waveSpeed: 1, theme: 0, mood: 'auto',  // Time and theme
+  layers: { bg: true, wave: true, glare: true, sparkles: true, glints: true, dither: true, bgEase: true },
+  wire: { mesh: false, grid: false, quads: false, meshStride: 4 },
+  inspect: { buffer: 'output', level: 0, gain: 1, autoGain: true, stopAfter: 0 },
+  params: {},                                                                       // overridden tunables, by id
+  open: { picture: true, performance: true, time: true, layers: true, wire: false, inspect: false, params: false },
+};
+
+// Settings are read defensively: a stored value is taken only where it has the
+// type of its default, every choice is snapped to what the menu offers, and
+// storage that is missing, disabled or full is simply ignored.
 function loadSettings() {
   let s = {};
-  try { s = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch (e) { s = {}; }
-  const o = { ...DEFAULTS, ...s, layers: { ...DEFAULTS.layers, ...(s.layers || {}) } };
+  try { s = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch (e) { s = {}; }
+  if (!s || typeof s !== 'object') s = {};
+  const merge = (def, got) => {
+    const o = {};
+    for (const k in def) {
+      const d = def[k], g = got && typeof got === 'object' ? got[k] : undefined;
+      if (d && typeof d === 'object') o[k] = merge(d, g);
+      else o[k] = typeof g === typeof d && (typeof g !== 'number' || isFinite(g)) ? g : d;
+    }
+    return o;
+  };
+  const o = merge(DEFAULTS, s);
+  if (s.params && typeof s.params === 'object') for (const k in s.params) if (typeof s.params[k] === 'number' && isFinite(s.params[k])) o.params[k] = s.params[k];
   // URL parameters override stored settings
-  if (params.has('theme')) o.theme = Math.max(0, Math.min(12, parseInt(params.get('theme'), 10) || 0));
+  if (params.has('theme')) o.theme = parseInt(params.get('theme'), 10) || 0;
   if (params.has('time')) { o.useFixed = true; o.fixedTime = params.get('time'); }
-  if (params.has('speed')) o.speed = parseFloat(params.get('speed')) || 1;
-  if (params.has('scale')) o.scale = parseFloat(params.get('scale')) || 0;
+  if (params.has('speed')) { const v = parseFloat(params.get('speed')); o.speed = isFinite(v) ? v : 1; }
+  if (params.has('scale')) o.scale = parseFloat(params.get('scale')) || 1;
   if (params.has('fps')) o.fps = params.get('fps') === '1';
-  if (params.has('layers')) o.layers = parseLayers(params.get('layers'));
+  if (params.has('layers')) { const L = parseLayers(params.get('layers')); o.layers = { ...L, glints: L.sparkles, bgEase: true }; }
+  return validate(o);
+}
+function validate(o) { // keep every setting within what the menu offers
+  const snap = (v, list) => list.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
+  if (!['16:9', '4:3'].includes(o.shape)) o.shape = '16:9';
+  o.scale = snap(o.scale, SCALES);
+  if (!['fill', 'whole', 'stretch', 'one'].includes(o.fit)) o.fit = 'fill';
+  if (![0, 30, 60].includes(o.fpsCap)) o.fpsCap = 60;
+  if (!['auto', 'full'].includes(o.waveQuality)) o.waveQuality = 'auto';
+  o.speed = snap(o.speed, CLOCK_SPEEDS.map(x => x[0]));
+  o.waveSpeed = snap(o.waveSpeed, WAVE_SPEEDS.map(x => x[0]));
+  o.theme = Math.max(0, Math.min(12, Math.round(o.theme) || 0));
+  if (o.mood !== 'auto' && !(o.mood in MOODS)) o.mood = 'auto';
+  o.wire.meshStride = snap(o.wire.meshStride, [1, 4, 16]);
+  if (!INSPECT_BUFFERS.some(b => b[0] === o.inspect.buffer)) o.inspect.buffer = 'output';
+  o.inspect.level = Math.max(0, Math.round(o.inspect.level) || 0);
+  o.inspect.gain = Math.max(1 / 64, Math.min(4096, o.inspect.gain));
+  o.inspect.stopAfter = Math.max(0, Math.min(PASSES.length, Math.round(o.inspect.stopAfter) || 0));
   return o;
 }
-function saveSettings() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+let saveTimer = 0;
+function saveSettings() { // written a moment later, so a slider drag does not write on every move
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable or full */ } }, 250);
+}
 const S = loadSettings();
 let paused = params.get('pause') === '1';
 
-// day clock: virtual time = anchor + (now - anchorReal) * speed
-let clockAnchor = null, clockReal = 0;
+// day clock: virtual time = anchor + (now - anchorReal) * speed; it freezes while paused
+let clockAnchor = null, clockReal = 0, clockFrozenAt = null;
 function resetClock() {
   const fixed = S.useFixed ? parseTime(S.fixedTime) : null;
   clockAnchor = fixed ? new Date(fixed[0], fixed[1] - 1, fixed[2], fixed[3], fixed[4], Math.floor(fixed[5])).getTime() : Date.now();
-  clockReal = performance.now();
+  clockReal = performance.now(); clockFrozenAt = null;
 }
-let clockFrozenAt = null;
 function clockNow(now) {
   if (paused) { if (clockFrozenAt == null) clockFrozenAt = clockAnchor + (now - clockReal) * S.speed; return clockFrozenAt; }
   if (clockFrozenAt != null) { clockAnchor = clockFrozenAt; clockReal = now; clockFrozenAt = null; }
   return clockAnchor + (now - clockReal) * S.speed;
 }
+function setClock(timeString) { S.useFixed = true; S.fixedTime = timeString; resetClock(); saveSettings(); }
+function setClockSpeed(v) { const now = performance.now(); clockAnchor = clockNow(now); clockReal = now; S.speed = v; saveSettings(); }
+function toLocalInput(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
 resetClock();
 
-// panel
-const $ = id => document.getElementById(id);
-const panel = $('panel'), fpsEl = $('fps');
-['auto (clock)', 'silver', 'yellow', 'light green', 'pink', 'green', 'lavender', 'teal', 'blue', 'purple', 'gold', 'brown', 'red']
-  .forEach((n, i) => { const op = document.createElement('option'); op.value = i; op.textContent = i + ' ' + n; $('pTheme').appendChild(op); });
-function syncPanel() {
-  $('pTheme').value = S.theme; $('pFixed').checked = S.useFixed; $('pTime').value = S.fixedTime || '';
-  $('pSpeed').value = String(S.speed);
-  $('pScale').value = S.scale; $('pScaleV').textContent = S.scale ? S.scale + 'x' : 'auto';
-  $('pFps').checked = S.fps; $('pPause').textContent = paused ? 'play' : 'pause'; $('pStep').disabled = !paused;
-  for (const k of Object.keys(S.layers)) $('pL_' + k).checked = S.layers[k];
-  fpsEl.style.display = S.fps ? 'block' : 'none';
+// ---- Parameters: the tunables, grouped by part ----
+// kind 'live': a value of this file (get/set); 'sim': a value of the simulation
+// module, sent to the worker; 'mood': a per-mood value, which follows the mood
+// until it is overridden. The defaults are the committed values, read at start-up.
+const PARAM_GROUPS = [], PARAM_ITEMS = [];
+function group(name, items) { PARAM_GROUPS.push({ name, items }); PARAM_ITEMS.push(...items); }
+function live(id, label, get, set, min, max, step) { return { id, kind: 'live', label, get, set, def: get(), min, max, step }; }
+function field(name, obj, key, label, min, max, step) { return live(name + '.' + key, label, () => obj[key], v => { obj[key] = v; }, min, max, step); }
+function index(name, arr, i, label, min, max, step) { return live(name + '.' + i, label, () => arr[i], v => { arr[i] = v; }, min, max, step); }
+function sim(path, label, min, max, step) { let d = SIMM.tunables; for (const k of path.split('.')) d = d[k]; return { id: 'sim.' + path, kind: 'sim', path, label, def: d, min, max, step }; }
+function mood(key, label, min, max, step) { return { id: 'mood.' + key, kind: 'mood', key, label, def: null, min, max, step }; }
+group('Wave motion', [
+  sim('NET.kStruct', 'spring stiffness', 0.02, 2, 0.01), sim('NET.kBend', 'bending stiffness', 0.05, 6, 0.05),
+  sim('NET.acrossK', 'across stiffness', 0.05, 2, 0.01), sim('NET.damping', 'damping', 0, 0.02, 0.0001),
+  sim('NET.noise', 'random kick', 0, 0.001, 0.00001), sim('NET.push', 'pull on free end', 0, 0.03, 0.0005),
+  sim('NET.hold', 'hold to rest', 0, 0.002, 0.00005),
+  sim('NET.driveA', 'drive height', 0, 0.2, 0.001), sim('NET.driveW1', 'drive rate 1', 0.05, 1.5, 0.01),
+  sim('NET.driveB', 'drive depth', 0, 0.2, 0.001), sim('NET.driveW2', 'drive rate 2', 0.05, 1.5, 0.01),
+  sim('NET.driveMix', 'second family mix', 0, 2, 0.01), sim('NET.drivePhase1', 'phase per row 1', -2, 2, 0.01),
+  sim('NET.drivePhase2', 'phase per row 2', -2, 2, 0.01), sim('NET.driveEase', 'drive easing', 0.001, 0.2, 0.001),
+  sim('NET.envLow', 'envelope low', 0, 1, 0.01), sim('NET.envWidth', 'envelope width', 0.02, 0.5, 0.01),
+  mood('envCross', 'envelope crossover', 0, 1, 0.01),
+  sim('LAT.sways.0.0', 'sway 1 amplitude', 0, 0.1, 0.001), sim('LAT.sways.0.2', 'sway 1 rate', -0.5, 0.5, 0.001),
+  sim('LAT.sways.1.0', 'sway 2 amplitude', 0, 0.1, 0.001), sim('LAT.sways.1.2', 'sway 2 rate', -0.5, 0.5, 0.001),
+  sim('LAT.sways.2.0', 'swell amplitude', 0, 0.1, 0.001), sim('LAT.sways.2.2', 'swell rate', -1, 1, 0.001),
+  sim('LAT.bump.amp', 'bump amplitude', 0, 0.1, 0.001), sim('LAT.bump.width', 'bump width', 0.05, 0.5, 0.005),
+  sim('LAT.bump.speed', 'bump speed', 0, 0.1, 0.001), sim('LAT.ease', 'warp easing', 0.001, 0.2, 0.001),
+  sim('SCENE.len', 'sheet length', 4, 16, 0.1), sim('SCENE.wid', 'sheet width', 1, 8, 0.1),
+  sim('SCENE.height', 'height scale', 1, 14, 0.1), sim('SCENE.y0', 'height offset', -2, 2, 0.01),
+  sim('SCENE.tilt', 'sheet tilt', -0.3, 0.3, 0.005),
+  mood('latX', 'lattice scale x', 0.5, 1.5, 0.01), mood('latY', 'lattice scale y', 0.5, 1.5, 0.01), mood('latZ', 'lattice scale z', 0.5, 1.5, 0.01),
+]);
+group('Wave look', [
+  mood('waveBright', 'brightness', 0, 1.5, 0.01), mood('base', 'sheen level', 0, 1, 0.01), mood('baseC', 'sheen width', 0.05, 1, 0.01),
+  mood('baseK', 'sheen exponent', 0.5, 6, 0.05), mood('edge', 'edge line', 0, 0.3, 0.005), mood('edgeC', 'edge width', 0.02, 0.5, 0.005),
+  mood('threadAmp', 'thread amplitude', 0, 1, 0.01), field('WAVE', WAVE, 'threads', 'thread periods', 10, 800, 1),
+  field('WAVE', WAVE, 'fadeEnds', 'end fade', 0, 0.4, 0.005), field('WAVE', WAVE, 'fadeEdges', 'edge fade', 0, 0.3, 0.005),
+  field('WAVE', WAVE, 'minWidth', 'minimum cell width', 0.5, 3, 0.05), field('WAVE', WAVE, 'filterSpread', 'filter spread', 1, 8, 0.1),
+  field('WAVE', WAVE, 'samplesAlong', 'samples along', 4, 96, 1), field('WAVE', WAVE, 'samplesAcross', 'samples across', 1, 16, 1),
+]);
+group('Camera', [
+  mood('camPitch', 'pitch', -10, 30, 0.1), field('CAMERA', CAMERA, 'yaw', 'yaw', -60, 60, 0.5),
+  field('CAMERA', CAMERA, 'fovY', 'field of view', 5, 60, 0.5), field('CAMERA', CAMERA, 'dist', 'distance', 3, 30, 0.1),
+  index('CAMERA.target', CAMERA.target, 0, 'target x', -5, 5, 0.05), index('CAMERA.target', CAMERA.target, 1, 'target y', -3, 3, 0.05),
+  index('CAMERA.target', CAMERA.target, 2, 'target z', -5, 5, 0.05),
+]);
+group('Background', [
+  live('BG_HL', 'daytime highlight', () => BG_HL, v => { BG_HL = v; }, 0, 0.5, 0.005),
+  live('BG_EASE', 'frame easing', () => BG_EASE, v => { BG_EASE = v; }, 0.005, 1, 0.005),
+  live('DITHER', 'dither amplitude', () => DITHER, v => { DITHER = v; }, 0, 3, 0.05),
+]);
+group('Glare', [
+  mood('exposure', 'exposure', 0.2, 3, 0.01), mood('white', 'white point', 0.5, 4, 0.05), mood('glareThr', 'threshold', 0, 1, 0.01),
+  mood('glareSigma', 'blur radius', 0.3, 4, 0.05), mood('glareRatio', 'level ratio', 0.3, 1.5, 0.01), mood('glareStrength', 'strength', 0, 3, 0.01),
+  live('GLARE_DESAT', 'desaturation', () => GLARE_DESAT, v => { GLARE_DESAT = v; }, 0, 1, 0.01),
+]);
+group('Sparkles', [
+  mood('sparkBright', 'brightness', 0, 2, 0.01), mood('sparkSize', 'size (mood)', 0.2, 3, 0.01), mood('focusFar', 'far focus', 6, 20, 0.1), mood('glint', 'glint', 0, 1, 0.01),
+  field('SPARKR', SPARKR, 'size', 'size', 0.5, 8, 0.1), field('SPARKR', SPARKR, 'blur', 'bokeh blur', 0, 12, 0.1),
+  field('SPARKR', SPARKR, 'dofPow', 'bokeh dimming', 0.2, 3, 0.05), field('SPARKR', SPARKR, 'focusNear', 'near focus', 3, 15, 0.1),
+  field('SPARKR', SPARKR, 'nearSoft', 'near softness', 0.5, 6, 0.1), field('SPARKR', SPARKR, 'farSoft', 'far softness', 0.5, 6, 0.1),
+  field('SPARKR', SPARKR, 'bright', 'base brightness', 0, 2, 0.01), field('SPARKR', SPARKR, 'dimPow', 'brightness spread', 0.5, 6, 0.1),
+  field('SPARKR', SPARKR, 'iri', 'iridescence', 0, 1, 0.01), field('SPARKR', SPARKR, 'iriExp', 'iridescence exponent', 0.5, 4, 0.05),
+  field('SPARKR', SPARKR, 'flare', 'flare', 0, 4, 0.05), field('SPARKR', SPARKR, 'glintSize', 'glint size', 1, 10, 0.1),
+  field('SPARKR', SPARKR, 'glintBright', 'glint brightness', 0, 0.5, 0.005),
+  sim('SPARK.burstP', 'burst chance', 0, 1, 0.01), sim('SPARK.burstMax', 'burst size', 1, 20, 1),
+  sim('SPARK.walkerP', 'walker chance', 0, 0.3, 0.005), sim('SPARK.walkStep', 'walker step', 0.005, 0.2, 0.005),
+  sim('SPARK.cone', 'birth cone', 0, 1, 0.01), sim('SPARK.reverseP', 'reversed births', 0, 0.5, 0.01),
+  sim('SPARK.speedK', 'speed factor', 0, 1, 0.01), sim('SPARK.speedPow', 'speed exponent', 0.1, 1.5, 0.01), sim('SPARK.speedMin', 'minimum speed', 0, 0.2, 0.005),
+  sim('SPARK.rateMean', 'ageing rate', 0.02, 0.5, 0.005), sim('SPARK.rateSpread', 'ageing spread', 0, 1, 0.01),
+  sim('SPARK.jitter', 'jitter', 0, 0.2, 0.005), sim('SPARK.gravity', 'gravity', -0.02, 0.02, 0.0005), sim('SPARK.friction', 'friction', 0, 1, 0.01),
+  sim('SPARK.spinA', 'spin', 0, 6, 0.05),
+]);
+let currentMood = null, tunePending = false;
+function paramValue(it) { // the value in effect
+  if (S.params[it.id] != null) return S.params[it.id];
+  if (it.kind === 'mood') return currentMood ? currentMood[it.key] : MOODS.day[it.key];
+  return it.def;
 }
-$('pTheme').onchange = e => { S.theme = +e.target.value; saveSettings(); };
-$('pFixed').onchange = e => { S.useFixed = e.target.checked; if (S.useFixed && !S.fixedTime) S.fixedTime = toLocalInput(new Date()); syncPanel(); resetClock(); saveSettings(); };
-$('pTime').onchange = e => { S.fixedTime = e.target.value; resetClock(); saveSettings(); };
-$('pSpeed').onchange = e => { const now = performance.now(); clockAnchor = clockNow(now); clockReal = now; S.speed = +e.target.value; syncPanel(); saveSettings(); };
-$('pScale').oninput = e => { S.scale = +e.target.value; syncPanel(); saveSettings(); };
-$('pFps').onchange = e => { S.fps = e.target.checked; syncPanel(); saveSettings(); };
-$('pPause').onclick = () => { paused = !paused; worker.postMessage({ type: 'run', on: !paused && !document.hidden }); syncPanel(); };
-$('pStep').onclick = () => { if (paused) worker.postMessage({ type: 'step' }); };
-for (const k of Object.keys(DEFAULTS.layers)) $('pL_' + k).onchange = e => { S.layers[k] = e.target.checked; saveSettings(); };
-$('gear').onclick = () => { panel.classList.toggle('open'); };
-window.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-  if (e.key === 'p' || e.key === 'h') panel.classList.toggle('open');
-  if (e.key === ' ') $('pPause').onclick();
-  if (e.key === '.' ) $('pStep').onclick();
-});
-function toLocalInput(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
-let gearTimer = 0;
-function pokeGear() { document.body.classList.add('active'); clearTimeout(gearTimer); gearTimer = setTimeout(() => document.body.classList.remove('active'), 2500); }
-window.addEventListener('pointermove', pokeGear); window.addEventListener('pointerdown', pokeGear);
-syncPanel();
+function setParam(it, v) {
+  if (!isFinite(v)) return;
+  v = Math.max(it.min, Math.min(it.max, v));
+  S.params[it.id] = v;
+  if (it.kind === 'live') it.set(v); else if (it.kind === 'sim') tunePending = true;
+  saveSettings();
+}
+function resetParam(it) {
+  delete S.params[it.id];
+  if (it.kind === 'live') it.set(it.def); else if (it.kind === 'sim') tunePending = true;
+  saveSettings();
+}
+function applyParams() { // the remembered overrides, at start-up; unknown or out-of-range ones are dropped
+  const known = new Map(PARAM_ITEMS.map(it => [it.id, it]));
+  for (const id in S.params) {
+    const it = known.get(id), v = S.params[id];
+    if (!it || v < it.min || v > it.max) { delete S.params[id]; continue; }
+    if (it.kind === 'live') it.set(v);
+  }
+}
+function simTuneMap() { const m = {}; for (const it of PARAM_ITEMS) if (it.kind === 'sim') m[it.path] = S.params[it.id] != null ? S.params[it.id] : it.def; return m; }
+applyParams();
 
-// worker
+// The scene for this frame: the clock (or a held mood), then the overrides.
+function currentScene(now) {
+  const tp = partsOf(new Date(clockNow(now)));
+  const scene = sceneParams(tp, S.theme);
+  if (S.mood !== 'auto' && MOODS[S.mood]) scene.mood = { ...MOODS[S.mood] };
+  currentMood = scene.mood;                                                  // what the mood sliders follow
+  let copied = false;
+  for (const it of PARAM_ITEMS) {
+    if (it.kind !== 'mood' || S.params[it.id] == null) continue;
+    if (!copied) { scene.mood = { ...scene.mood }; copied = true; }
+    scene.mood[it.key] = S.params[it.id];
+  }
+  return scene;
+}
+
+// ---- worker ----
 function workerMain(SIMF) {
-  const M = SIMF(); let sim = null, running = false, last = 0, acc = 0; const spare = [];
+  const M = SIMF(); let sim = null, running = false, last = 0, acc = 0, speed = 1, stepMs = 0, mood = null, tuning = null; const spare = [];
   const absNow = () => performance.timeOrigin + performance.now();
   function send(alpha) {
     const need = M.N * M.N * 6 + 4096 * M.SPARK_STRIDE;
@@ -1235,21 +1584,28 @@ function workerMain(SIMF) {
     const f = new Float32Array(buf);
     f.set(sim.netPrev, 0); f.set(sim.netCur, M.N * M.N * 3);
     const n = sim.packSparks(f.subarray(M.N * M.N * 6));
-    postMessage({ buf, n, alpha, at: absNow() }, [buf]);
+    postMessage({ buf, n, alpha, at: absNow(), stepMs }, [buf]);
+  }
+  function fresh(seed) { // a new, settled state with the current mood and tuning
+    sim = M.createSim(seed); if (mood) sim.setMood(mood); if (tuning) sim.tune(tuning);
+    sim.warm(sim.warmSteps); send(1);
   }
   function loop() {
     if (!running) return;
     const now = performance.now();
-    acc += Math.min(0.25, (now - last) / 1000); last = now; // capped: no catch-up after a stall
-    let n = 0;
+    acc += Math.min(0.25, (now - last) / 1000) * speed; last = now; // capped: no catch-up after a stall; the wave speed scales it
+    let n = 0; const t0 = performance.now();
     while (acc >= M.DT && n < 8) { sim.step(); acc -= M.DT; n++; }
-    if (n) send(acc / M.DT);
-    setTimeout(loop, Math.max(1, Math.floor((M.DT - acc) * 1000))); // sleep until the next step is due
+    if (n) { stepMs += ((performance.now() - t0) / n - stepMs) * 0.1; send(acc / M.DT); }
+    setTimeout(loop, Math.max(1, Math.min(50, Math.floor((M.DT - acc) / Math.max(speed, 0.05) * 1000)))); // sleep until the next step is due
   }
   onmessage = e => {
     const d = e.data;
-    if (d.type === 'init') { sim = M.createSim(d.seed); sim.setMood(d.mood); sim.warm(sim.warmSteps); send(1); }
-    else if (d.type === 'mood') { if (sim) sim.setMood(d.mood); }
+    if (d.type === 'init') { mood = d.mood; tuning = d.tune || null; speed = d.speed == null ? 1 : d.speed; fresh(d.seed); }
+    else if (d.type === 'restart') fresh(d.seed);
+    else if (d.type === 'mood') { mood = d.mood; if (sim) sim.setMood(d.mood); }
+    else if (d.type === 'tune') { tuning = d.values; if (sim) sim.tune(d.values); }
+    else if (d.type === 'speed') speed = d.k;
     else if (d.type === 'run') { const was = running; running = d.on; if (running && !was) { last = performance.now(); acc = 0; loop(); } }
     else if (d.type === 'step') { if (sim) { sim.step(); send(1); } }
     else if (d.type === 'return') spare.push(d.buf);
@@ -1257,24 +1613,336 @@ function workerMain(SIMF) {
 }
 const workerSrc = `${XMBW_SIM.toString()}\n(${workerMain.toString()})(XMBW_SIM);`;
 const worker = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' })));
-let latest = null;
+let latest = null, restartPending = false;
 const NET3 = NN * NN * 3;
 worker.onmessage = e => {
   if (latest) worker.postMessage({ type: 'return', buf: latest.buf }, [latest.buf]);
   const d = e.data, f = new Float32Array(d.buf);
-  latest = { buf: d.buf, net0: f.subarray(0, NET3), net1: f.subarray(NET3, NET3 * 2), sparks: f.subarray(NET3 * 2), n: d.n, alpha: d.alpha, at: d.at };
+  latest = { buf: d.buf, net0: f.subarray(0, NET3), net1: f.subarray(NET3, NET3 * 2), sparks: f.subarray(NET3 * 2), n: d.n, alpha: d.alpha, at: d.at, stepMs: d.stepMs };
+  if (restartPending) { restartPending = false; firstState = 0; } // a restarted wave fades in like the first
 };
 const seed = params.has('seed') ? (parseInt(params.get('seed'), 10) || 0) : (Date.now() & 0x7fffffff);
 let lastMoodSent = '';
-function currentScene(now) {
-  const tp = partsOf(new Date(clockNow(now)));
-  const scene = sceneParams(tp, S.theme);
-  return scene;
-}
 {
   const sc0 = currentScene(performance.now());
-  worker.postMessage({ type: 'init', seed, mood: simMoodParams(sc0.mood, cameraFor(sc0.mood.camPitch, 16 / 9)) });
+  worker.postMessage({ type: 'init', seed, mood: simMoodParams(sc0.mood, cameraFor(sc0.mood.camPitch, 16 / 9)), tune: simTuneMap(), speed: S.waveSpeed });
   worker.postMessage({ type: 'run', on: !paused });
+}
+function setPaused(p) { paused = p; worker.postMessage({ type: 'run', on: !paused && !document.hidden }); syncPanel(); }
+function stepOnce() { if (paused) worker.postMessage({ type: 'step' }); }
+function restartWave() { restartPending = true; worker.postMessage({ type: 'restart', seed: params.has('seed') ? seed : (Date.now() & 0x7fffffff) }); }
+
+// ---- the settings panel ----
+const $ = id => document.getElementById(id);
+const panel = $('panel'), gear = $('gear'), fpsEl = $('fps'), fpsText = $('fpsText'), fpsGraph = $('fpsGraph'), statsEl = $('stats');
+const syncers = []; // every control's refresh; syncPanel() runs them all
+function syncPanel() { for (const f of syncers) f(); }
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const k in attrs || {}) {
+    if (k === 'class') e.className = attrs[k]; else if (k === 'text') e.textContent = attrs[k];
+    else if (k.startsWith('on')) e[k] = attrs[k]; else e.setAttribute(k, attrs[k]);
+  }
+  for (const c of children) if (c != null) e.append(c);
+  return e;
+}
+function section(id, title, ...content) { // a collapsible section; whether it is open is remembered
+  const d = el('details', {}, el('summary', { text: title }), el('div', { class: 'body' }, ...content));
+  d.open = !!S.open[id];
+  d.addEventListener('toggle', () => { S.open[id] = d.open; saveSettings(); });
+  panel.append(d);
+  return d;
+}
+function row(label, ...controls) { return el('div', { class: 'row' }, el('span', { class: 'lbl', text: label }), el('span', { class: 'ctl' }, ...controls)); }
+function seg(options, get, set) { // a group of exclusive buttons
+  const box = el('div', { class: 'seg' });
+  const btns = options.map(([v, label]) => el('button', { type: 'button', text: label, onclick: () => { set(v); syncPanel(); } }));
+  btns.forEach(b => box.append(b));
+  syncers.push(() => { const v = get(); options.forEach(([ov], i) => btns[i].classList.toggle('on', ov === v)); });
+  return box;
+}
+function check(label, get, set) {
+  const c = el('input', { type: 'checkbox' }); c.onchange = () => { set(c.checked); syncPanel(); };
+  syncers.push(() => { c.checked = !!get(); });
+  return el('label', { class: 'chk' }, c, el('span', { text: label }));
+}
+function select(options, get, set) {
+  const s = el('select'); for (const [v, label] of options) s.append(el('option', { value: v, text: label }));
+  s.onchange = () => { set(s.value); syncPanel(); };
+  syncers.push(() => { s.value = String(get()); });
+  return s;
+}
+function button(label, onclick, attrs) { return el('button', { type: 'button', text: label, onclick, ...(attrs || {}) }); }
+const pad = n => String(n).padStart(2, '0');
+const decimals = step => Math.max(0, Math.ceil(-Math.log10(step) - 1e-9));
+const fmt = (v, step) => (+v).toFixed(decimals(step));
+const setting = (key, sub) => [() => (sub ? S[sub][key] : S[key]), v => { if (sub) S[sub][key] = v; else S[key] = v; saveSettings(); }];
+
+// Picture
+const scaleR = el('input', { type: 'range', min: 0, max: SCALES.length - 1, step: 1 }), scaleV = el('span', { class: 'val' }), scaleNote = el('div', { class: 'note' });
+scaleR.oninput = () => { S.scale = SCALES[+scaleR.value]; saveSettings(); syncPanel(); };
+syncers.push(() => { scaleR.value = SCALES.indexOf(S.scale); scaleV.textContent = S.scale + 'x'; });
+section('picture', 'Picture',
+  row('output shape', seg([['16:9', '16:9'], ['4:3', '4:3']], ...setting('shape'))),
+  row('render scale', scaleR, scaleV), scaleNote,
+  row('fit to window', seg([['fill', 'fill'], ['whole', 'whole'], ['stretch', 'stretch'], ['one', '1:1 pixels']], ...setting('fit'))),
+  el('div', { class: 'hint', text: 'fill crops the edges, whole letterboxes, stretch distorts, 1:1 shows one picture pixel per screen pixel' }),
+  check('show pixels when enlarged (no smoothing)', ...setting('pixelated')));
+
+// Performance
+const gpuOut = el('pre', { class: 'out' });
+section('performance', 'Performance',
+  check('frame-rate counter (F)', ...setting('fps')),
+  check('detailed stats', ...setting('stats')),
+  row('frame-rate cap', seg([[60, '60 fps'], [30, '30 fps (battery)'], [0, 'display rate']], ...setting('fpsCap'))),
+  row('wave buffer', seg([['auto', '1 sample/px when enlarged'], ['full', 'full supersampling']], ...setting('waveQuality'))),
+  el('div', { class: 'hint', text: 'at render scale 1.5x and above the first choice draws the wave at the render size and lets the final shrink to the screen do the smoothing; far less GPU work, no visible difference' }),
+  el('div', { class: 'btns' }, button('measure GPU time per pass', () => startGpuProbe())), gpuOut);
+
+// Time and theme
+const dateIn = el('input', { type: 'datetime-local', step: 1 });
+dateIn.onchange = () => { if (parseTime(dateIn.value)) { setClock(dateIn.value); syncPanel(); } };
+const todIn = el('input', { type: 'range', min: 0, max: 1439, step: 1 }), todVal = el('span', { class: 'val' });
+todIn.oninput = () => { const d = new Date(clockNow(performance.now())); d.setHours(0, +todIn.value, 0, 0); setClock(toLocalInput(d)); todVal.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const pauseBtn = button('pause', () => setPaused(!paused)), stepBtn = button('step', stepOnce, { title: 'one frame (. or the right arrow)' });
+syncers.push(() => { pauseBtn.textContent = paused ? 'play (Space)' : 'pause (Space)'; stepBtn.disabled = !paused; });
+section('time', 'Time and theme',
+  row('date and time', dateIn, button('Now', () => { S.useFixed = false; S.fixedTime = ''; resetClock(); saveSettings(); refreshPanel(); }, { class: 'act' })),
+  row('time of day', todIn, todVal),
+  row('clock speed', seg(CLOCK_SPEEDS, () => S.speed, setClockSpeed)),
+  row('wave speed', seg(WAVE_SPEEDS, () => S.waveSpeed, v => { S.waveSpeed = v; worker.postMessage({ type: 'speed', k: v }); saveSettings(); })),
+  el('div', { class: 'hint', text: 'the wave speed runs the wave and sparkles only; the clock is separate' }),
+  el('div', { class: 'btns' }, pauseBtn, stepBtn, button('restart the wave', restartWave, { title: 'a fresh settled state' })),
+  row('colour', select([[0, 'automatic (date and time)'], ...THEME_NAMES.map((n, i) => [i + 1, (i + 1) + ' ' + n])], () => S.theme, v => { S.theme = +v; saveSettings(); })),
+  row('mood', seg([['auto', 'follow the clock'], ['night', 'night'], ['dawn', 'dawn'], ['day', 'day'], ['dusk', 'dusk']], ...setting('mood'))));
+
+// Layers
+section('layers', 'Layers', ...LAYER_NAMES.map(([k, n]) => check(n, ...setting(k, 'layers'))));
+
+// Wireframes
+section('wire', 'Wireframes',
+  check('wave surface mesh', ...setting('mesh', 'wire')),
+  row('mesh lines', seg([[1, 'all'], [4, 'every 4th'], [16, 'every 16th']], ...setting('meshStride', 'wire'))),
+  check('control grid', ...setting('grid', 'wire')),
+  check('sparkle quads', ...setting('quads', 'wire')));
+
+// Inspect
+const levelSel = el('select'); levelSel.onchange = () => { S.inspect.level = +levelSel.value; saveSettings(); };
+const gainR = el('input', { type: 'range', min: -6, max: 12, step: 0.1 }), gainVal = el('span', { class: 'val' });
+gainR.oninput = () => { S.inspect.gain = Math.pow(2, +gainR.value); saveSettings(); refreshInspect(); };
+let autoGain = 1;
+function refreshInspect() {
+  const I = S.inspect, g = I.autoGain ? autoGain : I.gain;
+  if (document.activeElement !== gainR) gainR.value = Math.log2(g);
+  gainR.disabled = I.autoGain; gainVal.textContent = 'x' + (g >= 10 ? g.toFixed(0) : g.toFixed(2));
+  levelSel.disabled = !I.buffer.startsWith('glare');
+}
+syncers.push(refreshInspect);
+section('inspect', 'Inspect',
+  row('buffer', select(INSPECT_BUFFERS, () => S.inspect.buffer, v => { S.inspect.buffer = v; saveSettings(); })),
+  row('level', levelSel),
+  row('gain', gainR, gainVal),
+  check('automatic gain (for faint buffers)', ...setting('autoGain', 'inspect')),
+  row('stop after pass', select([[0, 'run every pass'], ...PASSES.map((p, i) => [i + 1, p])], () => S.inspect.stopAfter, v => { S.inspect.stopAfter = +v; saveSettings(); })),
+  el('div', { class: 'hint', text: 'stopping before the composite shows the last buffer drawn' }));
+
+// Parameters
+function paramRow(it) {
+  const r = el('input', { type: 'range', min: it.min, max: it.max, step: it.step });
+  const n = el('input', { type: 'number', min: it.min, max: it.max, step: it.step });
+  const reset = button('↺', () => { resetParam(it); syncPanel(); }, { class: 'reset', title: it.kind === 'mood' ? 'follow the mood again' : 'back to the default' });
+  r.oninput = () => { setParam(it, +r.value); n.value = fmt(S.params[it.id], it.step); reset.disabled = false; rowEl.classList.remove('follow'); };
+  n.onchange = () => { if (n.value !== '') setParam(it, +n.value); syncPanel(); };
+  const rowEl = el('div', { class: 'row param' }, el('span', { class: 'lbl', text: it.label, title: it.id }), el('span', { class: 'ctl' }, r, n, reset));
+  syncers.push(() => {
+    const v = paramValue(it), over = S.params[it.id] != null;
+    if (document.activeElement !== r) r.value = v;
+    if (document.activeElement !== n) n.value = fmt(v, it.step);
+    rowEl.classList.toggle('follow', it.kind === 'mood' && !over); reset.disabled = !over;
+  });
+  return rowEl;
+}
+{
+  const sec = section('params', 'Parameters',
+    el('div', { class: 'hint', text: 'each slider changes the picture live; a dimmed slider follows the mood of the moment until it is moved' }),
+    el('div', { class: 'btns' }, button('reset all', () => { for (const it of PARAM_ITEMS) resetParam(it); syncPanel(); })));
+  const body = sec.querySelector('.body');
+  for (const g of PARAM_GROUPS) { body.append(el('h4', { text: g.name })); for (const it of g.items) body.append(paramRow(it)); }
+}
+
+// opening and closing
+function setPanel(open) {
+  panel.classList.toggle('open', open); gear.classList.toggle('open', open);
+  gear.setAttribute('aria-expanded', String(open)); gear.setAttribute('aria-label', open ? 'close settings' : 'settings');
+  if (open) refreshPanel();
+}
+gear.onclick = () => setPanel(!panel.classList.contains('open'));
+panel.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') e.target.blur(); }); // so Space keeps pausing after a click
+window.addEventListener('keydown', e => {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  if ((tag === 'BUTTON' || tag === 'SUMMARY') && (e.key === ' ' || e.key === 'Enter')) return; // keyboard activation of a focused control
+  const k = e.key.toLowerCase();
+  if (k === 'h' || k === 'p') setPanel(!panel.classList.contains('open'));
+  else if (k === 'f') { S.fps = !S.fps; saveSettings(); syncPanel(); }
+  else if (e.key === ' ') { setPaused(!paused); e.preventDefault(); }
+  else if (e.key === '.' || e.key === 'ArrowRight') stepOnce();
+});
+let gearTimer = 0;
+function pokeGear() { document.body.classList.add('active'); clearTimeout(gearTimer); gearTimer = setTimeout(() => document.body.classList.remove('active'), 2500); }
+window.addEventListener('pointermove', pokeGear); window.addEventListener('pointerdown', pokeGear);
+syncPanel();
+
+// The clock display, the stats and the mood-following sliders change on their
+// own, so the open panel is refreshed a few times a second.
+let lastLayout = null;
+function refreshPanel() {
+  const d = new Date(clockNow(performance.now()));
+  if (document.activeElement !== dateIn) dateIn.value = toLocalInput(d);
+  if (document.activeElement !== todIn) todIn.value = d.getHours() * 60 + d.getMinutes();
+  todVal.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  if (lastLayout) scaleNote.textContent = `renders ${lastLayout.renderW} x ${lastLayout.renderH} pixels` + (lastLayout.outW !== lastLayout.renderW ? `, shown at ${lastLayout.outW} x ${lastLayout.outH}` : '');
+  const n = RT ? RT.levels.length : 0;
+  if (levelSel.options.length !== n) { levelSel.textContent = ''; for (let i = 0; i < n; i++) levelSel.append(el('option', { value: i, text: `${i}: ${RT.levels[i].w} x ${RT.levels[i].h}` })); }
+  if (n) levelSel.value = Math.min(S.inspect.level, n - 1);
+  syncPanel();
+}
+
+// ---- the picture's placement: shape, render scale and fit ----
+// The picture has the chosen shape. Its display size follows the window and the
+// fit; the render size is the display size times the render scale. A render
+// larger than the display is averaged down in the final pass (the canvas stays
+// at the display size); a smaller one is a smaller canvas that the browser
+// enlarges, smoothed or not. With one-to-one pixels the canvas is the window
+// and the picture is placed in it unscaled, centred.
+function layout() {
+  const dpr = window.devicePixelRatio || 1, winW = window.innerWidth, winH = window.innerHeight;
+  const A = S.shape === '4:3' ? 4 / 3 : 16 / 9;
+  const fitW = Math.min(winW, winH * A), coverW = Math.max(winW, winH * A);
+  const baseW = S.fit === 'fill' ? coverW : fitW, baseH = baseW / A;          // display size in CSS px (stretch: the fitted size, stretched over the window)
+  const dispW = Math.max(1, Math.round(baseW * dpr)), dispH = Math.max(1, Math.round(baseH * dpr));
+  let renderW = Math.max(1, Math.round(dispW * S.scale)), renderH = Math.max(1, Math.round(dispH * S.scale));
+  const k = MAX_TEX / Math.max(renderW, renderH); if (k < 1) { renderW = Math.floor(renderW * k); renderH = Math.floor(renderH * k); }
+  const one = S.fit === 'one', small = one || S.scale < 1;
+  const outW = small ? renderW : dispW, outH = small ? renderH : dispH;
+  const ss = S.waveQuality === 'full' ? 2 : (renderW >= outW * 1.5 ? 1 : 2);
+  let canvasW = outW, canvasH = outH, css, view = null;
+  if (one) {
+    canvasW = Math.max(1, Math.round(winW * dpr)); canvasH = Math.max(1, Math.round(winH * dpr));
+    css = { left: 0, top: 0, width: winW, height: winH };
+    view = { x: Math.floor((canvasW - outW) / 2), y: Math.floor((canvasH - outH) / 2) };
+  } else if (S.fit === 'stretch') css = { left: 0, top: 0, width: winW, height: winH };
+  else css = { left: (winW - baseW) / 2, top: (winH - baseH) / 2, width: baseW, height: baseH };
+  return { dpr, dispW, dispH, renderW, renderH, outW, outH, ss, canvasW, canvasH, css, view };
+}
+let layoutKey = '';
+function applyLayout(lay) {
+  const key = [lay.canvasW, lay.canvasH, lay.css.left, lay.css.top, lay.css.width, lay.css.height, S.pixelated].join(',');
+  if (key === layoutKey) return;
+  layoutKey = key;
+  if (canvas.width !== lay.canvasW || canvas.height !== lay.canvasH) { canvas.width = lay.canvasW; canvas.height = lay.canvasH; }
+  canvas.style.left = lay.css.left + 'px'; canvas.style.top = lay.css.top + 'px';
+  canvas.style.width = lay.css.width + 'px'; canvas.style.height = lay.css.height + 'px';
+  canvas.style.imageRendering = S.pixelated ? 'pixelated' : 'auto';
+}
+
+// ---- GPU time per pass (EXT_disjoint_timer_query_webgl2), on request ----
+const timerExt = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+let gpuProbe = null; // { left: frames still to time, queries: [{name, q}], sums, counts, order }
+function startGpuProbe() {
+  if (!timerExt) { gpuOut.textContent = 'GPU timing is not available: this browser does not expose EXT_disjoint_timer_query_webgl2.'; return; }
+  gpuProbe = { left: 8, queries: [], sums: {}, counts: {}, order: [] };
+  gpuOut.textContent = 'measuring…';
+}
+function probeTimer() { // the timer hooks for one frame: one query per pass
+  let cur = null;
+  return {
+    begin(name) { cur = { name, q: gl.createQuery() }; gl.beginQuery(timerExt.TIME_ELAPSED_EXT, cur.q); },
+    end() { gl.endQuery(timerExt.TIME_ELAPSED_EXT); gpuProbe.queries.push(cur); cur = null; },
+  };
+}
+function pollGpuProbe() {
+  const P = gpuProbe, disjoint = gl.getParameter(timerExt.GPU_DISJOINT_EXT), keep = [];
+  for (const e of P.queries) {
+    if (!gl.getQueryParameter(e.q, gl.QUERY_RESULT_AVAILABLE)) { keep.push(e); continue; }
+    const ns = gl.getQueryParameter(e.q, gl.QUERY_RESULT); gl.deleteQuery(e.q);
+    if (disjoint) continue; // the GPU clock was disturbed: this result is not trustworthy
+    if (!(e.name in P.sums)) { P.sums[e.name] = 0; P.counts[e.name] = 0; P.order.push(e.name); }
+    P.sums[e.name] += ns; P.counts[e.name]++;
+  }
+  P.queries = keep;
+  if (P.left > 0 || keep.length) return;
+  let total = 0; const lines = [];
+  for (const name of P.order) { const ms = P.sums[name] / P.counts[name] / 1e6; total += ms; lines.push(name.padEnd(11) + ms.toFixed(3).padStart(8) + ' ms'); }
+  lines.push('total'.padEnd(11) + total.toFixed(3).padStart(8) + ' ms per frame, GPU, averaged over 8 frames');
+  gpuOut.textContent = lines.length > 1 ? lines.join('\n') : 'no result (the GPU clock was disturbed); try again';
+  gpuProbe = null;
+}
+
+// ---- Inspect: which buffer to show ----
+function inspectEntry() { // the chosen buffer, or the last buffer drawn when the frame stops before the composite
+  const I = S.inspect; let b = I.buffer;
+  if (b === 'output') b = I.stopAfter === 1 ? 'bg' : I.stopAfter === 2 ? 'wave' : 'glareB';
+  const lv = RT.levels, level = Math.min(I.level, lv.length - 1);
+  switch (b) {
+    case 'bg': return { tex: RT.bgA.tex, mono: false, own: gl.LINEAR };
+    case 'wave': return { tex: RT.wave.tex, mono: true, own: gl.LINEAR };
+    case 'glareA': return { tex: lv[level].a.tex, mono: false, own: gl.LINEAR };
+    case 'glareC': return { tex: lv[level].c.tex, mono: false, own: gl.LINEAR };
+    case 'glareB': return { tex: lv[level].b.tex, mono: false, own: gl.LINEAR };
+    case 'net': return { tex: netTex[1], mono: false, own: gl.NEAREST };
+  }
+  return null;
+}
+let lastPeak = 0;
+function showInspect(lay, now) {
+  const e = inspectEntry(); if (!e) return;
+  const I = S.inspect;
+  if (I.autoGain && now - lastPeak > 300) { lastPeak = now; const peak = bufferPeak(e.tex); autoGain = peak > 0 ? Math.max(1, Math.min(4096, 0.9 / peak)) : 1; }
+  drawInspect(e.tex, e.mono, I.autoGain ? autoGain : I.gain, S.pixelated ? gl.NEAREST : gl.LINEAR, e.own, lay.view);
+}
+
+// ---- frame-rate counter and stats ----
+const FT_N = 120, frameTimes = new Float32Array(FT_N); let ftPos = 0, fpsCount = 0, fpsT = performance.now(), fpsVal = 0, graph2d = null;
+function drawFpsGraph() { // the last 120 frame times as bars; the line is 60 fps
+  if (!graph2d) graph2d = fpsGraph.getContext('2d'); const g = graph2d; if (!g) return;
+  const dpr = window.devicePixelRatio || 1, W = Math.round(FT_N * dpr), H = Math.round(28 * dpr), top = 50; // the graph's top is 50 ms
+  if (fpsGraph.width !== W || fpsGraph.height !== H) { fpsGraph.width = W; fpsGraph.height = H; }
+  g.clearRect(0, 0, W, H);
+  const bw = W / FT_N;
+  for (let i = 0; i < FT_N; i++) {
+    const t = frameTimes[(ftPos + i) % FT_N]; if (!t) continue;
+    const h = Math.min(1, t / top) * H;
+    g.fillStyle = t <= 17.5 ? '#6c6' : t <= 34 ? '#dc5' : '#e55';
+    g.fillRect(i * bw, H - h, Math.max(1, bw - 0.5 * dpr), h);
+  }
+  g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(0, Math.round(H - H * 16.67 / top), W, 1);
+}
+function statsText(lay) {
+  let sum = 0, n = 0; for (let i = 0; i < FT_N; i++) if (frameTimes[i]) { sum += frameTimes[i]; n++; }
+  const ss = RT.ww / lay.renderW;
+  return [
+    `render ${lay.renderW} x ${lay.renderH}`,
+    `wave buffer ${RT.ww} x ${RT.wh} (${ss >= 1.95 ? '2x supersampled' : ss > 1.05 ? ss.toFixed(2) + 'x, texture limit' : '1 sample per render pixel'})`,
+    `output ${lay.outW} x ${lay.outH}${lay.outW !== lay.canvasW || lay.outH !== lay.canvasH ? `, canvas ${lay.canvasW} x ${lay.canvasH}` : ''}`,
+    `glare ${RT.levels[0].w} x ${RT.levels[0].h}, ${RT.levels.length} levels`,
+    `sim step ${latest && latest.stepMs != null ? latest.stepMs.toFixed(2) + ' ms' : '-'} (worker), wave speed ${S.waveSpeed}x`,
+    `frame ${n ? (sum / n).toFixed(1) : '-'} ms, cap ${S.fpsCap ? S.fpsCap + ' fps' : 'display rate'}`,
+    `${S.shape} ${S.fit}, scale ${S.scale}x, wave buffer ${S.waveQuality}, pixelated ${S.pixelated ? 'on' : 'off'}`,
+  ].join('\n');
+}
+let lastRefresh = 0;
+function fpsTick(now, lay) {
+  fpsCount++;
+  if (now - fpsT > 500) {
+    fpsVal = fpsCount * 1000 / (now - fpsT); fpsCount = 0; fpsT = now;
+    if (S.stats) statsEl.textContent = statsText(lay);
+  }
+  fpsEl.classList.toggle('on', S.fps || S.stats);
+  fpsText.hidden = fpsGraph.hidden = !S.fps; statsEl.hidden = !S.stats;
+  if (S.fps) { fpsText.textContent = fpsVal.toFixed(0) + ' fps'; drawFpsGraph(); }
+  if (panel.classList.contains('open') && now - lastRefresh > 250) { lastRefresh = now; refreshPanel(); }
 }
 
 // screen wake lock
@@ -1293,41 +1961,44 @@ document.addEventListener('visibilitychange', () => {
 canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); worker.postMessage({ type: 'run', on: false }); }, false);
 canvas.addEventListener('webglcontextrestored', () => { location.reload(); }, false);
 
-// draw loop (capped at 60 fps)
-let lastDraw = 0, frameNo = 0, fpsCount = 0, fpsT = performance.now(), rafPending = false, firstState = 0;
+// draw loop (capped at 60 fps unless the cap says otherwise)
+let lastDraw = 0, frameNo = 0, rafPending = false, firstState = 0;
 function schedule() { if (!rafPending) { rafPending = true; requestAnimationFrame(tick); } }
 function tick(now) {
   rafPending = false;
   if (document.hidden) return;
   schedule();
-  if (now - lastDraw < 1000 / 60 - 1.5) return;
+  if (S.fpsCap && now - lastDraw < 1000 / S.fpsCap - 1.5) return;
+  if (lastDraw) { frameTimes[ftPos] = now - lastDraw; ftPos = (ftPos + 1) % FT_N; }
   lastDraw = now;
-  const dpr = window.devicePixelRatio || 1;
-  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
-  const ow = Math.max(1, Math.round(cssW * dpr)), oh = Math.max(1, Math.round(cssH * dpr));
-  const scale = S.scale > 0 ? S.scale : dpr;              // render pixels per CSS pixel
-  const cw = Math.max(1, Math.round(cssW * scale)), ch = Math.max(1, Math.round(cssH * scale));
-  if (canvas.width !== ow || canvas.height !== oh) { canvas.width = ow; canvas.height = oh; }
-  // the wave buffer is at least twice the screen size: supersample unless the render already is
-  const ss = cw >= ow * 1.5 ? 1 : 2;
-  ensureTargets(cw, ch, ow, oh, ss);
+  const lay = lastLayout = layout();
+  applyLayout(lay);
+  ensureTargets(lay.renderW, lay.renderH, lay.outW, lay.outH, lay.ss);
   const scene = currentScene(now);
-  const cam = cameraFor(scene.mood.camPitch, cw / ch);
+  const cam = cameraFor(scene.mood.camPitch, lay.renderW / lay.renderH);
   const ms = JSON.stringify(simMoodParams(scene.mood, cam), (k, v) => typeof v === 'number' ? +v.toFixed(3) : v);
   if (ms !== lastMoodSent) { worker.postMessage({ type: 'mood', mood: JSON.parse(ms) }); lastMoodSent = ms; }
+  if (tunePending) { worker.postMessage({ type: 'tune', values: simTuneMap() }); tunePending = false; }
+  if (lay.view) { bindTarget(null); gl.viewport(0, 0, lay.canvasW, lay.canvasH); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); } // the canvas around the picture
+  const ease = S.layers.bgEase ? BG_EASE : 1;
+  const I = S.inspect, stopAfter = I.stopAfter || undefined, inspecting = I.buffer !== 'output' || (I.stopAfter > 0 && I.stopAfter < 4);
   if (!latest) { // the worker is still warming up: show the background alone
     renderFrame({ scene, cam, net0: null, net1: null, alpha: 1, sparks: null, nSparks: 0,
-      layers: { ...S.layers, wave: false, glare: false, sparkles: false }, frameNo: frameNo++, ease: 0.05 }, null);
+      layers: { ...S.layers, wave: false, glare: false, sparkles: false }, frameNo: frameNo++, ease, view: lay.view }, null);
+    fpsTick(now, lay);
     return;
   }
-  const alpha = paused ? 1 : Math.min(1, latest.alpha + (performance.timeOrigin + now - latest.at) / 1000 / DT);
+  const alpha = paused ? 1 : Math.min(1, latest.alpha + (performance.timeOrigin + now - latest.at) / 1000 / DT * S.waveSpeed);
   if (!firstState) firstState = now;
   const fadeIn = Math.min(1, (now - firstState) / 1200); // the wave and sparkles fade in over the first second
   if (fadeIn < 1) { scene.mood = { ...scene.mood, waveBright: scene.mood.waveBright * fadeIn, sparkBright: scene.mood.sparkBright * fadeIn, glareStrength: scene.mood.glareStrength * fadeIn }; }
+  const W = S.wire, wire = W.mesh || W.grid || W.quads ? { ...W, meshSA: 16 * WAVE.samplesAlong / W.meshStride, meshSV: 16 * WAVE.samplesAcross / W.meshStride } : null;
+  const timer = gpuProbe && gpuProbe.left > 0 ? (gpuProbe.left--, probeTimer()) : null;
   renderFrame({ scene, cam, net0: latest.net0, net1: latest.net1, alpha, sparks: latest.sparks, nSparks: latest.n,
-    layers: S.layers, frameNo: frameNo++, ease: 0.05 }, null);
-  fpsCount++;
-  if (now - fpsT > 500) { fpsEl.textContent = (fpsCount * 1000 / (now - fpsT)).toFixed(0) + ' fps · ' + cw + 'x' + ch; fpsCount = 0; fpsT = now; }
+    layers: S.layers, frameNo: frameNo++, ease, view: lay.view, stopAfter, timer, wire }, null);
+  if (inspecting) showInspect(lay, now);
+  if (gpuProbe) pollGpuProbe();
+  fpsTick(now, lay);
 }
 schedule();
 })();
