@@ -4,7 +4,7 @@ This document describes an effect: a flowing, luminous wave drifting across a so
 
 It describes **what the viewer should see, how it should behave, and how the original is built in general terms**. Construction is given as recommended design: "the original does X; do the same, with your own values". It contains no colours, palettes, textures, constants, preset values or code from the original. The only numbers taken from the analysis of the original are the few listed in section 11 ("Structural numbers from observation and analysis"). Every other value, colour, texture and implementation detail is **your design**. Tune it by comparing your renders side by side with genuine public footage of the original (section 10). Where this document says "choose", the choice is yours.
 
-The current version is 9; the version history is at the end of this document.
+The current version is 10; the version history is at the end of this document.
 
 ## 1. Output and platform
 
@@ -147,6 +147,20 @@ The light of each bit of sheet is the sum of two terms:
 - a **Fresnel-like term**: strongest towards grazing angles and weaker where the sheet faces the camera.
 
 Both terms are scaled by the projected-size factor and by the edge fade. The scaling keeps the light smooth where the sheet is strongly foreshortened: many surface elements pile into each pixel there, and the scaling stops that from blowing up exactly at the silhouette. The glow concentrates along the folds next to where the sheet turns edge-on, and overlapping layers add up. Where the sheet is compressed on screen, the original uses a **pre-filtered** (averaged) version of the thread profile. It chooses the version from the projected-size factor, much like a mip level. Dense detail therefore becomes an even sheen instead of aliasing. The mood (section 7) changes the base brightness, the strength of the Fresnel-like term and the response curve slightly.
+
+**The projected-size scaling is required (version 10).** It is not only a guard against slivers:
+it applies to every bit of the sheet at every size, and it shapes the look.
+
+- A bit of sheet spread over many pixels gives more light per pixel than the same bit squeezed into
+  a thin sliver. The light grows steadily with the apparent size.
+- Exactly at the silhouette, where the sheet turns edge-on, the light therefore falls towards
+  nothing. There is no separate hard line there. A fold's glow sits just inside the turn, where the
+  sheet is still visibly tilted, and is spread over a soft strip several pixels wide.
+- Brightness from the view angle alone, peaking where the sheet is edge-on, gives the wrong look:
+  thin hard lines, dark bands between them, and a picture that churns from one second to the next.
+- On screen, the scaling makes the bright lines wider and softer, lights more of the band and keeps
+  the picture steadier. It also tends to reduce the number of separate lines and partings and to add
+  some pinching, so re-tune with it in place.
 
 **Anti-aliasing.** The sheet is drawn into its own **off-screen buffer at a higher resolution than the screen** (supersampling). The buffer holds a single intensity and is accumulated with additive blending, at enough precision that many overlapping faint layers add up without banding or clipping. When the composite reads the buffer, it filters it down with a small smoothing filter. Supersampling plus filtering is the requirement; the factor and the filter are yours.
 
@@ -414,6 +428,11 @@ The user allowed these few numbers from the analysis of the original. Use them a
 | N7 | Month palette shift (3) | changes once a day, at local midnight, in equal steps: this month's palette alone on the 1st, then one more step towards next month's each day, so the last day is one step short of next month's palette |
 
 ## Version history
+
+**Version 10 (2026-10-25).** Makes the projected-size scaling of the sheet's light (4.5) explicit
+and required: the light of each bit of sheet grows with how large it appears on screen, falls
+towards nothing exactly where the sheet turns edge-on, and a fold's glow is a soft strip rather than
+a hard line. Nothing else changed.
 
 **Version 9 (2026-10-25).** Clarifies how the shaken edge is held (4.4a and 4.4e): every row's driven point follows one shared path, offset only in time, instead of being spread across the width. Adds the relative stiffness of the springs (4.4a). Nothing else changed.
 
