@@ -4,29 +4,7 @@ This document describes an effect: a flowing, luminous wave drifting across a so
 
 It describes **what the viewer should see, how it should behave, and how the original is built in general terms**. Construction is given as recommended design: "the original does X; do the same, with your own values". It contains no colours, palettes, textures, constants, preset values or code from the original. The only numbers taken from the analysis of the original are the few listed in section 11 ("Structural numbers from observation and analysis"). Every other value, colour, texture and implementation detail is **your design**. Tune it by comparing your renders side by side with genuine public footage of the original (section 10). Where this document says "choose", the choice is yours.
 
-**Version 3 (2026-10-24).** Changes from version 2:
-
-- The private scorer is gone. Section 10 is replaced by "Testing against public references": you compare your renders side by side with genuine public footage and screenshots of the original (a vetted list is supplied separately) and log the references you used. Section 9 stays as your own deterministic render interface for that testing. All other mentions of the scorer are removed.
-- New "Construction" parts in sections 3 to 7 describe, in general textbook terms, how the original builds each component: the wave's spring simulation, its smooth surface, the slow large-scale warp, the camera, how the sheet is shaded and anti-aliased, the background's month and time-of-day blending, the glare chain, the sparkles' birth, motion, life and rendering, and the dither.
-- Section 4 "Look" is corrected and extended with details a viewer sees (placement, apparent thickness, strands, translucency, where it is brightest). It now says the sheet reads as smooth, streaky silk, not as individually visible threads (version 2 said "a dense set of fine luminous lines"); see 4.5.
-- Section 5: the glare is made from the background and the wave only. The sparkles are drawn after it and get their own glint pass (version 2 said the glare also came from the sparkles).
-- Section 7: themes 1 to 12 are defined relative to the months.
-- Section 8 is now a list of required product features (viewer controls, settings remembered, iPad home-screen use, performance target). Section 1 adds the performance design.
-- New section 11 lists the few structural numbers the user allowed from the analysis, each one marked with where it comes from.
-
-**Version 8 (2026-10-25).** Adds one bullet to 4.4e: across the shaken edge, the towards-and-away timing offset builds up somewhat more than the up-and-down offset, and this is what makes the folds cross. Nothing else changed.
-
-**Version 7 (2026-10-25).** Adds three bullets to 4.4e: no pull back to a rest shape; each axis of the shaken edge follows one plain oscillation; the steady push and the per-step nudges are always on. Nothing else changed.
-
-**Version 6 (2026-10-25).** Adds 8.1 "Settings menu": the viewer controls described by function, as one settings menu. Nothing else changed.
-
-**Version 5.1 (2026-10-25).** Corrects one bullet of 4.4e: the timing offset across the shaken edge adds up to more than one full cycle, so the edge is itself wavy. Nothing else changed.
-
-**Version 5 (2026-10-25).** Adds 4.4e "The drive in plain terms" (idea-level description of how the sheet is shaken; no values). Nothing else changed.
-
-**Version 4 (2026-10-25).** Adds 4.6 "Measured look and motion" (on-screen statistics of the original's wave measured from rendered output: band placement and thickness, strands and partings, brightness profile, streaks, motion and coarse timescales) and 4.7 "Character of the effect" (plain-language description). Exact colours, camera numbers, drive timings and decay constants are deliberately not given. Nothing else changed.
-
-**Version 2.** Section 4 required the wave to be a genuine three-dimensional surface seen through a perspective camera, and section 6 placed the sparkles in the same 3D space. Both requirements still apply.
+The current version is 8; the version history is at the end of this document.
 
 ## 1. Output and platform
 
@@ -433,3 +411,29 @@ The user allowed these few numbers from the analysis of the original. Use them a
 | N5 | Time-of-day moods (7), local time | night holds from about 23:00 to 01:00; blends to dawn from about 01:00 to 05:00; dawn holds about 05:00 to 07:00; blends to day about 07:00 to 11:00; day holds about 11:00 to 13:00; blends to dusk about 13:00 to 17:00; dusk holds about 17:00 to 19:00; blends to night about 19:00 to 23:00 |
 | N6 | Background night weight (3), local time | fades out from midnight to about 05:00; zero through the day; fades in from about 18:30 to about 20:30 |
 | N7 | Month palette shift (3) | changes once a day, at local midnight, in equal steps: this month's palette alone on the 1st, then one more step towards next month's each day, so the last day is one step short of next month's palette |
+
+## Version history
+
+**Version 8 (2026-10-25).** Adds one bullet to 4.4e: across the shaken edge, the towards-and-away timing offset builds up somewhat more than the up-and-down offset, and this is what makes the folds cross. Nothing else changed.
+
+**Version 7 (2026-10-25).** Adds three bullets to 4.4e: no pull back to a rest shape; each axis of the shaken edge follows one plain oscillation; the steady push and the per-step nudges are always on. Nothing else changed.
+
+**Version 6 (2026-10-25).** Adds 8.1 "Settings menu": the viewer controls described by function, as one settings menu. Nothing else changed.
+
+**Version 5.1 (2026-10-25).** Corrects one bullet of 4.4e: the timing offset across the shaken edge adds up to more than one full cycle, so the edge is itself wavy. Nothing else changed.
+
+**Version 5 (2026-10-25).** Adds 4.4e "The drive in plain terms" (idea-level description of how the sheet is shaken; no values). Nothing else changed.
+
+**Version 4 (2026-10-25).** Adds 4.6 "Measured look and motion" (on-screen statistics of the original's wave measured from rendered output: band placement and thickness, strands and partings, brightness profile, streaks, motion and coarse timescales) and 4.7 "Character of the effect" (plain-language description). Exact colours, camera numbers, drive timings and decay constants are deliberately not given. Nothing else changed.
+
+**Version 3 (2026-10-24).** Changes from version 2:
+
+- The private scorer is gone. Section 10 is replaced by "Testing against public references": you compare your renders side by side with genuine public footage and screenshots of the original (a vetted list is supplied separately) and log the references you used. Section 9 stays as your own deterministic render interface for that testing. All other mentions of the scorer are removed.
+- New "Construction" parts in sections 3 to 7 describe, in general textbook terms, how the original builds each component: the wave's spring simulation, its smooth surface, the slow large-scale warp, the camera, how the sheet is shaded and anti-aliased, the background's month and time-of-day blending, the glare chain, the sparkles' birth, motion, life and rendering, and the dither.
+- Section 4 "Look" is corrected and extended with details a viewer sees (placement, apparent thickness, strands, translucency, where it is brightest). It now says the sheet reads as smooth, streaky silk, not as individually visible threads (version 2 said "a dense set of fine luminous lines"); see 4.5.
+- Section 5: the glare is made from the background and the wave only. The sparkles are drawn after it and get their own glint pass (version 2 said the glare also came from the sparkles).
+- Section 7: themes 1 to 12 are defined relative to the months.
+- Section 8 is now a list of required product features (viewer controls, settings remembered, iPad home-screen use, performance target). Section 1 adds the performance design.
+- New section 11 lists the few structural numbers the user allowed from the analysis, each one marked with where it comes from.
+
+**Version 2.** Section 4 required the wave to be a genuine three-dimensional surface seen through a perspective camera, and section 6 placed the sparkles in the same 3D space. Both requirements still apply.

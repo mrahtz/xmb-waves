@@ -1,0 +1,9 @@
+scene.js  # Constants, palettes, moods and their schedule, camera, and the wave, glare and sparkle settings.
+gl.js  # WebGL context and extensions.
+shaders.js  # All shader sources (main passes and the settings-menu overlays).
+resources.js  # Programs, textures, render targets, background images, control-net textures, sparkle buffer.
+render.js  # One frame: background, wave, glare, composite, sparkles, plus the menu overlays.
+score.js  # Deterministic score mode (spec section 9); returns early when active.
+settings.js  # Normal mode: stored settings, tunable parameters, the scene per frame, the worker.
+menu.js  # The settings panel, picture placement, GPU timing, inspect, fps counter, wake lock.
+loop.js  # The draw loop.

@@ -127,14 +127,33 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 ## Building and testing
 
 `index.html` is assembled from `src/` by `python3 tools/build.py` (no
-dependencies); the committed `index.html` is that output. Deterministic
-frames for side-by-side comparison come from `tools/render.js` (needs
-Playwright with Chromium), for example:
+dependencies); the committed `index.html` is that output, so the page works
+straight from the repository and on GitHub Pages. The sources:
+
+| Path | What |
+| --- | --- |
+| `src/head.html` | Markup, styles and the start of the simulation script |
+| `src/sim.js` | The simulation (spring net, deformation lattice, sparkles), shared by the worker and score mode |
+| `src/main/scene.js` | Palettes, moods and their schedule, camera, wave/glare/sparkle settings |
+| `src/main/gl.js`, `shaders.js`, `resources.js` | WebGL context, all shaders, programs and render targets |
+| `src/main/render.js` | One frame: background, wave, glare, composite, sparkles, menu overlays |
+| `src/main/score.js` | The deterministic score mode (spec section 9) |
+| `src/main/settings.js`, `menu.js`, `loop.js` | Stored settings and tunables, the settings panel, the draw loop |
+| `assets/` | Home-screen icons and the web-app manifest |
+
+The files in `src/main/` share one scope and are joined in the order listed
+in `src/main/ORDER`.
+
+Deterministic frames for side-by-side comparison come from `tools/render.js`
+(needs Playwright with Chromium), for example:
 
     node tools/render.js frame.png '{"time":"2026-10-15T12:00:00","seed":1,"frames":300,"w":1280,"h":720}'
 
 The same URL and `seed`, `frames`, `w`, `h` always give the same image on the
 same browser and GPU; `layers=bg,wave,glare,sparkles,dither` picks layers.
+The tools that measure the wave against the public references, including a
+fast evaluator and a parameter optimiser, are in `tools/measure/` (see its
+README).
 
 ## Status
 
