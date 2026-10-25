@@ -4,7 +4,7 @@ This document describes an effect: a flowing, luminous wave drifting across a so
 
 It describes **what the viewer should see, how it should behave, and how the original is built in general terms**. Construction is given as recommended design: "the original does X; do the same, with your own values". It contains no colours, palettes, textures, constants, preset values or code from the original. The only numbers taken from the analysis of the original are the few listed in section 11 ("Structural numbers from observation and analysis"). Every other value, colour, texture and implementation detail is **your design**. Tune it by comparing your renders side by side with genuine public footage of the original (section 10). Where this document says "choose", the choice is yours.
 
-The current version is 8; the version history is at the end of this document.
+The current version is 9; the version history is at the end of this document.
 
 ## 1. Output and platform
 
@@ -93,9 +93,10 @@ The original builds the sheet in four stages. Do the same, with your own values.
 **a. A spring-mass control grid (the motion).**
 
 - A coarse square grid of control points (section 11) is simulated as a **mass-spring net**, the textbook cloth model. Each point is joined by springs to its immediate neighbours along both grid directions (structural springs, rest length = the grid spacing). It is also joined to the points two away along both directions (bending springs, rest length twice the spacing, stiffer), which keeps the sheet smooth instead of crumpled.
+- **Relative stiffness (version 9).** The springs across the width are comparable in stiffness to those along the length, not markedly softer. The bending springs are clearly stiffer than the direct ones. On screen, this arrangement makes the picture hold together longer from one second to the next.
 - **Damping:** each step, every point's velocity is reduced in proportion to itself.
 - **Disturbance:** each step, every point gets a small random kick to its velocity in all three axes, from a deterministic pseudo-random generator. This keeps the motion alive and never repeating.
-- **Which points are held.** One end of the sheet is driven. The last point of every row along the length is placed kinematically (its velocity is zeroed) on a slow oscillating path in height and depth. The height and depth use two different frequencies that do not divide each other, and the phase changes gradually from row to row, so the driven end twists and undulates. Motion runs from that end along the sheet as travelling waves. The other end is free, but each step it gets a steady gentle push along the length, which keeps the sheet extended like a flag in a light breeze. The time that drives the end is itself eased (it follows the simulation clock smoothly), so the driven end never jumps.
+- **Which points are held.** One end of the sheet is driven. The last point of every row along the length is placed kinematically (its velocity is zeroed) on a slow oscillating path in height and depth. **All rows share that one path (version 9).** The driven points are not spread across the sheet's width at their own rest positions: every row's driven point lies on the same path, only earlier or later along it. The driven end therefore behaves like a single point moving along a path, which gathers that end of the sheet, so the sheet stays bunched across its width instead of lying spread out flat. The height and depth use two different frequencies that do not divide each other, and the phase changes gradually from row to row, so the driven end twists and undulates. Motion runs from that end along the sheet as travelling waves. The other end is free, but each step it gets a steady gentle push along the length, which keeps the sheet extended like a flag in a light breeze. The time that drives the end is itself eased (it follows the simulation clock smoothly), so the driven end never jumps.
 - **Envelope along the length.** Before the net is used, its points' height and depth offsets are scaled by a smooth envelope along the length: subdued over one part of the sheet, fuller over another. The crossover point shifts slightly with the time-of-day mood.
 - **Time step.** The net is integrated with a **fixed time step** (semi-implicit Euler is enough): velocity from forces, then position from velocity, then damping. Real elapsed time (capped, so that a stall or a hidden tab does not produce a huge catch-up) is accumulated, and whole fixed steps are taken while enough has built up. For drawing, the net is **interpolated** between the previous and the current step by the leftover fraction, so the motion is smooth at any frame rate. ("Fix your timestep" with interpolation.) Step rate: section 11.
 - **Start.** The original starts from a stored, already-settled state. Pre-run your net (section 9) so that the first frame already looks like a typical running state.
@@ -122,7 +123,7 @@ The original builds the sheet in four stages. Do the same, with your own values.
 **e. The drive in plain terms (version 5).**
 
 - The shaken end is the one at the left of the screen, where the motion enters; that is why the swell travels left to right (4.6).
-- The whole edge is shaken, not one corner. Neighbouring points along that edge move nearly in step, but across the whole edge the timing offset adds up to more than one full cycle, so the shaken edge is itself wavy rather than moving as one flat line (corrected in version 5.1).
+- Every row's end is shaken, not one corner. All the shaken ends follow the one shared path of (a), so neighbouring rows' ends are close together and move nearly in step, but across the whole edge the timing offset adds up to more than one full cycle, so the ends are strung out along that path rather than lying in one flat line (corrected in version 5.1, clarified in version 9).
 - Nothing else is driven. The rest of the sheet only follows through the springs, apart from the tiny random nudges (a) and the separate slow bend (b).
 - **No pull back to a rest shape (version 7).** Nothing pulls points towards a stored or flat rest position. The only influences on the net are those in (a): the springs, the damping, the small random nudges, the steady push at the free end and the shaken edge. The sheet's shape comes entirely from how these balance.
 - **One plain oscillation per axis (version 7).** Each point of the shaken edge moves up and down by one smooth oscillation, and towards and away by another (the two frequencies of (a)). Nothing is layered on top: no extra shaking patterns, harmonics or secondary drives.
@@ -413,6 +414,8 @@ The user allowed these few numbers from the analysis of the original. Use them a
 | N7 | Month palette shift (3) | changes once a day, at local midnight, in equal steps: this month's palette alone on the 1st, then one more step towards next month's each day, so the last day is one step short of next month's palette |
 
 ## Version history
+
+**Version 9 (2026-10-25).** Clarifies how the shaken edge is held (4.4a and 4.4e): every row's driven point follows one shared path, offset only in time, instead of being spread across the width. Adds the relative stiffness of the springs (4.4a). Nothing else changed.
 
 **Version 8 (2026-10-25).** Adds one bullet to 4.4e: across the shaken edge, the towards-and-away timing offset builds up somewhat more than the up-and-down offset, and this is what makes the folds cross. Nothing else changed.
 
