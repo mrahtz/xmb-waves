@@ -80,6 +80,20 @@ function XMBW_SIM() {
     return out;
   }
 
+  // Live tuning from the settings menu: values maps dotted paths into the tunables
+  // above ('NET.kStruct', 'LAT.sways.0.0', ...) to numbers. Only a number that
+  // already exists is set, so a stale or mistyped key does nothing. Sizes fixed at
+  // creation (the pool, the lattice cells, the walker count) are not tunable.
+  const TUNABLES = { NET, LAT, SCENE, SPARK };
+  function setTunables(values) {
+    for (const path in values) {
+      const p = path.split('.'); let o = TUNABLES[p[0]];
+      for (let i = 1; o != null && i < p.length - 1; i++) o = o[p[i]];
+      const k = p[p.length - 1], v = values[path];
+      if (o != null && typeof o[k] === 'number' && typeof v === 'number' && isFinite(v)) o[k] = v;
+    }
+  }
+
   function createSim(seed) {
     const rng = mulberry(hash32(seed ^ 0x5eed1234) ^ 0x9e3779b9);
     const gauss = () => { let u = rng(); if (u < 1e-12) u = 1e-12; return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283185307179586 * rng()); };
@@ -101,6 +115,17 @@ function XMBW_SIM() {
     }
     const SA = Int32Array.from(springs.map(s => s[0])), SB = Int32Array.from(springs.map(s => s[1]));
     const SR = Float64Array.from(springs.map(s => s[2])), SK = Float64Array.from(springs.map(s => s[3]));
+    // Re-derive the rest lengths and spring constants from NET after a live change
+    // of the tunables (the same order and expressions as above).
+    function rebuildSprings() {
+      let s = 0;
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        if (i + 1 < N) { SR[s] = H * NET.alongRest; SK[s] = NET.kStruct; s++; }
+        if (j + 1 < N) { SR[s] = H; SK[s] = NET.kStruct * NET.acrossK; s++; }
+        if (i + 2 < N) { SR[s] = 2 * H * NET.alongRest; SK[s] = NET.kBend; s++; }
+        if (j + 2 < N) { SR[s] = 2 * H; SK[s] = NET.kBend * NET.acrossK; s++; }
+      }
+    }
 
     // lattice displacement values (vertical), eased towards targets
     const NL = LAT.nu * LAT.nv * LAT.nw;
@@ -346,8 +371,9 @@ function XMBW_SIM() {
       get steps() { return steps; },
       warm(n) { for (let i = 0; i < n; i++) step(); steps = 0; },
       warmSteps: NET.warm,
+      tune(values) { setTunables(values); rebuildSprings(); }, // live changes from the settings menu
       debug: { pos, vel, alive: () => S - nFree },
     };
   }
-  return { createSim, N, DT, SPARK_STRIDE };
+  return { createSim, N, DT, SPARK_STRIDE, tunables: TUNABLES, setTunables };
 }
