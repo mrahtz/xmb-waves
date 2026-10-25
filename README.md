@@ -27,13 +27,51 @@ Not affiliated with, endorsed by or connected to Sony Interactive Entertainment.
 ## Use
 
 Open `index.html` (any static file server, or straight from disk). It follows
-your local clock and date. Move the pointer or tap near the bottom-right corner
-for the settings button (or press `p`); space pauses, `.` steps one frame.
+your local clock and date.
 
-URL parameters: `theme=0..12`, `time=2026-10-15T12:00` (fixed date and time),
-`speed=60` (day clock speed), `scale=2` (render pixels per CSS pixel; `0` or
-absent = the device's pixel ratio), `fps=1`, `layers=bg,wave,glare,sparkles,dither`,
-`seed=<int>`, `pause=1`. Settings changed in the panel are remembered on the device.
+The round button in the bottom-right corner (it appears when the pointer moves
+or the screen is touched) opens the settings panel; so does the `H` key. The
+panel floats over the picture, scrolls, and has collapsible sections:
+
+- **Picture**: output shape (16:9 or 4:3); render scale 0.25x to 4x of the
+  picture's size on screen, with the resulting render size in pixels shown
+  underneath (above 1x the render is averaged down to the screen in the final
+  pass; below 1x the browser enlarges it); fit to window (fill, whole picture,
+  stretch, or one picture pixel per screen pixel); show pixels when enlarged.
+- **Performance**: the frame-rate counter with its history graph (also the `F`
+  key); detailed stats (render, wave buffer and output sizes, the simulation
+  thread's time per step, the quality options in effect); a button that
+  measures the GPU time of each rendering pass where the browser exposes GPU
+  timers (`EXT_disjoint_timer_query_webgl2`), and says so where it does not;
+  the frame-rate cap (60, 30 or the display's own rate); the wave buffer
+  quality (full supersampling, or one sample per rendered pixel from 1.5x up).
+- **Time and theme**: the date and time with a Now button; a time-of-day
+  slider; the clock speed (stopped, real time, 1 min/s, 10 min/s, 1 h/s,
+  6 h/s); the wave speed (frozen, 0.25x to 4x; the wave and sparkles only);
+  pause/play (`Space`), step one frame while paused (`.` or `→`), restart the
+  wave from a fresh settled state; the colour (automatic, or one of the twelve
+  themes by name); the mood (follow the clock, or hold night, dawn, day or dusk).
+- **Layers**: background gradient, wave, glare, sparkles, sparkle glints,
+  dither, and the background's frame-to-frame easing.
+- **Wireframes**: the wave surface's mesh, the control grid and the sparkle
+  quads, drawn as line overlays of the real geometry.
+- **Inspect**: any intermediate buffer (background gradient, wave buffer, the
+  glare pyramid's bright, blurred and combined levels, the control net
+  texture) with a gain slider and an automatic gain for faint buffers, and
+  "stop after pass" to show the frame only up to a chosen pass.
+- **Parameters**: sliders for the tunable values, grouped by wave motion, wave
+  look, camera, background, glare and sparkles, each with a reset and a
+  reset-all. They change the picture live (the simulation values are sent to
+  the worker); a dimmed slider follows the mood of the moment until it is moved.
+
+Every setting, including which sections are open, is remembered on the device
+(storage is read and written defensively; the page works without it).
+
+URL parameters override the remembered settings: `theme=0..12`,
+`time=2026-10-15T12:00` (fixed date and time), `speed=60` (clock speed in
+seconds per second: 0, 1, 60, 600, 3600 or 21600), `scale=2` (render scale,
+snapped to the menu's steps), `fps=1`, `layers=bg,wave,glare,sparkles,dither`,
+`seed=<int>`, `pause=1`.
 
 On an iPad, "Add to Home Screen" opens it full screen; it keeps the screen
 awake while shown where the browser allows it.
