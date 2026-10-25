@@ -12,7 +12,7 @@ function XMBW_SIM() {
     kStruct: 1.0, kBend: 5.0,      // spring constants along the length (unit masses)
     acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
     damping: 0.0015,                // fraction of velocity removed per step (low, so the folds persist along the length)
-    noise: 0.0006,                  // velocity kick per step (std dev)
+    noise: 0.0001,                  // velocity kick per step (std dev); kept tiny, or the control net jitters and the fold lines stipple
     push: 0.10,                     // steady pull on the free end, along the length
     driveA: 0.060, driveW1: 0.85,   // driven end: height amplitude, angular frequency
     driveB: 0.070, driveW2: 0.50,   // driven end: depth amplitude, angular frequency
