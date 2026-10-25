@@ -34,6 +34,7 @@ function loadPage(path) {
   if (mood.latX == null) { mood.latX = mood.latY = mood.latZ = 1; }
   // spec-10 shading: light times the projected size (c x (sizeRef / distance)^2), no edge-on line
   if (/uSizeRef/.test(fsWave)) { mood.sizeRef = num(camLine, 'dist', 11); mood.edge = 0; mood.edgeC = 1; }
+  if (/uAreaRef/.test(fsWave)) mood.useArea = true; // spec 10.1: the element's area is part of the projected size
   if (mood.edge == null) { mood.edge = 0; mood.edgeC = 1; }
   const waveTxt = src.match(/const WAVE = \{[\s\S]*?\n\};/)[0];
   const tint = (name) => { const m = waveTxt.match(new RegExp(name + ': \\[([^\\]]*)\\]')); return m ? m[1].split(',').map(Number) : [1, 1, 1]; };
@@ -199,7 +200,8 @@ class Raster {
         const c = nl > 0 ? Math.abs(nx * vx + ny * vy + nz * vz) / (nl * vl) : 0;
         const r = c / baseC;
         const sheen = base * Math.exp(-(kIs2 ? r * r : Math.pow(r, baseK)));
-        const I = sizeRef2 > 0 ? bright * sheen * c * sizeRef2 / (vl * vl) * fade : bright * (sheen + edge * Math.exp(-c / edgeC)) * fade;
+        const areaRef = shade.areaRef;
+        const I = sizeRef2 > 0 ? bright * sheen * (areaRef > 0 ? c * nl / areaRef : c) * sizeRef2 / (vl * vl) * fade : bright * (sheen + edge * Math.exp(-c / edgeC)) * fade;
         const val = I * area / cw; // light density per raster cell (cw px wide, 1 px tall)
         total += I * area;
         // bilinear splat
@@ -507,7 +509,7 @@ function motionStats(frames, fps, ras) {
 }
 
 // ------------------------------------------------------------------ driving the simulation
-function makeShade(mood) { return { bright: mood.waveBright, base: mood.base, baseC: mood.baseC, baseK: mood.baseK, edge: mood.edge, edgeC: mood.edgeC, sizeRef: mood.sizeRef || 0 }; }
+function makeShade(mood) { return { bright: mood.waveBright, base: mood.base, baseC: mood.baseC, baseK: mood.baseK, edge: mood.edge, edgeC: mood.edgeC, sizeRef: mood.sizeRef || 0, areaRef: mood.useArea ? mood.areaRef : 0 }; }
 
 // A page-derived evaluator. tune: dotted-path overrides for the sim tunables (NET.noise, LAT.sways.2.2, SCENE.wid ...),
 // moodOver: overrides of the day mood (camPitch, envCross, ...).
@@ -516,6 +518,7 @@ function makeSim(page, seed, tune, moodOver, aspect, fast) {
   if (tune) M.setTunables(tune);
   const mood = Object.assign({}, page.mood, moodOver || {});
   const cam = page.cameraFor(mood.camPitch, aspect || 16 / 9);
+  mood.areaRef = M.tunables.SCENE.len * M.tunables.SCENE.wid / (18 * 18);
   const sim = M.createSim(seed);
   sim.setMood({ envCross: mood.envCross, latScale: [mood.latX, mood.latY, mood.latZ], camFwd: cam.fwd });
   sim.warm(sim.warmSteps);

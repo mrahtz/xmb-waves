@@ -60,6 +60,7 @@ function renderFrame(st, outTarget) {
     gl.uniform3fv(pr.u.uCam, cam.pos);
     gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uBaseC, m.baseC); gl.uniform1f(pr.u.uBaseK, m.baseK);
     gl.uniform1f(pr.u.uSizeRef, CAMERA.dist);
+    gl.uniform1f(pr.u.uAreaRef, SIMM.tunables.SCENE.len * SIMM.tunables.SCENE.wid / ((NN - 1) * (NN - 1))); // a surface element's area at rest
     gl.uniform1f(pr.u.uThreads, WAVE.threads); gl.uniform1f(pr.u.uThreadAmp, m.threadAmp);
     gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
     gl.bindVertexArray(emptyVao);

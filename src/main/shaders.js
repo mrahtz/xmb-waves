@@ -79,8 +79,9 @@ void main(){
 }`;
 // Per fragment: c = cosine between the normal and the line of sight. The light of
 // each bit of sheet is a response to the view angle, exp(-(c / baseC)^baseK), times
-// its projected size: how large it appears on screen, the cosine (foreshortening)
-// times the inverse square of its distance (relative to the camera's distance from
+// its projected size: how large it appears on screen, the surface element's area
+// (how much cloth it holds; less where the sheet is bunched) times the cosine
+// (foreshortening) times the inverse square of its distance (relative to the camera's distance from
 // its target). A bit spread over many pixels therefore gives more light per pixel
 // than the same bit squeezed into a sliver, and the light falls towards nothing
 // exactly where the sheet turns edge-on: a fold's glow sits just inside the turn as a
@@ -90,7 +91,7 @@ void main(){
 const FS_WAVE = `#version 300 es
 precision highp float;
 in vec3 vP; in vec3 vN; in vec2 vST; in float vWidth;
-uniform vec3 uCam; uniform float uBright, uBase, uBaseC, uBaseK, uSizeRef, uThreads, uThreadAmp, uFadeEnds, uFadeEdges;
+uniform vec3 uCam; uniform float uBright, uBase, uBaseC, uBaseK, uSizeRef, uAreaRef, uThreads, uThreadAmp, uFadeEnds, uFadeEdges;
 out vec4 o;
 float band(float x, float amp){ // a periodic profile, pre-filtered by its on-screen density
   float w = fwidth(x);
@@ -99,7 +100,9 @@ float band(float x, float amp){ // a periodic profile, pre-filtered by its on-sc
 void main(){
   vec3 D = uCam - vP; vec3 V = normalize(D);
   float c = abs(dot(normalize(vN), V));
-  float size = c * uSizeRef * uSizeRef / dot(D, D);   // projected size of this bit of sheet
+  // projected size of this bit of sheet: its area (relative to the area at rest) times the cosine, i.e. the
+  // unnormalised normal's component along the line of sight, times the inverse square of its distance
+  float size = abs(dot(vN, V)) / uAreaRef * uSizeRef * uSizeRef / dot(D, D);
   float sheen = uBase * exp(-pow(c / uBaseC, uBaseK)) * size;
   float t = vST.y;
   float pat = 1.0 + band(t * uThreads, uThreadAmp);

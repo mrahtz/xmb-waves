@@ -4,7 +4,7 @@ This document describes an effect: a flowing, luminous wave drifting across a so
 
 It describes **what the viewer should see, how it should behave, and how the original is built in general terms**. Construction is given as recommended design: "the original does X; do the same, with your own values". It contains no colours, palettes, textures, constants, preset values or code from the original. The only numbers taken from the analysis of the original are the few listed in section 11 ("Structural numbers from observation and analysis"). Every other value, colour, texture and implementation detail is **your design**. Tune it by comparing your renders side by side with genuine public footage of the original (section 10). Where this document says "choose", the choice is yours.
 
-The current version is 10; the version history is at the end of this document.
+The current version is 10.1; the version history is at the end of this document.
 
 ## 1. Output and platform
 
@@ -161,6 +161,7 @@ it applies to every bit of the sheet at every size, and it shapes the look.
 - On screen, the scaling makes the bright lines wider and softer, lights more of the band and keeps
   the picture steadier. It also tends to reduce the number of separate lines and partings and to add
   some pinching, so re-tune with it in place.
+- **Area included (version 10.1).** The apparent size includes how much of the cloth each bit holds, not only its tilt and its distance: the surface element's area (as defined under "Brightness and view angle" above) is part of the factor. Where the sheet is bunched or compressed, each bit covers less of the screen and gives less light. The cosine and the distance alone leave this out, and give thinner lines, less of the band lit and a less steady picture.
 
 **Anti-aliasing.** The sheet is drawn into its own **off-screen buffer at a higher resolution than the screen** (supersampling). The buffer holds a single intensity and is accumulated with additive blending, at enough precision that many overlapping faint layers add up without banding or clipping. When the composite reads the buffer, it filters it down with a small smoothing filter. Supersampling plus filtering is the requirement; the factor and the filter are yours.
 
@@ -428,6 +429,8 @@ The user allowed these few numbers from the analysis of the original. Use them a
 | N7 | Month palette shift (3) | changes once a day, at local midnight, in equal steps: this month's palette alone on the 1st, then one more step towards next month's each day, so the last day is one step short of next month's palette |
 
 ## Version history
+
+**Version 10.1 (2026-10-25).** Clarifies 4.5: the projected-size factor of version 10 includes the surface element's area, not only the tilt and the distance. Nothing else changed.
 
 **Version 10 (2026-10-25).** Makes the projected-size scaling of the sheet's light (4.5) explicit
 and required: the light of each bit of sheet grows with how large it appears on screen, falls
