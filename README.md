@@ -99,9 +99,8 @@ face-to-fold contrast, the width of its lines and edges, the line-to-band
 contrast, the partings between strands, the strands moving together, the
 gentle swell and the slow drift of features. Still short of the reference:
 the band is a little thinner (about 0.13 of the screen height against 0.17),
-it shows two or three overlapping layers where the reference often shows
-three or four, and its picture changes a little faster (0.3 correlation
-after one second against 0.4);
+it has slightly more brightness peaks per column, and its picture changes a
+little faster (0.3 correlation after one second against 0.4);
 the night look; the palettes for February, April (through a late-March
 capture), May, August, October/November and September (purple); the sparkle
 population and look; the glare's subtlety.
