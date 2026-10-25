@@ -146,10 +146,10 @@ the number of strands per column, how much of the band is lit, the
 face-to-fold contrast, the width of its lines and edges, the line-to-band
 contrast, the partings between strands, the strands moving together, the
 gentle swell and the slow drift of features. Still short of the reference:
-the band has slightly more brightness peaks per column, is at times thicker
-than the reference's thickest frame (about one frame in twenty over 40
-minutes), and its picture changes a little faster (0.3 correlation after
-one second against 0.4);
+its lines sit more in the middle of the band than at the fringes, it has
+somewhat fewer crossings and dark partings between strands, its faces are a
+little brighter relative to the folds, and its picture changes a little
+faster (0.3 correlation after one second against 0.4);
 the night look; the palettes for February, April (through a late-March
 capture), May, August, October/November and September (purple); the sparkle
 population and look; the glare's subtlety.
