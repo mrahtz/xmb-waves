@@ -135,7 +135,7 @@ const WAVE = {
   threads: 400,                         // thread periods across the sheet
   fadeEnds: 0.10, fadeEdges: 0.12,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
-  filterSpread: 2.0,                    // width of the down-filter over the wave buffer, in output pixels
+  filterSpread: 4.0,                    // width of the down-filter over the wave buffer, in output pixels
   tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
 };
 const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
