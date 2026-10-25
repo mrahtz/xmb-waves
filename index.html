@@ -301,13 +301,15 @@ function XMBW_SIM() {
         pos[k] += vel[k] * DT; pos[k + 1] += vel[k + 1] * DT; pos[k + 2] += vel[k + 2] * DT;
         vel[k] *= 1 - NET.damping; vel[k + 1] *= 1 - NET.damping; vel[k + 2] *= 1 - NET.damping;
       }
-      // driven end i = 0 (the far end), placed kinematically
+      // driven end i = 0 (the far end), placed kinematically. Every row's driven point lies on the one shared path
+      // (height and depth oscillations about the middle of the edge), only earlier or later along it, so the driven
+      // end acts like a single point moving along a path and gathers that end of the sheet across its width
       driveT += (simTime - driveT) * NET.driveEase;
       for (let j = 0; j < N; j++) {
         const k = (j * N) * 3;
         pos[k] = rest[k];
         pos[k + 1] = NET.driveA * Math.sin(NET.driveW1 * driveT + j * NET.drivePhase1);
-        pos[k + 2] = rest[k + 2] + NET.driveB * Math.sin(NET.driveW2 * driveT + j * NET.drivePhase2 + 1.3);
+        pos[k + 2] = 0.5 + NET.driveB * Math.sin(NET.driveW2 * driveT + j * NET.drivePhase2 + 1.3);
         vel[k] = vel[k + 1] = vel[k + 2] = 0;
       }
     }

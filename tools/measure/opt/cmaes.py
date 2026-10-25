@@ -9,15 +9,15 @@ SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count'
 
 # ---- parameters: (name, kind, lo, hi, x0) ; kind 'log' or 'lin'. 'delta' is drivePhase2 - drivePhase1 (> 0: depth offset larger)
 PARAMS = [
-    ('NET.noise', 'log', 2e-5, 4e-4, 1e-4),
-    ('NET.driveA', 'log', 0.02, 0.15, 0.060), ('NET.driveB', 'log', 0.02, 0.18, 0.070),
-    ('NET.driveW1', 'log', 0.15, 0.9, 0.42), ('NET.driveW2', 'log', 0.08, 0.6, 0.25),
-    ('NET.drivePhase1', 'lin', 0.36, 1.3, 0.50), ('delta', 'lin', 0.02, 0.9, 0.25),
-    ('NET.kStruct', 'log', 0.08, 1.0, 0.25), ('NET.kBend', 'log', 0.2, 4.0, 1.25), ('NET.acrossK', 'log', 0.08, 1.0, 0.25),
-    ('NET.damping', 'log', 0.0003, 0.004, 0.001), ('NET.push', 'log', 0.002, 0.02, 0.005),
-    ('SCENE.wid', 'lin', 3.0, 5.5, 4.0), ('camPitch', 'lin', 4.0, 12.0, 7.0),
-    ('LAT.sways.0.0', 'log', 0.01, 0.09, 0.034), ('LAT.sways.1.0', 'log', 0.01, 0.09, 0.030), ('LAT.sways.2.0', 'log', 0.01, 0.09, 0.040),
-    ('swayF0', 'log', 0.03, 0.7, 0.082), ('swayF1', 'log', 0.03, 0.7, 0.130), ('swayF2', 'log', 0.03, 0.7, 0.30),  # magnitudes of the (negative) temporal frequencies
+    ('NET.noise', 'log', 2e-5, 4e-4, 1.3e-4),
+    ('NET.driveA', 'log', 0.02, 0.30, 0.031), ('NET.driveB', 'log', 0.02, 0.50, 0.10),
+    ('NET.driveW1', 'log', 0.15, 0.9, 0.232), ('NET.driveW2', 'log', 0.08, 0.6, 0.165),
+    ('NET.drivePhase1', 'lin', 0.36, 1.3, 0.69), ('delta', 'lin', 0.02, 0.9, 0.64),
+    ('NET.kStruct', 'log', 0.08, 1.0, 0.33), ('NET.kBend', 'log', 0.2, 4.0, 0.49), ('NET.acrossK', 'log', 0.08, 1.0, 0.125),
+    ('NET.damping', 'log', 0.0003, 0.004, 0.00089), ('NET.push', 'log', 0.002, 0.03, 0.016),
+    ('SCENE.wid', 'lin', 3.0, 6.0, 4.85), ('camPitch', 'lin', 3.0, 12.0, 4.6),
+    ('LAT.sways.0.0', 'log', 0.008, 0.09, 0.016), ('LAT.sways.1.0', 'log', 0.008, 0.09, 0.012), ('LAT.sways.2.0', 'log', 0.008, 0.09, 0.044),
+    ('swayF0', 'log', 0.02, 0.7, 0.036), ('swayF1', 'log', 0.03, 0.7, 0.138), ('swayF2', 'log', 0.03, 0.7, 0.285),  # magnitudes of the (negative) temporal frequencies
 ]
 D = len(PARAMS)
 def to_z(vals):
@@ -48,7 +48,7 @@ def mkvar_args(vals):
         if k.startswith('LAT.sways'): continue
         grp, key = k.split('.', 1); out.append('%s.%s=%s' % (grp.lower(), key, fmt(v)))
     out.append('day.camPitch=%s' % fmt(c['mood']['camPitch']))
-    sw = [[0.034, 1.55, -0.082, 1.4], [0.030, 2.65, -0.130, 1.6], [0.040, 6.0, -0.30, 0.8]]
+    sw = [[0.016, 1.55, -0.036, 1.4], [0.012, 2.65, -0.138, 1.6], [0.044, 6.0, -0.285, 0.8]]
     for k, v in c['tune'].items():
         if k.startswith('LAT.sways'): _, _, i, j = k.split('.'); sw[int(i)][int(j)] = float(fmt(v))
     out.append('lat.sways=' + json.dumps(sw, separators=(',', ':')))
@@ -62,7 +62,7 @@ OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value)
     ('bwidth', 23.0, 8.0, 1.0, 1.0), ('partings', 5, 2.0, 1.5, -0.7), ('a25', 0.65, 0.08, 0.5, 0.013),
     ('widthLines', 8.5, 1.2, 0.5, 0.6), ('edge', 5.5, 2.0, 0.5, 0.37), ('peaks25', 2.8, 0.5, 0.5, 0.04), ('pinch8', 2, 8, 0.25, -0.4),
     ('lines10', 6, 3, 0.25, 0.3),
-    ('shift', 0.075, 0.025, 1.0, -0.007), ('adjdiff', 5.7, 2.0, 0.75, -0.7), ('corr1', 0.41, 0.1, 0.75, 0.06), ('cspeed', 0.015, 0.005, 0.5, 0.0),
+    ('shift', 0.075, 0.025, 1.0, -0.007), ('adjdiff', 5.7, 2.0, 0.75, -0.7), ('corr1', 0.41, 0.1, 2.0, 0.06), ('outer', 0.71, 0.15, 2.0, -0.018), ('cspeed', 0.015, 0.005, 0.5, 0.0),
 ]
 def objective(r):
     terms = {}; s = 0.0; w = 0.0; pen = {}
@@ -79,7 +79,7 @@ def objective(r):
     if ms1 > 1.6 * ms0 + 0.02: pen['speed_growth'] = 2.0 * (ms1 / max(ms0, 1e-6) - 1.6)
     if ms1 > 0.25: pen['speed_high'] = 4.0 * (ms1 - 0.25)      # net units / s (0.07 in the current build)
     if r.get('maxY', 0) > 0.35: pen['height'] = 4.0 * (r['maxY'] - 0.35)
-    if r.get('maxZoff', 0) > 0.35: pen['depth'] = 4.0 * (r['maxZoff'] - 0.35)
+    if r.get('maxZoff', 0) > 0.75: pen['depth'] = 4.0 * (r['maxZoff'] - 0.75)
     c = r.get('centre', 0.55) or 0.55
     if c < 0.35: pen['centre'] = 10 * (0.35 - c) ** 2 * 100
     if c > 0.75: pen['centre'] = 10 * (c - 0.75) ** 2 * 100
