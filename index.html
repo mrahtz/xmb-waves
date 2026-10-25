@@ -432,25 +432,25 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 // Moods: complete parameter sets, blended linearly with one shared factor.
 // ---------------------------------------------------------------------------
 const MOOD_KEYS = [
-  'waveBright', 'base', 'baseC', 'edge', 'edgeC', 'threadAmp',
+  'waveBright', 'base', 'baseC', 'baseK', 'edge', 'edgeC', 'threadAmp',
   'latX', 'latY', 'latZ', 'envCross', 'camPitch',
   'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.43, base: 0.30, baseC: 0.30, edge: 0.12, edgeC: 0.15, threadAmp: 0.0,
+  night: { waveBright: 0.43, base: 0.30, baseC: 0.30, baseK: 1.0, edge: 0.12, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 6,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
     focusFar: 12.0, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
-  dawn: { waveBright: 0.30, base: 0.38, baseC: 0.30, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
+  dawn: { waveBright: 0.30, base: 0.38, baseC: 0.30, baseK: 1.0, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
-  day: { waveBright: 0.30, base: 0.38, baseC: 0.30, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
+  day: { waveBright: 0.30, base: 0.38, baseC: 0.30, baseK: 1.0, edge: 0.15, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.5, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.45, base: 0.40, baseC: 0.30, edge: 0.16, edgeC: 0.15, threadAmp: 0.0,
+  dusk: { waveBright: 0.45, base: 0.40, baseC: 0.30, baseK: 1.0, edge: 0.16, edgeC: 0.15, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
@@ -646,7 +646,7 @@ void main(){
 const FS_WAVE = `#version 300 es
 precision highp float;
 in vec3 vP; in vec3 vN; in vec2 vST; in float vWidth;
-uniform vec3 uCam; uniform float uBright, uBase, uBaseC, uEdge, uEdgeC, uThreads, uThreadAmp, uFadeEnds, uFadeEdges;
+uniform vec3 uCam; uniform float uBright, uBase, uBaseC, uBaseK, uEdge, uEdgeC, uThreads, uThreadAmp, uFadeEnds, uFadeEdges;
 out vec4 o;
 float band(float x, float amp){ // a periodic profile, pre-filtered by its on-screen density
   float w = fwidth(x);
@@ -655,7 +655,7 @@ float band(float x, float amp){ // a periodic profile, pre-filtered by its on-sc
 void main(){
   vec3 V = normalize(uCam - vP);
   float c = abs(dot(normalize(vN), V));
-  float sheen = uBase * exp(-c / uBaseC);
+  float sheen = uBase * exp(-pow(c / uBaseC, uBaseK));
   float edge = uEdge * exp(-c / uEdgeC);
   float t = vST.y;
   float pat = 1.0 + band(t * uThreads, uThreadAmp);
@@ -977,7 +977,7 @@ function renderFrame(st, outTarget) {
     const SA = 16 * WAVE.samplesAlong, SV = 16 * WAVE.samplesAcross;
     gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV); gl.uniform2f(pr.u.uRes, ww, wh); gl.uniform1f(pr.u.uMinW, WAVE.minWidth);
     gl.uniform3fv(pr.u.uCam, cam.pos);
-    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uBaseC, m.baseC);
+    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uBaseC, m.baseC); gl.uniform1f(pr.u.uBaseK, m.baseK);
     gl.uniform1f(pr.u.uEdge, m.edge); gl.uniform1f(pr.u.uEdgeC, m.edgeC);
     gl.uniform1f(pr.u.uThreads, WAVE.threads); gl.uniform1f(pr.u.uThreadAmp, m.threadAmp);
     gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
