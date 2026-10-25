@@ -14,6 +14,8 @@ It describes **what the viewer should see, how it should behave, and how the ori
 - Section 8 is now a list of required product features (viewer controls, settings remembered, iPad home-screen use, performance target). Section 1 adds the performance design.
 - New section 11 lists the few structural numbers the user allowed from the analysis, each one marked with where it comes from.
 
+**Version 8 (2026-10-25).** Adds one bullet to 4.4e: across the shaken edge, the towards-and-away timing offset builds up somewhat more than the up-and-down offset, and this is what makes the folds cross. Nothing else changed.
+
 **Version 7 (2026-10-25).** Adds three bullets to 4.4e: no pull back to a rest shape; each axis of the shaken edge follows one plain oscillation; the steady push and the per-step nudges are always on. Nothing else changed.
 
 **Version 6 (2026-10-25).** Adds 8.1 "Settings menu": the viewer controls described by function, as one settings menu. Nothing else changed.
@@ -146,6 +148,7 @@ The original builds the sheet in four stages. Do the same, with your own values.
 - Nothing else is driven. The rest of the sheet only follows through the springs, apart from the tiny random nudges (a) and the separate slow bend (b).
 - **No pull back to a rest shape (version 7).** Nothing pulls points towards a stored or flat rest position. The only influences on the net are those in (a): the springs, the damping, the small random nudges, the steady push at the free end and the shaken edge. The sheet's shape comes entirely from how these balance.
 - **One plain oscillation per axis (version 7).** Each point of the shaken edge moves up and down by one smooth oscillation, and towards and away by another (the two frequencies of (a)). Nothing is layered on top: no extra shaking patterns, harmonics or secondary drives.
+- **Why the folds cross (version 8).** Across the shaken edge, the towards-and-away timing offset builds up somewhat more than the up-and-down offset. That difference between the two axes is the source of the crossing folds.
 - **Push and nudges always on (version 7).** The steady push along the length and the per-step random nudges are present at every step and are part of the look rather than a correction. Do not switch them off or fade them out.
 - The motion is smooth and continuous, with no bursts, pauses or jerks; the shaken edge traces slow, rounded paths that never exactly repeat.
 - Fine detail (where lines meet, small wrinkles) re-forms within seconds while the swell takes roughly 10-15 s to cross the screen; both are always present at once.
