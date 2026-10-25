@@ -39,7 +39,7 @@ const MOOD_KEYS = [
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.24, base: 0.30, baseC: 0.75, edge: 0.03, edgeC: 0.30, threadAmp: 0.0,
+  night: { waveBright: 0.29, base: 0.30, baseC: 0.75, edge: 0.03, edgeC: 0.30, threadAmp: 0.0,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 6,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
     focusFar: 12.0, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
@@ -51,7 +51,7 @@ const MOODS = {
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.5, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.22, base: 0.40, baseC: 0.75, edge: 0.045, edgeC: 0.30, threadAmp: 0.0,
+  dusk: { waveBright: 0.30, base: 0.40, baseC: 0.75, edge: 0.045, edgeC: 0.30, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
