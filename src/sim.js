@@ -14,7 +14,7 @@ function XMBW_SIM() {
     damping: 0.0015,                // fraction of velocity removed per step (low, so the folds persist along the length)
     noise: 0.0001,                  // velocity kick per step (std dev); kept tiny, or the control net jitters and the fold lines stipple
     push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.050, driveW1: 0.78,   // driven end: height amplitude, angular frequency
+    driveA: 0.050, driveW1: 0.85,   // driven end: height amplitude, angular frequency
     driveB: 0.070, driveW2: 0.50,   // driven end: depth amplitude, angular frequency
     driveMix: 0.7,                  // the second family also moves the driven end in height, at this fraction of driveA, so its fold lines show and cross the first family's
     drivePhase1: 0.87, drivePhase2: -0.58, // phase change per row: the driven edge is folded across its width (about 2.5 folds); the two
