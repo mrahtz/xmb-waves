@@ -9,27 +9,27 @@ function XMBW_SIM() {
 
   // ---- tunables (all original design values) ----
   const NET = {
-    kStruct: 4.0, kBend: 10.0,     // spring constants along the length (unit masses)
+    kStruct: 1.0, kBend: 5.0,      // spring constants along the length (unit masses)
     acrossK: 0.25,                  // the across-the-width springs are this much softer, so pleats persist along the length
     damping: 0.006,                 // fraction of velocity removed per step
-    noise: 0.0012,                  // velocity kick per step (std dev)
+    noise: 0.0006,                  // velocity kick per step (std dev)
     push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.035, driveW1: 0.65,   // driven end: height amplitude, angular frequency
+    driveA: 0.050, driveW1: 0.65,   // driven end: height amplitude, angular frequency
     driveB: 0.050, driveW2: 0.42,   // driven end: depth amplitude, angular frequency
     drivePhase1: 0.90, drivePhase2: -0.60, // phase change per row: the driven edge is pleated across its width; the two
                                           // families run opposite ways across, so their fold lines cross
     driveEase: 0.02,                // easing of the driving clock towards sim time
-    envLow: 0.50, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
+    envLow: 0.70, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
     warm: 1500,                     // warm-up steps before frame 0
   };
   // Free-form deformation lattice: more cells along the length than across or in depth.
   const LAT = { nu: 10, nv: 4, nw: 4, ease: 0.02,
     // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]
-    sways: [[0.022, 3.1, 0.071, 0.25], [0.022, 5.3, -0.113, 0.35], [0.010, 8.9, 0.167, 0.40]],
+    sways: [[0.030, 3.1, 0.071, 0.25], [0.028, 5.3, -0.113, 0.35], [0.012, 8.9, 0.167, 0.40]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 8.4, wid: 1.5, height: 6.0, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 8.4, wid: 1.5, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.035 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
