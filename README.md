@@ -88,7 +88,7 @@ Verified side by side against public recordings (see `docs/REFERENCES.md`),
 most closely against 4K frames and a 10 s clip of one emulator recording:
 the wave's placement, band height, brightness over the day, its filled
 stack of broad soft translucent layers with crossing fold lines, its
-softness at 4K, and its pace. The layers' brightness gradients are still a
+softness at 4K, its pace, and the drift of its pattern along the band. The layers' brightness gradients are still a
 little flatter than the reference's;
 the night look; the palettes for February, April (through a late-March
 capture), May, August, October/November and September (purple); the sparkle

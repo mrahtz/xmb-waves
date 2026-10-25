@@ -14,7 +14,7 @@ function XMBW_SIM() {
     damping: 0.0015,                // fraction of velocity removed per step (low, so the folds persist along the length)
     noise: 0.0001,                  // velocity kick per step (std dev); kept tiny, or the control net jitters and the fold lines stipple
     push: 0.10,                     // steady pull on the free end, along the length
-    driveA: 0.050, driveW1: 0.85,   // driven end: height amplitude, angular frequency
+    driveA: 0.050, driveW1: 0.78,   // driven end: height amplitude, angular frequency
     driveB: 0.070, driveW2: 0.50,   // driven end: depth amplitude, angular frequency
     driveMix: 0.7,                  // the second family also moves the driven end in height, at this fraction of driveA, so its fold lines show and cross the first family's
     drivePhase1: 0.87, drivePhase2: -0.58, // phase change per row: the driven edge is folded across its width (about 2.5 folds); the two
@@ -25,8 +25,10 @@ function XMBW_SIM() {
   };
   // Free-form deformation lattice: more cells along the length than across or in depth.
   const LAT = { nu: 10, nv: 4, nw: 4, ease: 0.02,
-    // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]
-    sways: [[0.045, 3.1, 0.082, 0.8], [0.040, 5.3, -0.130, 1.0], [0.020, 8.9, 0.190, 0.7]],
+    // sways: [amplitude, spatial freq (rad per unit u), temporal freq (rad/s), depth variation]; the temporal
+    // frequencies are all negative so every sway travels towards the near end: the band's pattern drifts
+    // along it, as in the reference clip (about 4-6 % of the screen width per second), instead of standing still
+    sways: [[0.034, 1.55, -0.082, 0.8], [0.030, 2.65, -0.130, 1.0], [0.015, 4.45, -0.190, 0.7]],
     bump: { amp: 0.020, width: 0.18, speed: 0.021 },
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
