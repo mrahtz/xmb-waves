@@ -1,7 +1,8 @@
 # sparks.py: sparkle statistics of a frame sequence: detection, look classes, colour, and motion from tracks.
-# usage: python3 sparks.py DIR FPS [--hp]
+# usage: python3 sparks.py DIR FPS [--hp] [--dedupe]
 #   DIR holds the frames in order (png). Without --hp the frames are expected to show the sparkles alone on black
 #   (a 'sparkles' layer render); with --hp each frame is high-passed first (frame minus a 15 px median), for footage.
+#   --dedupe drops frames that repeat the previous one (clips re-timed to a higher frame rate), keeping true times.
 # Per frame: local maxima above a threshold, each measured at half its peak (area, elongation, colour). Classes: streak
 # (elongation >= 2.2), disc (round, half-peak area >= 40 px, i.e. a large soft spot), dot (the rest). Motion: maxima linked
 # between consecutive frames by mutual nearest neighbour; tracks of 0.5 s or more give a velocity (straight-line fit),
@@ -11,13 +12,17 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage as nd
 
-d = sys.argv[1]; fps = float(sys.argv[2]); hp = '--hp' in sys.argv
+d = sys.argv[1]; fps = float(sys.argv[2]); hp = '--hp' in sys.argv; dedupe = '--dedupe' in sys.argv
 files = sorted(glob.glob(os.path.join(d, '*.png')))
 THR = 6.0
-dets = []; looks = []; sums = []; tops = []; Hpx = None
-for f in files:
+dets = []; looks = []; sums = []; tops = []; times = []; Hpx = None; prev = None
+for fi, f in enumerate(files):
     a = np.asarray(Image.open(f).convert('RGB')).astype(np.float32)
     if Hpx is None: Hpx = a.shape[0]
+    if dedupe:
+        if prev is not None and np.abs(a - prev).mean() < 0.4: continue
+        prev = a
+    times.append(fi / fps)
     if hp: a = a - nd.median_filter(a, size=(15, 15, 1))
     g = a.mean(2)
     mx = nd.maximum_filter(g, size=5)
@@ -48,7 +53,7 @@ for f in files:
 
 sc = 1080.0 / Hpx
 n = np.array([len(x) for x in dets])
-print('%-58s %s' % ('frames, fps:', '%d, %g' % (len(files), fps)))
+print('%-58s %s' % ('frames, fps; distinct frames, their rate:', '%d, %g; %d, %.1f/s' % (len(files), fps, len(times), (len(times) - 1) / max(times[-1] - times[0], 1e-6))))
 print('%-58s %s' % ('sparkles per frame: median, p10-p90:', '%d, %d-%d' % (np.median(n), np.percentile(n, 10), np.percentile(n, 90))))
 print('%-58s %s' % ('peak level: median, p90, brightest 10 per frame (mean):', '%.1f, %.1f, %.1f' % (np.median([q[2] for q in looks]), np.percentile([q[2] for q in looks], 90), np.mean(tops))))
 print('%-58s %s' % ('summed peak levels per frame (median):', '%.0f' % np.median(sums)))
@@ -60,11 +65,11 @@ dsc = [q for q in looks if q[6] == 'disc']
 if dsc: print('%-58s %s' % ('discs: half-peak diameter median (px@1080p), peak median:', '%.1f, %.1f' % (2 * np.sqrt(np.median([q[3] for q in dsc]) / np.pi) * sc, np.median([q[2] for q in dsc]))))
 
 # tracking
-R = 450.0 / fps / sc  # px per frame at the frames' size (450 px/s at 1080p)
 tracks = []; live = {}
 for i in range(len(dets) - 1):
     A, B = dets[i], dets[i + 1]
     newlive = {}
+    R = 450.0 * (times[i + 1] - times[i]) / sc  # px between these frames at the frames' size (450 px/s at 1080p)
     if len(A) and len(B):
         D = np.sqrt(((A[:, None, :] - B[None, :, :]) ** 2).sum(2))
         ab = D.argmin(1); ba = D.argmin(0)
@@ -77,15 +82,15 @@ for i in range(len(dets) - 1):
         if id(tr) not in kept: tracks.append(tr)
     live = newlive
 tracks.extend(live.values())
-k05 = int(round(0.5 * fps)); k15 = int(round(1.5 * fps))
 vel = []; acc = []; dev = []
 for tr in tracks:
-    if len(tr) < k05: continue
-    t = np.array([p[0] for p in tr]) / fps; x = np.array([p[1] for p in tr]) * sc; y = np.array([p[2] for p in tr]) * sc
+    t = np.array([times[p[0]] for p in tr])
+    if len(tr) < 4 or t[-1] - t[0] < 0.5: continue
+    x = np.array([p[1] for p in tr]) * sc; y = np.array([p[2] for p in tr]) * sc
     vx = np.polyfit(t, x, 1)[0]; vy = np.polyfit(t, y, 1)[0]
     if np.hypot(vx, vy) < 0.5: continue  # a fixed feature, not a sparkle
     vel.append((vx, vy))
-    if len(tr) >= k15:
+    if t[-1] - t[0] >= 1.5 and len(tr) >= 6:
         cy = np.polyfit(t, y, 2); acc.append(2 * cy[0])
         cx = np.polyfit(t, x, 2); dev.append(np.hypot(2 * cx[0], 2 * cy[0]))
 vel = np.array(vel).reshape(-1, 2)
