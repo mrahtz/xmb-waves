@@ -141,7 +141,7 @@ const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
 let BG_HL = 0.12; // strength of the drifting daytime highlight
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 2.5, farSoft: 3.0, focusNear: 9.0, camFade: [3.0, 5.0],
-  bright: 0.65, dimPow: 3.5, iri: 0.8, iriShare: 0.08, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10,
+  bright: 1.25, dimPow: 5.5, iri: 0.8, iriShare: 0.02, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10,
   streak: 0.25, streakShare: 0.35 }; // iriShare: share of strongly coloured sparkles; streak: seconds of motion a streak spans
                                      // (at most 6 px at 1080p)
 let DITHER = 0.85; // output levels, peak

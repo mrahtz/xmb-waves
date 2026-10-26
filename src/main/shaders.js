@@ -220,7 +220,7 @@ void main(){
   float fl = pow(max(dot(aF, L1), 0.0), 24.0) + pow(max(dot(aF, L2), 0.0), 24.0) + pow(max(dot(aF, L3), 0.0), 24.0);
   // mostly neutral: only a few sparkles carry strong colour, and out-of-focus ones are grey
   float colourful = step(fract(aRnd * 13.7), uIriShare);
-  vC = mix(vec3(1.0), ramp(a + 0.15 * aRnd), mix(0.06, uIri, colourful) * (1.0 - 0.8 * clamp(out_, 0.0, 1.0)));
+  vC = mix(vec3(1.0), ramp(a + 0.15 * aRnd), mix(0.02, uIri, colourful) * (1.0 - 0.8 * clamp(out_, 0.0, 1.0)));
   vI = I * (0.55 + uFlare * fl) * uGlint;
   vSoft = clamp(out_, 0.0, 1.0); vNear = clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0);
   float r = max(sizePx, 0.7) * uExt;
