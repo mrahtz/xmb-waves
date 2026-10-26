@@ -5,6 +5,7 @@ import numpy as np
 OPT = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(os.path.dirname(OPT)))
 SP = os.environ.get('MEASURE_WORK', os.path.join(ROOT, 'tools', 'measure', 'work'))
 PAGE = os.environ.get('BASE_PAGE', os.path.join(ROOT, 'index.html'))   # the build whose code is used; its tunables are the defaults
+DECAY_VS = os.environ.get('DECAY_VS', 'slower')  # the drive cycle the decay time is measured against: 'slower' or 'faster'
 SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count': 150, 'step': 12, 'fps': 5}
 
 # ---- parameters: (name, kind, lo, hi, x0) ; kind 'log' or 'lin'. 'delta' is drivePhase2 - drivePhase1 (> 0: depth offset larger)
@@ -15,7 +16,7 @@ PARAMS = [
     ('NET.drivePhase1', 'lin', 0.36, 1.3, 1.225), ('delta', 'lin', 0.02, 0.9, 0.807),
     # spec 9: across-springs comparable to the along ones (acrossK near 1), bending clearly stiffer (kBend = bendRatio x kStruct)
     ('NET.kStruct', 'log', 0.08, 1.5, 0.2104), ('bendRatio', 'log', 2.5, 12.0, 4.662), ('NET.acrossK', 'log', 0.75, 1.33, 1.064),
-    ('decayRatio', 'log', 1.0, 4.0, 1.3),  # spec 13: velocity decay time over the longer drive period (> 1: light damping)
+    ('decayRatio', 'log', 1.0, 4.0, 1.3),  # spec 13: velocity decay time over a drive period (DECAY_VS; > 1: light damping)
     ('NET.push', 'log', 0.002, 0.03, 0.005034),
     ('SCENE.wid', 'lin', 3.0, 6.0, 5.352), ('camPitch', 'lin', 1.0, 12.0, 2.7),
     # spec 11: the slow warp (rolling wave, sliding bump, bob, twist) and the uneven layout along the length
@@ -47,7 +48,7 @@ def candidate(vals, cid):
     tune['NET.drivePhase2'] = p1['NET.drivePhase1'] + p1['delta']
     tune['NET.kBend'] = p1['NET.kStruct'] * p1['bendRatio']
     # damping per step from the decay time: tau = DT / damping = decayRatio x the longer drive period
-    tune['NET.damping'] = 1.0 / (60.0 * p1['decayRatio'] * 2 * math.pi / min(p1['NET.driveW1'], p1['NET.driveW2']))
+    tune['NET.damping'] = 1.0 / (60.0 * p1['decayRatio'] * 2 * math.pi / (min if DECAY_VS == 'slower' else max)(p1['NET.driveW1'], p1['NET.driveW2']))
     return {'id': cid, 'tune': tune, 'mood': mood, 'seeds': SEEDS, 'stillFrames': STILLS, 'motion': MOTION}
 def mkvar_args(vals):
     c = candidate(vals, 'x'); out = []
