@@ -5,24 +5,21 @@ import numpy as np
 OPT = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(os.path.dirname(OPT)))
 SP = os.environ.get('MEASURE_WORK', os.path.join(ROOT, 'tools', 'measure', 'work'))
 PAGE = os.environ.get('BASE_PAGE', os.path.join(ROOT, 'index.html'))   # the build whose code is used; its tunables are the defaults
-DECAY_VS = os.environ.get('DECAY_VS', 'slower')  # the drive cycle the decay time is measured against: 'slower' or 'faster'
 SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count': 150, 'step': 12, 'fps': 5}
 
 # ---- parameters: (name, kind, lo, hi, x0) ; kind 'log' or 'lin'. 'delta' is drivePhase2 - drivePhase1 (> 0: depth offset larger)
 PARAMS = [
-    ('NET.noise', 'log', 5e-6, 1.5e-4, 0.0001),
-    ('NET.driveA', 'log', 0.02, 0.30, 0.05763), ('NET.driveB', 'log', 0.02, 0.50, 0.07898),
-    ('NET.driveW1', 'log', 0.15, 0.9, 0.364), ('NET.driveW2', 'log', 0.08, 0.6, 0.1408),
+    # spec 14: the drive's rates and travel and the damping are fixed in the build (not tuned); the nudges build the detail
+    ('NET.noise', 'log', 2e-6, 1.5e-4, 3e-5),
     ('NET.drivePhase1', 'lin', 0.36, 1.3, 1.225), ('delta', 'lin', 0.02, 0.9, 0.807),
     # spec 9: across-springs comparable to the along ones (acrossK near 1), bending clearly stiffer (kBend = bendRatio x kStruct)
-    ('NET.kStruct', 'log', 0.08, 1.5, 0.2104), ('bendRatio', 'log', 2.5, 12.0, 4.662), ('NET.acrossK', 'log', 0.75, 1.33, 1.064),
-    ('decayRatio', 'log', 1.0, 4.0, 1.3),  # spec 13: velocity decay time over a drive period (DECAY_VS; > 1: light damping)
-    ('NET.push', 'log', 0.002, 0.03, 0.005034),
+    ('NET.kStruct', 'log', 0.05, 1.5, 0.2104), ('bendRatio', 'log', 2.5, 12.0, 4.662), ('NET.acrossK', 'log', 0.75, 1.33, 1.064),
+    ('NET.push', 'log', 0.0005, 0.03, 0.005034),
     ('SCENE.wid', 'lin', 3.0, 6.0, 5.352), ('camPitch', 'lin', 1.0, 12.0, 2.7),
     # spec 11: the slow warp (rolling wave, sliding bump, bob, twist) and the uneven layout along the length
-    ('LAT.rollAmp', 'log', 0.01, 0.12, 0.01262), ('LAT.rollW', 'log', 0.08, 1.2, 0.5), ('LAT.rollGrow', 'lin', 1.0, 5.0, 3.866),
+    ('LAT.rollAmp', 'log', 0.005, 0.12, 0.01262), ('LAT.rollW', 'log', 0.08, 1.2, 0.5), ('LAT.rollGrow', 'lin', 1.0, 5.0, 3.866),
     ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.3), ('LAT.bumpAmp', 'log', 0.004, 0.06, 0.01146), ('LAT.twistAmp', 'log', 0.003, 0.04, 0.03137),
-    ('LAT.spread', 'log', 3.0, 15.0, 3.513), ('SCENE.len', 'lin', 6.0, 16.0, 9.879), ('SCENE.x0', 'lin', -2.0, 4.0, 0.3146),
+    ('LAT.spread', 'log', 2.0, 15.0, 3.513), ('SCENE.len', 'lin', 6.0, 16.0, 9.879), ('SCENE.x0', 'lin', -2.0, 4.0, 0.3146),
     ('baseC', 'log', 0.15, 2.0, 0.3202), ('baseK', 'lin', 1.0, 4.0, 2.209),  # the view-angle response (day mood)
 ]
 D = len(PARAMS)
@@ -41,14 +38,13 @@ def from_z(z):
 def candidate(vals, cid):
     tune = {}; mood = {}
     for (n, k, lo, hi, x0), v in zip(PARAMS, vals):
-        if n in ('delta', 'bendRatio', 'decayRatio'): continue
+        if n in ('delta', 'bendRatio'): continue
         if n in ('camPitch', 'baseC', 'baseK'): mood[n] = v
         else: tune[n] = v
     p1 = dict(zip([p[0] for p in PARAMS], vals))
     tune['NET.drivePhase2'] = p1['NET.drivePhase1'] + p1['delta']
+    tune['NET.warmDecays'] = 3  # the evaluator settles each candidate for three decay times (the build's stored state for four)
     tune['NET.kBend'] = p1['NET.kStruct'] * p1['bendRatio']
-    # damping per step from the decay time: tau = DT / damping = decayRatio x the longer drive period
-    tune['NET.damping'] = 1.0 / (60.0 * p1['decayRatio'] * 2 * math.pi / (min if DECAY_VS == 'slower' else max)(p1['NET.driveW1'], p1['NET.driveW2']))
     return {'id': cid, 'tune': tune, 'mood': mood, 'seeds': SEEDS, 'stillFrames': STILLS, 'motion': MOTION}
 def mkvar_args(vals):
     c = candidate(vals, 'x'); out = []
@@ -63,7 +59,7 @@ OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value)
     ('thick', 0.165, 0.02, 1.0, 0.002), ('peaks12', 3.3, 0.5, 1.0, 0.18), ('face', 0.21, 0.06, 1.0, -0.01), ('foldface', 5.6, 1.5, 1.0, 0.41),
     ('partcol', 0.85, 0.3, 3.0, 0.14), ('linepk', 1.67, 0.2, 1.0, -0.21), ('a40', 0.48, 0.08, 1.0, 0.014), ('dark', 0.14, 0.05, 3.0, 0.0),
     ('bwidth', 23.0, 8.0, 1.5, 1.0), ('partings', 5, 2.0, 1.5, -0.7), ('a25', 0.65, 0.08, 0.5, 0.013),
-    ('widthLines', 8.5, 1.2, 0.5, 0.6), ('edge', 5.5, 2.0, 0.5, 0.37), ('peaks25', 2.8, 0.5, 0.5, 0.04), ('pinch8', 2, 8, 0.25, -0.4),
+    ('widthLines', 8.5, 1.2, 0.5, 0.6), ('edge', 5.5, 2.0, 0.5, 0.37), ('peaks25', 2.8, 0.5, 0.5, 0.04), ('pinch8', 10, 10, 1.0, -0.4),
     ('lines10', 6, 3, 0.25, 0.3),
     ('shift', 0.075, 0.025, 3.0, -0.007), ('adjdiff', 5.7, 2.0, 0.75, -0.7), ('corr1', 0.41, 0.1, 2.0, 0.06), ('outer', 0.71, 0.15, 2.0, -0.018), ('cspeed', 0.015, 0.005, 0.5, 0.0),
     ('pspeed', 38.0, 12.0, 1.5, 0.0), ('pright', 0.78, 0.15, 1.5, 0.0),  # partings' drift along the band (px/s at 1920) and rightwards share
