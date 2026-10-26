@@ -87,6 +87,7 @@ def objective(r):
     if cmin is not None and cmin < 0.25: pen['centre_min'] = 4.0 * (0.25 - cmin)
     if cmax is not None and cmax > 0.85: pen['centre_max'] = 4.0 * (cmax - 0.85)
     if (r.get('thick') or 0) < 0.05: pen['collapsed'] = 3.0
+    if (r.get('cover') or 1) < 0.95: pen['cover'] = 20.0 * (0.95 - r['cover'])  # the band must span the frame
     if (r.get('n') or 0) < 9: pen['frames'] = 1.0 * (9 - (r.get('n') or 0))
     for k, v in pen.items(): p += v
     return dist + p, terms, pen

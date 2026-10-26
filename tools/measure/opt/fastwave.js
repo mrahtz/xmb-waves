@@ -363,6 +363,7 @@ function frameStats(ras) {
   const wd = widths, wl = wd.filter(w => w < 15), ws = wd.filter(w => w >= 15);
   return {
     fmax,
+    cover: xsUsed.length / NC,  // share of the columns the band is found in (it should span the frame)
     centre: median(centre), centreMin: Math.min(...centre), centreMax: Math.max(...centre), topMin, botMax, tilt: cr - cl, arch,
     thick: median(thick), thickP10: pct(thick, 10), thickP90: pct(thick, 90), thickRatio: pct(thick, 95) / Math.max(pct(thick, 5), 1e-3),
     pinch8: 100 * thick.filter(v => v < 0.08).length / n, pinch5: 100 * thick.filter(v => v < 0.05).length / n,
