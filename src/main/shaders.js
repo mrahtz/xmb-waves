@@ -201,8 +201,8 @@ layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
 uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uPxScale, uSize, uBlur;
 uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uIri, uIriExp, uFlare, uDimPow, uDofPow;
-uniform float uGlint, uExt; uniform vec2 uRes;
-out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
+uniform float uGlint, uExt, uIriShare, uStreak, uStreakShare; uniform vec2 uRes;
+out vec2 vQ; out float vI; out vec3 vC; out float vSoft; out float vL; out float vNear;
 vec3 ramp(float x){ return 0.5 + 0.5 * cos(6.2831853 * (x + vec3(0.0, 0.33, 0.67))); }
 void main(){
   vec3 P = mix(aP0, aP1, uAlpha);
@@ -218,31 +218,41 @@ void main(){
   float a = pow(abs(dot(aF, V)), uIriExp);
   vec3 L1 = normalize(vec3(0.4, 0.8, -0.45)), L2 = normalize(vec3(-0.7, 0.3, -0.6)), L3 = normalize(vec3(0.1, -0.5, -0.85));
   float fl = pow(max(dot(aF, L1), 0.0), 24.0) + pow(max(dot(aF, L2), 0.0), 24.0) + pow(max(dot(aF, L3), 0.0), 24.0);
-  vC = mix(vec3(1.0), ramp(a + 0.15 * aRnd), uIri);
+  // mostly neutral: only a few sparkles carry strong colour, and out-of-focus ones are grey
+  float colourful = step(fract(aRnd * 13.7), uIriShare);
+  vC = mix(vec3(1.0), ramp(a + 0.15 * aRnd), mix(0.06, uIri, colourful) * (1.0 - 0.8 * clamp(out_, 0.0, 1.0)));
   vI = I * (0.55 + uFlare * fl) * uGlint;
-  vSoft = clamp(out_, 0.0, 1.0);
+  vSoft = clamp(out_, 0.0, 1.0); vNear = clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0);
   float r = max(sizePx, 0.7) * uExt;
   vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)) * 2.0 - 1.0;
   vec4 clip = uVP * vec4(P, 1.0);
+  // some sparkles are short streaks: drawn stretched along their on-screen motion (one step apart, 60 per second)
+  vec4 c0 = uVP * vec4(aP0, 1.0), c1 = uVP * vec4(aP1, 1.0);
+  vec2 dv = (c1.xy / max(c1.w, 1e-3) - c0.xy / max(c0.w, 1e-3)) * 0.5 * uRes * 60.0;
+  float sp = length(dv); vec2 dir = sp > 1e-3 ? dv / sp : vec2(1.0, 0.0);
+  float Lh = min(0.5 * sp * uStreak, 3.0 * uPxScale) * step(fract(aRnd * 3.17), uStreakShare) * (1.0 - clamp(out_, 0.0, 1.0));
   if (z < 0.05) clip = vec4(2.0, 2.0, 2.0, 1.0);
-  clip.xy += corner * r / uRes * 2.0 * clip.w;
-  vQ = corner * r / max(sizePx, 0.7);
+  vec2 off = dir * corner.x * (r + Lh) + vec2(-dir.y, dir.x) * corner.y * r;
+  clip.xy += off / uRes * 2.0 * clip.w;
+  vQ = vec2(corner.x * (r + Lh), corner.y * r) / max(sizePx, 0.7);
+  vL = Lh / max(sizePx, 0.7);
   if (sizePx < 0.7) vI *= (sizePx * sizePx) / 0.49;
   gl_Position = clip;
 }`;
 const FS_SPARK = `#version 300 es
 precision highp float;
-in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt;
+in vec2 vQ; in float vI; in vec3 vC; in float vSoft; in float vL; in float vNear; uniform float uExt;
 out vec4 o;
 void main(){
-  float r2 = dot(vQ, vQ);
+  vec2 q0 = vec2(max(abs(vQ.x) - vL, 0.0), vQ.y); // distance from the streak's centre segment (a dot when vL = 0)
+  float r2 = dot(q0, q0);
   float sharp = exp(-r2 * 2.2);
-  float soft = smoothstep(1.0, 0.55, sqrt(r2)) * 0.6 + exp(-r2 * 1.5) * 0.4;
+  // out of focus: a soft spot beyond the focus, a flat disc nearer the camera
+  float soft = mix(smoothstep(1.0, 0.55, sqrt(r2)) * 0.6 + exp(-r2 * 1.5) * 0.4, smoothstep(1.0, 0.8, sqrt(r2)) * 0.85 + exp(-r2 * 1.5) * 0.15, vNear);
   float k;
-  if (uExt > 1.5) { // glint pass: a soft four-ray star
-    vec2 q = abs(vQ) / uExt;
-    float star = exp(-q.x * 3.0) * exp(-q.y * q.y * 40.0) + exp(-q.y * 3.0) * exp(-q.x * q.x * 40.0);
-    k = 0.3 * star * (1.0 - vSoft) + 0.45 * exp(-dot(q, q) * 6.0);
+  if (uExt > 1.5) { // glint pass: a soft round halo (no rays)
+    vec2 q = q0 / uExt;
+    k = 0.45 * exp(-dot(q, q) * 6.0) * (1.0 - vSoft);
   } else k = mix(sharp, soft, vSoft);
   o = vec4(vC * vI * k, 1.0);
 }`;

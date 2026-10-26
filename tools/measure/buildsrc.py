@@ -2,7 +2,8 @@
 
 The sources are src/head.html, src/sim.js and the files of src/main/ (joined in the order of
 src/main/ORDER, as tools/build.py does). Parameter edits are 'group.key=value':
-  day.X / night.X / dawn.X / dusk.X   a mood value          net.X / lat.X / scene.X   simulation constants
+  day.X / night.X / dawn.X / dusk.X   a mood value          net.X / lat.X / scene.X / spark.X   simulation constants
+  sparkr.X   the sparkles' rendering settings
   cam.X   the camera                  wave.X   the wave settings
   raw.main=OLD>>>NEW / raw.sim=OLD>>>NEW   a literal replacement (OLD must occur exactly once)
 """
@@ -42,9 +43,11 @@ def apply_edits(texts, edits):
         elif grp in ('cam', 'wave'):
             m = {'cam': 'const CAMERA = {', 'wave': 'const WAVE = {'}[grp]
             f = _where(texts, mains, m); texts[f] = _setk(texts[f], m, '};', key, v)
-        elif grp in ('net', 'lat', 'scene'):
-            m = {'net': 'const NET = {', 'lat': 'const LAT = {', 'scene': 'const SCENE = {'}[grp]
+        elif grp in ('net', 'lat', 'scene', 'spark'):
+            m = {'net': 'const NET = {', 'lat': 'const LAT = {', 'scene': 'const SCENE = {', 'spark': 'const SPARK = {'}[grp]
             texts['sim.js'] = _setk(texts['sim.js'], m, '};', key, v)
+        elif grp == 'sparkr':
+            f = _where(texts, mains, 'const SPARKR = {'); texts[f] = _setk(texts[f], 'const SPARKR = {', '};', key, v)
         elif grp == 'raw':
             old, new = v.split('>>>')
             f = _where(texts, mains if key == 'main' else ['sim.js'], old)

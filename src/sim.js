@@ -54,10 +54,11 @@ function XMBW_SIM() {
     burstP: 0.30, burstMin: 1, burstMax: 9,        // per step
     walkers: 6, walkerP: 0.05, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 0.35, reverseP: 0.12,
-    speedK: 0.32, speedPow: 0.5, speedMin: 0.035, // scene units / s
+    speedK: 0.27, speedPow: 0.5, speedMin: 0.030, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
     rampIn: 0.06, rampOut: 0.16,
-    jitter: 0.045, gravity: 0.004, friction: 0.22,  // per second units
+    jitter: 0.003, gravity: 0.0002, friction: 0.0,  // per second units: a sparkle keeps the velocity it is flung with
+    upLean: 0.12,                                   // share of downward-flung sparkles turned round, so slightly more rise than fall
     spinA: 2.2, spinF: [0.21, 0.37],                // rad/s amplitude, oscillation freq range (rad/s)
     box: [[-7, 7], [-3.0, 3.2], [-3.5, 5.0]],
   };
@@ -261,6 +262,7 @@ function XMBW_SIM() {
       const c = SPARK.cone;
       dx += c * gauss() * 0.5; dy += c * gauss() * 0.5; dz += c * gauss() * 0.5;
       if (rng() < SPARK.reverseP) { dx = -dx; dy = -dy; dz = -dz; }
+      if (dy < 0 && rng() < SPARK.upLean) { dx = -dx; dy = -dy; dz = -dz; }
       const f = mood.camFwd, along = dx * f[0] + dy * f[1] + dz * f[2];
       dx -= along * f[0]; dy -= along * f[1]; dz -= along * f[2];
       const n = Math.sqrt(dx * dx + dy * dy + dz * dz);

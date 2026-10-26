@@ -4,7 +4,7 @@ This document describes an effect: a flowing, luminous wave drifting across a so
 
 It describes **what the viewer should see, how it should behave, and how the original is built in general terms**. Construction is given as recommended design: "the original does X; do the same, with your own values". It contains no colours, palettes, textures, constants, preset values or code from the original. The only numbers taken from the analysis of the original are the few listed in section 11 ("Structural numbers from observation and analysis"). Every other value, colour, texture and implementation detail is **your design**. Tune it by comparing your renders side by side with genuine public footage of the original (section 10). Where this document says "choose", the choice is yours.
 
-The current version is 11; the version history is at the end of this document.
+The current version is 12; the version history is at the end of this document.
 
 ## 1. Output and platform
 
@@ -284,10 +284,13 @@ Exposure, white point, radii, ratio and strength are all set per mood (section 7
 ### Look
 
 - A dense field of tiny glowing particles. They are densest along and just around the band, often in loose trails along it, and thin out with distance. A sprinkling of them reaches far across the screen, including near the top and bottom. The count stays roughly constant once the effect has been running for a while (section 11).
-- **Life:** each sparkle drifts slowly and a little irregularly, fades in quickly after it appears, lives for several seconds (lifetimes vary), then fades out.
+- **Life:** each sparkle travels steadily in the direction it was flung, a little irregularly, fades in quickly after it appears, lives for several seconds (lifetimes vary), then fades out.
 - **Space:** sparkles live in the same 3D space as the wave and are seen through the same camera. Some are in front of the sheet and some behind it, and their on-screen size and position follow from their 3D position.
-- **Look:** each sparkle is a small soft point of light, mostly white with faint iridescent tints that change as it turns. Some twinkle. Most are small and sharp; some, far from the focus distance, are larger, softer and dimmer, like out-of-focus points of light (bokeh).
+- **Look:** each sparkle is a small point of light, mostly neutral white-grey; a few show iridescent colour that changes as they turn (see "Look (version 12)" below). Some twinkle. Most are small and sharp; some, far from the focus distance, are larger, softer and dimmer, like out-of-focus points of light (bokeh).
 - All randomness comes from a seeded pseudo-random generator of your own (see section 9).
+- **Motion (version 12).** Each sparkle keeps the velocity it is flung off the wave with for its whole life. Nothing visibly slows, lifts or drops it: any gravity must be too weak to bend a path visibly over a sparkle's life. Sparkles move about as fast as the band's own lines rise and fall (4.6), so they read as being thrown off the moving sheet, not floating. At any moment slightly more of them are moving up than down, and there is no visible downward settling.
+- **Time of day (version 12).** Their number and brightness are the same at every time of day. The mood changes the focus and size only slightly, never their brightness.
+- **Look (version 12).** Mostly neutral white-grey: small hard-edged dots and short streaks, an occasional bright point with a soft halo, and large, flat, dim grey out-of-focus discs close to the camera. Only a few carry strong colour. No star rays. Among many faint sparkles a few stand out brightly.
 
 ### Construction (how the original does it; do the same with your own values)
 
@@ -314,7 +317,7 @@ Exposure, white point, radii, ratio and strength are all set per mood (section 7
 
 **Motion, per fixed step.**
 
-- Acceleration = **Brownian jitter** (an independent random value per axis, every step) + **gravity** (very weak, downwards) − **friction** proportional to velocity.
+- Acceleration = **Brownian jitter** (an independent random value per axis, every step) + **gravity** (downwards, and so weak that it never visibly bends a sparkle's path; see "Motion (version 12)") − **friction** proportional to velocity.
 - Velocity is updated from the acceleration, then position from velocity (semi-implicit Euler). The step rate is in section 11.
 - **Spin:** each sparkle carries an orientation (a quaternion). Every step it rotates by a small angular velocity that varies slowly and smoothly with the sparkle's age (different slow oscillations on each axis), and it is renormalised.
 
@@ -436,6 +439,8 @@ The user allowed these few numbers from the analysis of the original. Use them a
 | N7 | Month palette shift (3) | changes once a day, at local midnight, in equal steps: this month's palette alone on the 1st, then one more step towards next month's each day, so the last day is one step short of next month's palette |
 
 ## Version history
+
+**Version 12 (2026-10-26).** Section 6: sparkles keep the velocity they are flung with (gravity never visibly bends their paths), move about as fast as the band's lines, lean slightly upward on screen with no downward settling, look the same at every time of day, and are mostly neutral hard dots, short streaks and large dim out-of-focus discs, with few coloured and no star rays. Nothing else changed.
 
 **Version 11 (2026-10-25).** Corrects 4.4b: the slow warp is a wave rolling from the shaken end to the free end and growing along the length, plus a bump sliding back and forth, a slow bob of the whole sheet and a small twist across the width, computed directly rather than eased; the lattice is laid out unevenly along the length. 4.4e notes that the swell runs the same way as the drive. Nothing else changed.
 

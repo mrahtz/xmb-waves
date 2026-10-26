@@ -48,6 +48,7 @@ camera, the wave settings and literal replacements. `apply.py` takes the same ke
 | `spec46m.py` | Motion statistics of a frame sequence: centre speed, swell travel, picture correlation, strand coherence, parting drift and lifetimes. |
 | `fill.py` | How much of the band is lit: shares above 40 % and 25 % of the column maximum, mean level, dark share. |
 | `thick.py` | Band thickness and centre per frame over a long sequence. |
+| `sparks.py`, `sparkseq.sh`, `sparkmotion.js` | Sparkles: counts, look classes (dots, streaks, discs) and colour from sparkles-only renders, with motion from tracks; and their on-screen motion (share rising, speed) and count straight from the simulation. |
 | `cycle.py` | Band peak and mean brightness over the background, mine beside the reference frames. |
 | `cmp46.py` | Tabulates several statistics files side by side (median and range per measure). |
 | `bgremove.py` | Removes the background from reference frames and clip frames. |

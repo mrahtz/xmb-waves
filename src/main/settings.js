@@ -156,13 +156,15 @@ group('Sparkles', [
   field('SPARKR', SPARKR, 'iri', 'iridescence', 0, 1, 0.01), field('SPARKR', SPARKR, 'iriExp', 'iridescence exponent', 0.5, 4, 0.05),
   field('SPARKR', SPARKR, 'flare', 'flare', 0, 4, 0.05), field('SPARKR', SPARKR, 'glintSize', 'glint size', 1, 10, 0.1),
   field('SPARKR', SPARKR, 'glintBright', 'glint brightness', 0, 0.5, 0.005),
+  field('SPARKR', SPARKR, 'iriShare', 'coloured share', 0, 1, 0.01), field('SPARKR', SPARKR, 'streak', 'streak length (s)', 0, 2, 0.01),
+  field('SPARKR', SPARKR, 'streakShare', 'streak share', 0, 1, 0.01),
   sim('SPARK.burstP', 'burst chance', 0, 1, 0.01), sim('SPARK.burstMax', 'burst size', 1, 20, 1),
   sim('SPARK.walkerP', 'walker chance', 0, 0.3, 0.005), sim('SPARK.walkStep', 'walker step', 0.005, 0.2, 0.005),
   sim('SPARK.cone', 'birth cone', 0, 1, 0.01), sim('SPARK.reverseP', 'reversed births', 0, 0.5, 0.01),
   sim('SPARK.speedK', 'speed factor', 0, 1, 0.01), sim('SPARK.speedPow', 'speed exponent', 0.1, 1.5, 0.01), sim('SPARK.speedMin', 'minimum speed', 0, 0.2, 0.005),
   sim('SPARK.rateMean', 'ageing rate', 0.02, 0.5, 0.005), sim('SPARK.rateSpread', 'ageing spread', 0, 1, 0.01),
-  sim('SPARK.jitter', 'jitter', 0, 0.2, 0.005), sim('SPARK.gravity', 'gravity', -0.02, 0.02, 0.0005), sim('SPARK.friction', 'friction', 0, 1, 0.01),
-  sim('SPARK.spinA', 'spin', 0, 6, 0.05),
+  sim('SPARK.jitter', 'jitter', 0, 0.05, 0.0005), sim('SPARK.gravity', 'gravity', -0.005, 0.005, 0.0001), sim('SPARK.friction', 'friction', 0, 1, 0.01),
+  sim('SPARK.upLean', 'upward lean', 0, 0.6, 0.01), sim('SPARK.spinA', 'spin', 0, 6, 0.05),
 ]);
 let currentMood = null, tunePending = false;
 function paramValue(it) { // the value in effect

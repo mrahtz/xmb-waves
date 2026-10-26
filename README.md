@@ -118,8 +118,11 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   eased from frame to frame. A bright-pass bloom pyramid of background plus
   wave adds the glare.
 - About 2,000 sparkles are flung off the moving sheet by bursts and trail
-  walkers, drift with Brownian jitter, spin, and are drawn as billboards with
-  depth of field and an iridescent tint, plus a glint pass. They are drawn
+  walkers, keep the velocity they are flung with (about as fast as the band's
+  lines, slightly more of them rising than falling), spin, and are drawn as
+  billboards with depth of field: mostly neutral dots and short streaks, dim
+  flat discs near the camera and a few iridescent ones, plus a soft glint pass,
+  the same at every time of day. They are drawn
   straight onto the output after the final pass (the dither is applied just
   before them), which saves a full-resolution colour buffer.
 - Everything is tuned by comparing deterministic renders (`mode=score`) side

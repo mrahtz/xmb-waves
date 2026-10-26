@@ -40,11 +40,11 @@ const MOODS = {
   night: { waveBright: 2.12, base: 0.24, baseC: 0.3202, baseK: 2.209, threadAmp: 0.0,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 1.7,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
-    focusFar: 12.0, sparkSize: 1.0, sparkBright: 0.35, glint: 0.10 },
+    focusFar: 12.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dawn: { waveBright: 1.68, base: 0.30, baseC: 0.3202, baseK: 2.209, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 2.7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.8, glint: 0.25 },
+    focusFar: 12.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 1.68, base: 0.30, baseC: 0.3202, baseK: 2.209, threadAmp: 0.0,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 2.7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
@@ -52,7 +52,7 @@ const MOODS = {
   dusk: { waveBright: 2.76, base: 0.32, baseC: 0.3202, baseK: 2.209, threadAmp: 0.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 2.7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 12.3, sparkSize: 1.0, sparkBright: 0.85, glint: 0.28 },
+    focusFar: 12.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -141,7 +141,9 @@ const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
 let BG_HL = 0.12; // strength of the drifting daytime highlight
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 2.5, farSoft: 3.0, focusNear: 9.0, camFade: [3.0, 5.0],
-  bright: 0.65, dimPow: 3.5, iri: 0.35, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10 };
+  bright: 0.65, dimPow: 3.5, iri: 0.8, iriShare: 0.08, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10,
+  streak: 0.25, streakShare: 0.35 }; // iriShare: share of strongly coloured sparkles; streak: seconds of motion a streak spans
+                                     // (at most 6 px at 1080p)
 let DITHER = 0.85; // output levels, peak
 let GLARE_DESAT = 0.6; // how far the halo is pulled towards white
 
