@@ -30,7 +30,9 @@ function XMBW_SIM() {
                                           // than the height offset, and that difference between the axes is what makes the folds cross
     driveEase: 0.02,                // easing of the driving clock towards sim time
     envLow: 0.85, envWidth: 0.30,   // envelope along the length: subdued level, transition half-width
-    warm: 1500,                     // warm-up steps before frame 0
+    warm: 6000,                     // warm-up steps before frame 0, at least; the lightly damped net needs several decay times
+                                    // to settle into its running state, so the warm-up runs at least four of them
+    warmSettle: 1500,               // the first warm-up steps run with heavy damping, to clear the flat start quickly
   };
   // Free-form deformation lattice: more cells along the length than across or in depth.
   const LAT = { nu: 10, nv: 4, nw: 4,
@@ -375,7 +377,17 @@ function XMBW_SIM() {
       step, setMood, packSparks, surf,
       get netPrev() { return netPrev; }, get netCur() { return netCur; },
       get steps() { return steps; },
-      warm(n) { for (let i = 0; i < n; i++) step(); steps = 0; },
+      // Warm-up: the net alone (heavily damped at first, to clear the flat start), then the full step for the last
+      // 15 s so the sparkles are populated as in a running state.
+      warm(n) {
+        const d = NET.damping;
+        n = Math.max(n, NET.warmSettle + Math.ceil(4 / Math.max(d, 1e-5)) + 900);
+        for (let i = 0; i < n; i++) {
+          NET.damping = i < NET.warmSettle ? Math.max(d, 0.02) : d;
+          if (i < n - 900) { simTime += DT; lattice(); stepNet(); } else step();
+        }
+        NET.damping = d; steps = 0;
+      },
       warmSteps: NET.warm,
       tune(values) { setTunables(values); rebuildSprings(); }, // live changes from the settings menu
       debug: { pos, vel, alive: () => S - nFree },
