@@ -4,7 +4,7 @@ This document describes an effect: a flowing, luminous wave drifting across a so
 
 It describes **what the viewer should see, how it should behave, and how the original is built in general terms**. Construction is given as recommended design: "the original does X; do the same, with your own values". It contains no colours, palettes, textures, constants, preset values or code from the original. The only numbers taken from the analysis of the original are the few listed in section 11 ("Structural numbers from observation and analysis"). Every other value, colour, texture and implementation detail is **your design**. Tune it by comparing your renders side by side with genuine public footage of the original (section 10). Where this document says "choose", the choice is yours.
 
-The current version is 14; the version history is at the end of this document.
+The current version is 15; the version history is at the end of this document.
 
 ## 1. Output and platform
 
@@ -292,7 +292,8 @@ Exposure, white point, radii, ratio and strength are all set per mood (section 7
 - All randomness comes from a seeded pseudo-random generator of your own (see section 9).
 - **Motion (version 12).** Each sparkle keeps the velocity it is flung off the wave with for its whole life. Nothing visibly slows, lifts or drops it: any gravity must be too weak to bend a path visibly over a sparkle's life. Sparkles move about as fast as the band's own lines rise and fall (4.6), so they read as being thrown off the moving sheet, not floating. At any moment slightly more of them are moving up than down, and there is no visible downward settling.
 - **Time of day (version 12).** Their number and brightness are the same at every time of day. The mood changes the focus and size only slightly, never their brightness.
-- **Look (version 12).** Mostly neutral white-grey: small hard-edged dots and short streaks, an occasional bright point with a soft halo, and large, flat, dim grey out-of-focus discs close to the camera. Only a few carry strong colour. No star rays. Among many faint sparkles a few stand out brightly.
+- **Look (version 12).** Mostly neutral white-grey: small hard-edged round dots, some seen as ovals or short dashes as they tumble, an occasional bright point with a soft halo, and large, flat, dim grey out-of-focus discs close to the camera. Only a few carry strong colour. No star rays. Among many faint sparkles a few stand out brightly.
+- **Shape (version 15).** Every sparkle is a small, flat, round disc in 3D, not a camera-facing sprite. It tumbles with the sparkle's spin: seen face-on it is round, tilted it becomes an oval, and nearly edge-on a short thin line, so some sparkles read as short dashes that change shape as they turn. Nothing stretches a sparkle along its direction of motion. Sparkles close to the camera turn towards it and show as round discs. In focus, a disc has a crisp edge and a flat, even interior; out of focus, its edge softens. The disc fades to nothing well inside the patch it is drawn on, so no square or rectangular outline ever shows. The glint pass is round too.
 
 ### Construction (how the original does it; do the same with your own values)
 
@@ -325,7 +326,7 @@ Exposure, white point, radii, ratio and strength are all set per mood (section 7
 
 **Rendering.**
 
-- Each sparkle is a camera-facing quad (billboard) at its 3D position, drawn with additive blending and with its opacity from the life ramp.
+- Each sparkle is a flat patch at its 3D position, turned by the sparkle's spin (turned towards the camera when close to it) and carrying a round disc (version 15), drawn with additive blending and with its opacity from the life ramp.
 - **Iridescent tint by orientation:** the sparkle's facing direction comes from its quaternion. Its colour is looked up from a smooth iridescent colour ramp, indexed by the angle between that direction and the view, sharpened with an exponent. It appears to be lit by a few fixed light directions (not confirmed), so a sparkle flares when its face catches a light. As sparkles spin, this makes them twinkle and shift colour.
 - **Depth of field:** each sparkle's size and brightness depend on its distance from a **focus range** (a near and a far focus distance, each with a soft transition). In focus: small and sharp. Nearer or farther: larger, softer and dimmer, so the total light stays similar. Sparkles very close to the camera are faded further.
 - **Second glint pass:** the same sparkles are drawn again additively as a second, softer glint. Its strength follows the mood's glare setting.
@@ -441,6 +442,8 @@ The user allowed these few numbers from the analysis of the original. Use them a
 | N7 | Month palette shift (3) | changes once a day, at local midnight, in equal steps: this month's palette alone on the 1st, then one more step towards next month's each day, so the last day is one step short of next month's palette |
 
 ## Version history
+
+**Version 15 (2026-10-27).** Section 6: sparkles are flat round discs in 3D that tumble with their spin (round face-on, oval when tilted, a short line nearly edge-on), turned towards the camera when close to it; nothing stretches them along their motion; no square outlines. The rendering note no longer calls them camera-facing billboards. Nothing else changed.
 
 **Version 14 (2026-10-26).** 4.4a: the damping outlasts the slower of the drive's two motions, by roughly two of its cycles. 4.4e: the drive is slow (each swing a few times longer than the swell's crossing), each end moves less than one grid spacing, up-and-down travel clearly larger than towards-and-away, towards-and-away the faster; the Balance bullet again rules out a fast, large drive. Nothing else changed.
 

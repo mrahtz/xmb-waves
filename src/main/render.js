@@ -103,7 +103,7 @@ function renderFrame(st, outTarget) {
     const pr = PR.spark; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
     sparkUniforms(pr, m, cam, st);
-    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.6);
+    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.25);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
     if (T) T.end();
     if (L.glints !== false && stopAfter >= 6) { // the glints are a layer of their own in the menu
@@ -130,7 +130,7 @@ function sparkUniforms(pr, m, cam, st) {
   gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uIri, SPARKR.iri);
   gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare); gl.uniform1f(pr.u.uDimPow, SPARKR.dimPow);
   gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow); gl.uniform1f(pr.u.uIriShare, SPARKR.iriShare);
-  gl.uniform1f(pr.u.uStreak, SPARKR.streak); gl.uniform1f(pr.u.uStreakShare, SPARKR.streakShare);
+  gl.uniform1f(pr.u.uF, cam.f); gl.uniform1f(pr.u.uMinTilt, SPARKR.minTilt);
   gl.uniform2f(pr.u.uRes, ow, oh);
 }
 
@@ -206,7 +206,7 @@ function drawWireframes(st) {
     if (!st.layers.sparkles) { gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, st.sparks, 0, st.nSparks * SPARK_STRIDE); }
     const pr = PR.sparkWire; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
     sparkUniforms(pr, m, cam, st);
-    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.6); gl.uniform4f(pr.u.uColor, 1.0, 0.35, 0.8, 0.6);
+    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.25); gl.uniform4f(pr.u.uColor, 1.0, 0.35, 0.8, 0.6);
     gl.drawArraysInstanced(gl.LINE_LOOP, 0, 4, st.nSparks);
   }
   gl.disable(gl.BLEND); gl.bindVertexArray(null);

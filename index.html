@@ -644,8 +644,8 @@ let BG_HL = 0.12; // strength of the drifting daytime highlight
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 2.5, farSoft: 3.0, focusNear: 9.0, camFade: [3.0, 5.0],
   bright: 1.25, dimPow: 5.5, iri: 0.8, iriShare: 0.02, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10,
-  streak: 0.25, streakShare: 0.35 }; // iriShare: share of strongly coloured sparkles; streak: seconds of motion a streak spans
-                                     // (at most 6 px at 1080p)
+  minTilt: 0.15 }; // iriShare: share of strongly coloured sparkles; minTilt: how far from edge-on a disc is ever seen
+                   // (the cosine of its tilt to the view), so an edge-on disc shows as a short thin line
 let DITHER = 0.85; // output levels, peak
 let GLARE_DESAT = 0.6; // how far the halo is pulled towards white
 
@@ -856,16 +856,16 @@ void main(){
   o = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 
-// Sparkles: camera-facing quads with depth of field and an iridescent tint, drawn
-// additively straight onto the output after the final pass.
+// Sparkles: flat round discs in 3D, turned by each sparkle's spin (towards the camera when close to it), with depth of
+// field and an iridescent tint, drawn additively straight onto the output after the final pass.
 const VS_SPARK = `#version 300 es
 precision highp float;
 layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
-uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uPxScale, uSize, uBlur;
+uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uPxScale, uSize, uBlur, uF;
 uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uIri, uIriExp, uFlare, uDimPow, uDofPow;
-uniform float uGlint, uExt, uIriShare, uStreak, uStreakShare; uniform vec2 uRes;
-out vec2 vQ; out float vI; out vec3 vC; out float vSoft; out float vL; out float vNear;
+uniform float uGlint, uExt, uIriShare, uMinTilt; uniform vec2 uRes;
+out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
 vec3 ramp(float x){ return 0.5 + 0.5 * cos(6.2831853 * (x + vec3(0.0, 0.33, 0.67))); }
 void main(){
   vec3 P = mix(aP0, aP1, uAlpha);
@@ -885,38 +885,36 @@ void main(){
   float colourful = step(fract(aRnd * 13.7), uIriShare);
   vC = mix(vec3(1.0), ramp(a + 0.15 * aRnd), mix(0.02, uIri, colourful) * (1.0 - 0.8 * clamp(out_, 0.0, 1.0)));
   vI = I * (0.55 + uFlare * fl) * uGlint;
-  vSoft = clamp(out_, 0.0, 1.0); vNear = clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0);
-  float r = max(sizePx, 0.7) * uExt;
+  vSoft = clamp(out_, 0.0, 1.0);
+  // the disc's plane: its own facing from the spin, turned towards the camera when close to it, and never quite edge-on
+  // (at least uMinTilt of a face-on view, so an edge-on disc is a short thin line rather than nothing)
+  vec3 N = aF * sign(dot(aF, V) + 1e-6);
+  N = normalize(mix(N, V, clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0)));
+  float c = dot(N, V); if (c < uMinTilt) N = normalize(mix(N, V, (uMinTilt - c) / max(1.0 - c, 1e-3)));
+  vec3 Ub = normalize(cross(N, abs(N.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0))), Vb = cross(N, Ub);
+  // the disc's radius in scene units for its size in pixels at this distance; the patch is uExt times the disc
+  float Rw = max(sizePx, 0.7) * max(z, 0.05) * 2.0 / (uF * uRes.y);
   vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)) * 2.0 - 1.0;
-  vec4 clip = uVP * vec4(P, 1.0);
-  // some sparkles are short streaks: drawn stretched along their on-screen motion (one step apart, 60 per second)
-  vec4 c0 = uVP * vec4(aP0, 1.0), c1 = uVP * vec4(aP1, 1.0);
-  vec2 dv = (c1.xy / max(c1.w, 1e-3) - c0.xy / max(c0.w, 1e-3)) * 0.5 * uRes * 60.0;
-  float sp = length(dv); vec2 dir = sp > 1e-3 ? dv / sp : vec2(1.0, 0.0);
-  float Lh = min(0.5 * sp * uStreak, 3.0 * uPxScale) * step(fract(aRnd * 3.17), uStreakShare) * (1.0 - clamp(out_, 0.0, 1.0));
+  vec4 clip = uVP * vec4(P + (Ub * corner.x + Vb * corner.y) * Rw * uExt, 1.0);
   if (z < 0.05) clip = vec4(2.0, 2.0, 2.0, 1.0);
-  vec2 off = dir * corner.x * (r + Lh) + vec2(-dir.y, dir.x) * corner.y * r;
-  clip.xy += off / uRes * 2.0 * clip.w;
-  vQ = vec2(corner.x * (r + Lh), corner.y * r) / max(sizePx, 0.7);
-  vL = Lh / max(sizePx, 0.7);
+  vQ = corner * uExt;
   if (sizePx < 0.7) vI *= (sizePx * sizePx) / 0.49;
   gl_Position = clip;
 }`;
 const FS_SPARK = `#version 300 es
 precision highp float;
-in vec2 vQ; in float vI; in vec3 vC; in float vSoft; in float vL; in float vNear; uniform float uExt;
+in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt;
 out vec4 o;
 void main(){
-  vec2 q0 = vec2(max(abs(vQ.x) - vL, 0.0), vQ.y); // distance from the streak's centre segment (a dot when vL = 0)
-  float r2 = dot(q0, q0);
-  float sharp = exp(-r2 * 2.2);
-  // out of focus: a soft spot beyond the focus, a flat disc nearer the camera
-  float soft = mix(smoothstep(1.0, 0.55, sqrt(r2)) * 0.6 + exp(-r2 * 1.5) * 0.4, smoothstep(1.0, 0.8, sqrt(r2)) * 0.85 + exp(-r2 * 1.5) * 0.15, vNear);
+  float r = length(vQ); // 1 at the disc's edge; the patch reaches uExt, so the disc is zero well inside it
   float k;
-  if (uExt > 1.5) { // glint pass: a soft round halo (no rays)
-    vec2 q = q0 / uExt;
-    k = 0.45 * exp(-dot(q, q) * 6.0) * (1.0 - vSoft);
-  } else k = mix(sharp, soft, vSoft);
+  if (uExt > 1.5) { // glint pass: a soft round halo in the disc's plane, zero before the patch's edge
+    float q = r / uExt;
+    k = 0.45 * exp(-q * q * 6.0) * smoothstep(1.0, 0.8, q) * (1.0 - vSoft);
+  } else { // a flat disc: a crisp, anti-aliased edge in focus, softening out of focus
+    float e = max(fwidth(r) * 1.2, 0.04 + 0.6 * vSoft);
+    k = 1.0 - smoothstep(1.0 - e, 1.0, r);
+  }
   o = vec4(vC * vI * k, 1.0);
 }`;
 
@@ -1227,7 +1225,7 @@ function renderFrame(st, outTarget) {
     const pr = PR.spark; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
     sparkUniforms(pr, m, cam, st);
-    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.6);
+    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.25);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, st.nSparks);
     if (T) T.end();
     if (L.glints !== false && stopAfter >= 6) { // the glints are a layer of their own in the menu
@@ -1254,7 +1252,7 @@ function sparkUniforms(pr, m, cam, st) {
   gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uIri, SPARKR.iri);
   gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare); gl.uniform1f(pr.u.uDimPow, SPARKR.dimPow);
   gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow); gl.uniform1f(pr.u.uIriShare, SPARKR.iriShare);
-  gl.uniform1f(pr.u.uStreak, SPARKR.streak); gl.uniform1f(pr.u.uStreakShare, SPARKR.streakShare);
+  gl.uniform1f(pr.u.uF, cam.f); gl.uniform1f(pr.u.uMinTilt, SPARKR.minTilt);
   gl.uniform2f(pr.u.uRes, ow, oh);
 }
 
@@ -1330,7 +1328,7 @@ function drawWireframes(st) {
     if (!st.layers.sparkles) { gl.bindBuffer(gl.ARRAY_BUFFER, sparkBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, st.sparks, 0, st.nSparks * SPARK_STRIDE); }
     const pr = PR.sparkWire; gl.useProgram(pr.p); gl.bindVertexArray(sparkVao);
     sparkUniforms(pr, m, cam, st);
-    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.6); gl.uniform4f(pr.u.uColor, 1.0, 0.35, 0.8, 0.6);
+    gl.uniform1f(pr.u.uGlint, 1.0); gl.uniform1f(pr.u.uExt, 1.25); gl.uniform4f(pr.u.uColor, 1.0, 0.35, 0.8, 0.6);
     gl.drawArraysInstanced(gl.LINE_LOOP, 0, 4, st.nSparks);
   }
   gl.disable(gl.BLEND); gl.bindVertexArray(null);
@@ -1580,8 +1578,7 @@ group('Sparkles', [
   field('SPARKR', SPARKR, 'iri', 'iridescence', 0, 1, 0.01), field('SPARKR', SPARKR, 'iriExp', 'iridescence exponent', 0.5, 4, 0.05),
   field('SPARKR', SPARKR, 'flare', 'flare', 0, 4, 0.05), field('SPARKR', SPARKR, 'glintSize', 'glint size', 1, 10, 0.1),
   field('SPARKR', SPARKR, 'glintBright', 'glint brightness', 0, 0.5, 0.005),
-  field('SPARKR', SPARKR, 'iriShare', 'coloured share', 0, 1, 0.01), field('SPARKR', SPARKR, 'streak', 'streak length (s)', 0, 2, 0.01),
-  field('SPARKR', SPARKR, 'streakShare', 'streak share', 0, 1, 0.01),
+  field('SPARKR', SPARKR, 'iriShare', 'coloured share', 0, 1, 0.01), field('SPARKR', SPARKR, 'minTilt', 'least disc tilt', 0, 1, 0.01),
   sim('SPARK.burstP', 'burst chance', 0, 1, 0.01), sim('SPARK.burstMax', 'burst size', 1, 20, 1),
   sim('SPARK.walkerP', 'walker chance', 0, 0.3, 0.005), sim('SPARK.walkStep', 'walker step', 0.005, 0.2, 0.005),
   sim('SPARK.cone', 'birth cone', 0, 1, 0.01), sim('SPARK.reverseP', 'reversed births', 0, 0.5, 0.01),
