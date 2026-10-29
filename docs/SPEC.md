@@ -4,7 +4,7 @@ This document describes an effect: a flowing, luminous wave drifting across a so
 
 It describes **what the viewer should see, how it should behave, and how the original is built in general terms**. Construction is given as recommended design: "the original does X; do the same, with your own values". It contains no colours, palettes, textures, constants, preset values or code from the original. The only numbers taken from the analysis of the original are the few listed in section 11 ("Structural numbers from observation and analysis"). Every other value, colour, texture and implementation detail is **your design**. Tune it by comparing your renders side by side with genuine public footage of the original (section 10). Where this document says "choose", the choice is yours.
 
-The current version is 15; the version history is at the end of this document.
+The current version is 16; the version history is at the end of this document.
 
 ## 1. Output and platform
 
@@ -120,12 +120,14 @@ The original builds the sheet in four stages. Do the same, with your own values.
 - The (deformed) net is the control net of a **uniform bicubic B-spline surface**: each 4 x 4 block of neighbouring control points defines one patch (the textbook arrangement), so the surface is smooth (curvature-continuous) everywhere. It approximates the net and does not pass through its points.
 - Each patch is **sampled on a regular grid** in parameter space. All patches use the same number of samples, enough that the facets never show. At each sample the original evaluates the position and the **normal**, as the cross product of the two partial derivatives (left unnormalised: its length is the area of the surface element). It then builds an indexed triangle-strip mesh over all samples.
 - **Edge fade:** every sample also carries a weight that is 1 over most of the sheet and falls smoothly to 0 at both ends and along both long edges. It multiplies the sheet's light.
-- The original deforms and projects the control points before it evaluates the surface. Evaluating in world or view space and then projecting is equally acceptable.
+- The original deforms and projects the control points before it evaluates the surface, so the surface, its derivatives and the normal it shades with all live in the projected space. **Version 16: do the same.** Evaluating in world or view space and projecting afterwards gives a different shading angle (see 4.5, "Brightness and view angle"), so it is no longer equally acceptable.
 
 **d. The camera.**
 
-- A **perspective camera** with a moderate vertical field of view. It looks along the sheet from in front and slightly to one side, rotated about a tilted axis so that the sheet is seen from slightly above and obliquely. That is why the band crosses the screen and varies in thickness. The near and far planes are ordinary.
-- The camera's tilt changes slightly with the time-of-day mood (the night mood tilts it a little differently).
+- A **perspective camera** with a moderate vertical field of view, rotated about a tilted axis so that the sheet is seen obliquely. The near and far planes are ordinary.
+- **Where the sheet lies (version 16).** The sheet's length runs across the view, roughly at right angles to the line of sight: the band crosses the screen with both ends outside it, and its distance from the camera changes only by a modest factor from one side of the screen to the other. Its width recedes from the camera. The angle between the line of sight and the sheet's mean plane is small and changes as the sheet swings, from nearly grazing to a modest elevation.
+- **How the sheet is seen (version 16).** Over the visible sheet the surface tilts to the line of sight are spread widely, from edge-on to face-on, and a typical bit is seen obliquely, about halfway between the two. A sheet that is mostly seen near face-on, with only the edges of its folds turning edge-on, is wrong: under the shading of 4.5 its faces then carry no sheen and its light collapses into thin lines. Check this on your own geometry: the distribution, over the on-screen surface, of the cosine defined in 4.5.
+- The camera's tilt changes with the time-of-day mood; the night mood tilts it by a clearly visible amount.
 
 **e. The drive in plain terms (version 5).**
 
@@ -137,6 +139,7 @@ The original builds the sheet in four stages. Do the same, with your own values.
 - **Why the folds cross (version 8).** Across the shaken edge, the towards-and-away timing offset builds up somewhat more than the up-and-down offset. That difference between the two axes is the source of the crossing folds.
 - **Push and nudges always on (version 7).** The steady push along the length and the per-step random nudges are present at every step and are part of the look rather than a correction. Do not switch them off or fade them out.
 - **Balance (version 13).** The look comes from a lightly damped sheet with small nudges. Do not reach it with heavy damping and strong nudges, or with a fast, large drive: that balance can match still statistics but trades one measure against another whenever it is re-tuned, and the sheet changes from second to second unlike the original.
+- **How strong the nudges are (version 16).** A check that does not depend on the look: hold the shaken edge still and let the nudges alone act on the net until its motion has settled; the typical speed of the points in the free half of the sheet is then of the same order as the shaken edge's peak speed when it moves, give or take a factor of two, not a small fraction of it. A net whose nudge-driven motion is a small fraction of the drive's shows too few partings and crossings and never pinches. The stipple that strong nudges produced in earlier builds came from angle-only shading with a hard edge-on line; the shading of 4.5 (version 16) is made to carry them.
 - **A slow, moderate drive (version 14).** The shaken edge moves slowly: one full swing of either of its two motions takes a few times longer than the swell takes to cross the screen (4.6). Each end moves less than one grid spacing either way. Its up-and-down travel is clearly larger than its towards-and-away travel, and the towards-and-away motion is the faster of the two.
 - The motion is smooth and continuous, with no bursts, pauses or jerks; the shaken edge traces slow, rounded paths that never exactly repeat.
 - Fine detail (where lines meet, small wrinkles) re-forms within seconds while the swell takes roughly 10-15 s to cross the screen; both are always present at once.
@@ -145,23 +148,26 @@ The original builds the sheet in four stages. Do the same, with your own values.
 
 **Which direction.** The sheet's shading is built from a periodic thread pattern across the ribbon. The pattern is a function of the across-ribbon surface coordinate, so its iso-lines (the threads) run **along the length**. The original has a thread-width control and a profile that is pre-filtered by on-screen density (below). In the settings it actually uses, the threads are at full width and fuse into a continuous sheen. What reads as "threads" is the soft streaking produced by the angle-dependent shading of a rippled sheet and by overlapping layers. Recommended: make the continuous, angle-shaded sheet right first. Add a thread texture along the length only if it stays subtle and never shows as distinct lines at normal resolutions.
 
-**Brightness and view angle.** Per surface sample, the original computes:
+**Brightness and view angle (version 16; replaces the version-3 description).** The original shades **per vertex** of the surface mesh, in the projected space of 4.4c, and interpolates the results across each triangle; the two lookups below are then applied **per pixel** to the interpolated values. Per vertex it computes:
 
-- the cosine of the angle between the line of sight and the surface normal;
-- a **projected-size factor**: how large this bit of surface appears on screen, i.e. the cosine times the surface element's area, reduced with distance.
+- the **cosine** between the surface normal and the direction from the camera to the point, both in the projected space. The normal is the cross product of the projected surface's two derivatives, left unnormalised, so its length is the area of the surface element in that space.
+- a **size factor**: that normal's component along the line of sight (area times cosine), divided by the **distance** to the point, and scaled by a per-mood constant. Note the first power of the distance, not the square: this is not the true on-screen area. Relative to its screen size, a farther bit of the sheet keeps more light per pixel than a nearer one.
 
-The light of each bit of sheet is the sum of two terms:
+Because the projection stretches the vertical axis by the aspect ratio relative to the horizontal, this cosine is a distorted view angle: a face tilted about a horizontal axis reads as markedly more face-on than it truly is, while one tilted about a vertical axis reads nearly true. The edge-on glow is therefore reached only when the sheet is quite close to edge-on about the horizontal axis. Reproduce this by evaluating the surface, its normal and the angle after projection (4.4c).
 
-- a **sheen term**: a base brightness times a smooth response looked up from the view angle;
-- a **Fresnel-like term**: strongest towards grazing angles and weaker where the sheet faces the camera.
+The light of a bit of sheet is the sum of two terms, each multiplied by the size factor and by the edge fade:
 
-Both terms are scaled by the projected-size factor and by the edge fade. The scaling keeps the light smooth where the sheet is strongly foreshortened: many surface elements pile into each pixel there, and the scaling stops that from blowing up exactly at the silhouette. The glow concentrates along the folds next to where the sheet turns edge-on, and overlapping layers add up. Where the sheet is compressed on screen, the original uses a **pre-filtered** (averaged) version of the thread profile. It chooses the version from the projected-size factor, much like a mip level. Dense detail therefore becomes an even sheen instead of aliasing. The mood (section 7) changes the base brightness, the strength of the Fresnel-like term and the response curve slightly.
+- a **sheen term**: the base brightness times the pre-filtered thread profile. It has **no response of its own in the view angle**; the angle enters only through the size factor. The profile is chosen by the size factor, like a mip level. In the settings used the threads are fused ("Which direction" above), so the profile is flat over small and middling size factors, and **it falls away to nothing where the size factor is large**. The sheen therefore rises with the size factor from zero, is strongest at middling values, and is cut off for bits of sheet that appear large on screen (near, face-on, big cells). Those get their light from the second term alone, which is why the faces are faint and see-through.
+- a **Fresnel-like term**: a strength times a response looked up with the **product** of the cosine and the size factor, not with the cosine alone. The response is one narrow peak a little way above zero in that product: nothing at exactly zero (exactly edge-on), a steep rise to the peak, and a fall to nothing from moderate values upwards. Because the index is a product, the peak sits at a smaller cosine (closer to edge-on) where the size factor is larger, and moves towards face-on where the size factor is small (far, foreshortened or small cells). This term is the soft bright strip just inside every edge-on turn.
+
+The mood (section 7) changes the base brightness, the strength of the Fresnel-like term and the per-mood scale of the size factor. A single response of the view angle times a size factor cannot reproduce this: it has no cut-off of the sheen, no shift of the glow with size, and no first-power distance term.
 
 **The projected-size scaling is required (version 10).** It is not only a guard against slivers:
 it applies to every bit of the sheet at every size, and it shapes the look.
 
 - A bit of sheet spread over many pixels gives more light per pixel than the same bit squeezed into
-  a thin sliver. The light grows steadily with the apparent size.
+  a thin sliver. The light grows steadily with the apparent size (version 16: up to middling size
+  factors; beyond them the sheen term is cut off, see above, and only the Fresnel-like term remains).
 - Exactly at the silhouette, where the sheet turns edge-on, the light therefore falls towards
   nothing. There is no separate hard line there. A fold's glow sits just inside the turn, where the
   sheet is still visibly tilted, and is spread over a soft strip several pixels wide.
@@ -172,7 +178,7 @@ it applies to every bit of the sheet at every size, and it shapes the look.
   some pinching, so re-tune with it in place.
 - **Area included (version 10.1).** The apparent size includes how much of the cloth each bit holds, not only its tilt and its distance: the surface element's area (as defined under "Brightness and view angle" above) is part of the factor. Where the sheet is bunched or compressed, each bit covers less of the screen and gives less light. The cosine and the distance alone leave this out, and give thinner lines, less of the band lit and a less steady picture.
 
-**Anti-aliasing.** The sheet is drawn into its own **off-screen buffer at a higher resolution than the screen** (supersampling). The buffer holds a single intensity and is accumulated with additive blending, at enough precision that many overlapping faint layers add up without banding or clipping. When the composite reads the buffer, it filters it down with a small smoothing filter. Supersampling plus filtering is the requirement; the factor and the filter are yours.
+**Anti-aliasing.** The sheet is drawn into its own **off-screen buffer at a higher resolution than the screen** (supersampling). The buffer holds a single intensity and is accumulated with additive blending, at enough precision that many overlapping faint layers add up without banding or clipping. When the composite reads the buffer, it filters it down with a small box filter. Supersampling plus filtering is the requirement; the factor is yours. **The filter is one output pixel wide (version 16):** it covers exactly the supersample block of one output pixel, no more. The softness of the original's lines comes from the shading above, not from this filter; do not widen the filter to soften lines.
 
 **Compositing.** In one full-screen pass the original:
 
@@ -293,7 +299,7 @@ Exposure, white point, radii, ratio and strength are all set per mood (section 7
 - **Motion (version 12).** Each sparkle keeps the velocity it is flung off the wave with for its whole life. Nothing visibly slows, lifts or drops it: any gravity must be too weak to bend a path visibly over a sparkle's life. Sparkles move about as fast as the band's own lines rise and fall (4.6), so they read as being thrown off the moving sheet, not floating. At any moment slightly more of them are moving up than down, and there is no visible downward settling.
 - **Time of day (version 12).** Their number and brightness are the same at every time of day. The mood changes the focus and size only slightly, never their brightness.
 - **Look (version 12).** Mostly neutral white-grey: small hard-edged round dots, some seen as ovals or short dashes as they tumble, an occasional bright point with a soft halo, and large, flat, dim grey out-of-focus discs close to the camera. Only a few carry strong colour. No star rays. Among many faint sparkles a few stand out brightly.
-- **Shape (version 15).** Every sparkle is a small, flat, round disc in 3D, not a camera-facing sprite. It tumbles with the sparkle's spin: seen face-on it is round, tilted it becomes an oval, and nearly edge-on a short thin line, so some sparkles read as short dashes that change shape as they turn. Nothing stretches a sparkle along its direction of motion. Sparkles close to the camera turn towards it and show as round discs. In focus, a disc has a crisp edge and a flat, even interior; out of focus, its edge softens. The disc fades to nothing well inside the patch it is drawn on, so no square or rectangular outline ever shows. The glint pass is round too.
+- **Shape (version 15).** Every sparkle is a small, flat, round disc in 3D, not a camera-facing sprite. It tumbles with the sparkle's spin: seen face-on it is round, tilted it becomes an oval, and nearly edge-on a short thin line that is also fading out (version 16: a disc's opacity falls as it turns edge-on, so a fully edge-on disc is invisible), so some sparkles read as short dashes that change shape as they turn. Nothing stretches a sparkle along its direction of motion. Sparkles close to the camera turn towards it and show as round discs. In focus, a disc has a crisp edge and a flat, even interior; out of focus, its edge softens. The disc fades to nothing well inside the patch it is drawn on, so no square or rectangular outline ever shows. The glint pass is round too.
 
 ### Construction (how the original does it; do the same with your own values)
 
@@ -301,8 +307,9 @@ Exposure, white point, radii, ratio and strength are all set per mood (section 7
 
 **Birth: where.** Sparkles are born **on the wave surface**, at sample points of the sheet's mesh. There are two sources:
 
-- **Bursts:** occasionally, a handful of sparkles at once, each at an independently chosen random point of the sheet.
-- **A walker:** from time to time a walker starts at a random point of the sheet. It then emits one sparkle at a steady pace while it steps point by point along one surface direction. It stops after a random number of steps or at the sheet's end. This produces **trails** of sparkles along the sheet.
+- **Bursts (version 16):** on a large share of the steps, a batch of a fixed size, considerably more than a handful, each sparkle at an independently chosen random point of the sheet.
+- **A walker (version 16):** a single walker. From time to time it starts at a random point of the sheet. It then emits one sparkle every other step while it steps point by point along the length. It stops after a random number of steps or at the sheet's end. This produces **trails** of sparkles along the sheet.
+- **Balance (version 16).** Bursts supply nearly all births; trails are a small minority. Once the pool is full, the walker's births are the ones that are dropped, because its requests are queued after the burst's. A build whose sparkles are mostly trails is wrong.
 
 **Birth: velocity.**
 
@@ -327,7 +334,8 @@ Exposure, white point, radii, ratio and strength are all set per mood (section 7
 **Rendering.**
 
 - Each sparkle is a flat patch at its 3D position, turned by the sparkle's spin (turned towards the camera when close to it) and carrying a round disc (version 15), drawn with additive blending and with its opacity from the life ramp.
-- **Iridescent tint by orientation:** the sparkle's facing direction comes from its quaternion. Its colour is looked up from a smooth iridescent colour ramp, indexed by the angle between that direction and the view, sharpened with an exponent. It appears to be lit by a few fixed light directions (not confirmed), so a sparkle flares when its face catches a light. As sparkles spin, this makes them twinkle and shift colour.
+- **Lighting and colour (version 16; replaces "iridescent tint by orientation").** The sparkle's facing direction comes from its quaternion. Each disc is lit by **one fixed light at a point in the scene**, not by a set of directions: a two-sided diffuse term from the facing direction, plus a **sharp specular highlight** from the half-way vector between the directions to the light and to the camera, the highlight tinted by the iridescent colour. The sum passes through a **soft saturating curve** (an exponential approach to white), so the brightest sparkles saturate instead of blowing out. The iridescent colour comes from a **two-dimensional colour map** indexed by the two screen-plane components of the facing direction (a "lit sphere" lookup), raised to an exponent. There is **no per-sparkle random brightness**: the spread from faint to bright, and the twinkle, come from the lighting as the discs spin (a disc flares when its orientation catches the highlight) and from the fades below.
+- **Tilt fade (version 16).** A disc's opacity falls smoothly as it turns edge-on (a power curve of one minus the cosine between its facing direction and the direction to the camera), so a fully edge-on disc is invisible; the dashes of version 15 are discs at moderate tilts. Opacity also fades out smoothly as a sparkle approaches the faces of the bounding region, and the depth-of-field darkening below reduces it further.
 - **Depth of field:** each sparkle's size and brightness depend on its distance from a **focus range** (a near and a far focus distance, each with a soft transition). In focus: small and sharp. Nearer or farther: larger, softer and dimmer, so the total light stays similar. Sparkles very close to the camera are faded further.
 - **Second glint pass:** the same sparkles are drawn again additively as a second, softer glint. Its strength follows the mood's glare setting.
 - The mood (section 7) shifts the far focus distance and the sparkle size slightly.
@@ -442,6 +450,8 @@ The user allowed these few numbers from the analysis of the original. Use them a
 | N7 | Month palette shift (3) | changes once a day, at local midnight, in equal steps: this month's palette alone on the 1st, then one more step towards next month's each day, so the last day is one step short of next month's palette |
 
 ## Version history
+
+**Version 16 (2026-10-29).** From a side-by-side reading of the original's construction against the current build; no values. 4.5: the shading stated exactly in structure: two terms, each scaled by a size factor that falls with the first power of distance and is computed per vertex in the projected space; the Fresnel-like response indexed by the product of the cosine and the size factor; the sheen with no angle response of its own, cut off where the size factor is large; the down-filter one output pixel wide. 4.4c: evaluate the surface after projection (required). 4.4d: where the sheet lies and how obliquely it is seen. 4.4e: a checkable statement of the nudges' strength. Section 6: bursts supply nearly all births; one point light with diffuse and sharp specular terms through a soft saturating curve; a two-dimensional iridescent map; a tilt fade that removes edge-on discs; no per-sparkle random brightness. Nothing else changed.
 
 **Version 15 (2026-10-27).** Section 6: sparkles are flat round discs in 3D that tumble with their spin (round face-on, oval when tilted, a short line nearly edge-on), turned towards the camera when close to it; nothing stretches them along their motion; no square outlines. The rendering note no longer calls them camera-facing billboards. Nothing else changed.
 
