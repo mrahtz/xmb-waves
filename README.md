@@ -106,34 +106,44 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   end covers more of the scene (a swell rolling from the shaken end to the free
   end and growing along it, which lifts the band strands together, plus a
   sliding bump, a slow bob and a small twist) and used as the control net of a bicubic
-  B-spline surface evaluated on the GPU and seen through a slightly raised
-  (about 2 to 3 degrees, depending on the mood), oblique perspective camera
-  placed far back with a narrow field of view, so the near and far parts of
-  the band look alike.
-- The sheet is lit by the angle between its normal and the line of sight
-  with a flat-topped response (nearly edge-on faces of the shallowly seen
-  sheet stay near full brightness, faces that turn towards the viewer fade),
-  times how large each bit of sheet appears on screen: a bit spread over many
-  pixels gives more light per pixel than the same bit squeezed into a sliver.
-  The light therefore falls towards nothing exactly where the sheet turns
-  edge-on, so a fold's glow is a soft strip just inside the turn with no hard
-  line at the silhouette, and overlapping layers add up. Every surface cell is
-  drawn as its own small quad into a supersampled single-channel buffer with
+  B-spline surface evaluated on the GPU. The sheet lies fairly flat, its
+  length across the view and its width running away from the camera, which
+  has a moderate (40 degree) field of view and looks down on it at a small
+  angle (8 degrees by day, 9.5 at dawn and dusk, 4.5 at night), so a typical
+  bit of the sheet is seen at a slant rather than face-on.
+- The sheet is shaded per vertex in the camera's projected space (clip space
+  before the perspective divide, where the vertical is stretched relative to
+  the horizontal), as spec version 16 describes. Each vertex gets the cosine
+  between its normal and the line of sight, and a size factor: the normal's
+  component along the line of sight divided by the distance. The light is the
+  size factor times the sum of a sheen, which is cut off where the size factor
+  is large (near, face-on bits, so the faces are faint and see-through), and a
+  glow, a narrow peak looked up with the cosine times the size factor, which
+  makes the soft bright strip just inside every fold. The light falls towards
+  nothing exactly where the sheet turns edge-on, so there is no hard line at
+  the silhouette, and overlapping layers add up. Every surface cell is drawn
+  as its own small quad into a supersampled single-channel buffer with
   additive blending; cells thinner than a pixel are widened to a pixel and
   their light scaled by their true size, so silhouettes never shimmer. The
-  buffer is filtered down in the final pass.
+  buffer is averaged down in the final pass with a box exactly one output
+  pixel wide.
 - The background is a small image per month and per day/night, blended by
   the day of the month and by the hour, upscaled with a B-spline filter and
   eased from frame to frame. A bright-pass bloom pyramid of background plus
   wave adds the glare.
-- About 2,000 sparkles are flung off the moving sheet by bursts and trail
-  walkers, keep the velocity they are flung with (about as fast as the band's
-  lines, slightly more of them rising than falling) and spin. Each is drawn
-  as a flat round disc in 3D, turned by its spin (towards the camera when
-  close to it, never fully edge-on, so an edge-on disc shows as a short thin
-  line), with a crisp edge that softens out of focus (depth of field); they
-  are mostly neutral with a few iridescent ones, plus a soft round glint pass,
-  the same at every time of day. They are drawn
+- About 2,000 sparkles are flung off the moving sheet, born at the sample
+  points of its mesh: nearly all by bursts (a fixed batch on a large share of
+  the steps), a few by a single walker that leaves short trails along the
+  length. They keep the velocity they are flung with (slightly more of them
+  rising than falling) and spin. Each is drawn as a flat round disc in 3D,
+  turned by its spin (towards the camera when close to it), with a crisp edge
+  that softens out of focus (depth of field), and fades as it turns edge-on,
+  so a fully edge-on disc is invisible. One point light gives each disc a
+  diffuse term and a sharp highlight tinted by an iridescent colour map
+  indexed by the disc's facing direction, through a soft curve that saturates
+  to white; there is no random brightness per sparkle, so the spread from
+  faint to bright and the twinkle come from the light as the discs spin. A
+  soft round glint pass is added, the same at every time of day. They are drawn
   straight onto the output after the final pass (the dither is applied just
   before them), which saves a full-resolution colour buffer.
 - Everything is tuned by comparing deterministic renders (`mode=score`) side
@@ -178,27 +188,24 @@ README).
 
 ## Status
 
-Compared side by side against public recordings (see `docs/REFERENCES.md`)
-and, like for like, against the reference frames and clips run through the
-same measurement tools as my renders (the spec's section 4.6 statistics,
-re-measured that way). The latest measurements of each change are in
-`docs/references/tuning-log.md`.
+The implementation follows spec version 16, but has **not yet been retuned**
+against the public recordings since that change. Spec version 16 changed the
+wave's shading and asked for the sheet to be seen at a slant (section 4.4d),
+which needed a different camera and a flatter, wider sheet. Those were set by
+hand, with the shading's values carried over from a quick test and the
+brightness set by eye. Earlier measurements (spec versions 14 and 15) are in
+`docs/references/tuning-log.md`, but they describe the previous camera and
+shading and no longer apply.
 
-- The wave (spec version 14, with its fixed slow drive and light damping):
-  close to the reference in its placement, its brightness over the day, the
-  number of strands per column, the time the swell takes to cross the screen
-  (18 s against 13) and how fast the picture changes (0.33 correlation after
-  one second against 0.41). Still short of it: the sheet's faces are much
-  dimmer relative to the folds and lines, the band narrows to a thin line
-  too often or too rarely depending on the seed, less of the band is lit, and
-  the dark partings between strands drift about half as fast. Its shape
-  varies far more from seed to seed than before.
-- The sparkles (spec version 15, flat discs): matched to sparkle clips of the
-  original in how many are on screen, their brightness, their speed and how
-  few are strongly coloured; fewer of them look elongated than in the clips.
-- Also compared: the night look; the palettes for February, April (through a
-  late-March capture), May, August, October/November and September (purple);
-  the glare's subtlety.
+- The wave: a typical bit of the sheet is now seen obliquely (the spec's
+  projected cosine has a median of 0.41-0.55 depending on the mood, against
+  0.82-0.88 before). Compared with the previous build by eye, the band is
+  thinner and straighter, with less arch and a smaller swell. The band
+  statistics of spec section 4.6 have not been re-measured.
+- The sparkles: births, lighting and fades follow spec version 16; their
+  lighting values are first guesses, not matched to the sparkle clips.
+- Unchanged since the last comparison: the palettes, the night look of the
+  background and the glare.
 
 Not verifiable from the references available so far: the palettes for
 January, March, June, July and December (and theme 1, silver), the look in
