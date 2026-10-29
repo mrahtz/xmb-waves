@@ -5,6 +5,8 @@ background: a flowing, luminous wave of fine lines drifting across a softly
 coloured gradient, with glowing sparkles around it, whose colours follow the
 time of day and the month.
 
+![The wave at noon on 15 September (purple), 8 seconds at real speed](docs/media/demo.gif)
+
 Not affiliated with, endorsed by or connected to Sony Interactive Entertainment. PlayStation, PS3 and XMB are trademarks or terms of Sony Interactive Entertainment.
 
 ## Process (clean room)
