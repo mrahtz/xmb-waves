@@ -83,14 +83,19 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 
 - A 19 x 19 mass-spring net, shaken at the far end and gently pulled at the
   free end, is simulated at 60 fixed steps per second in a Web Worker. Each
-  point of the shaken edge moves up and down by one slow oscillation and
-  towards and away by another, with the timing offset building up across the
-  width to about two cycles for the height and nearly four for the depth,
-  so the edge is itself wavy and, because the two offsets differ, the folds
-  it sends along the sheet cross at shallow angles; the springs are soft, so
-  the folds travel slowly.
+  point of the shaken edge moves, by less than one grid spacing, up and down
+  on a slow 60 s cycle and towards and away on a 40 s cycle, with the timing
+  offset building up across the width to about one cycle for the height and
+  nearly two and a half for the depth, so the edge is itself wavy and,
+  because the two offsets differ, the folds it sends along the sheet cross at
+  shallow angles; the springs are soft, so the folds travel slowly. The
+  damping is light (motion dies away over about 120 s, two of the slower
+  cycles), so folds launched at the shaken end still reach the free end.
   Nothing pulls the net towards a rest shape: its form comes from the
-  springs, the damping, the steady push and the shaking alone. Tiny random
+  springs, the damping, the steady push and the shaking alone. The page
+  starts from a stored, already settled state of the net (kept in
+  `src/sim.js`), so the wave is in its running form from the first frame.
+  Tiny random
   velocity kicks keep the motion alive and, because the across-the-width
   springs have no linear stiffness at rest length, also set how many strands
   the band shows (their size is tuned to the reference's three to four
@@ -100,28 +105,32 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   end and growing along it, which lifts the band strands together, plus a
   sliding bump, a slow bob and a small twist) and used as the control net of a bicubic
   B-spline surface evaluated on the GPU and seen through a slightly raised
-  (about 5 degrees), oblique perspective camera placed far back with a narrow
-  field of view, so the near and far parts of the band look alike.
+  (about 2 to 3 degrees, depending on the mood), oblique perspective camera
+  placed far back with a narrow field of view, so the near and far parts of
+  the band look alike.
 - The sheet is lit by the angle between its normal and the line of sight
-  with a flat-topped response: the nearly edge-on faces of the shallowly
-  seen sheet stay near full brightness, faces that turn towards the viewer
-  fade to a faint level, and where a layer turns exactly edge-on a weak soft
-  line is added. The band is therefore a broad, evenly lit ribbon whose folds
-  stand only moderately above the faces, as in the reference, and overlapping
-  layers add up. Every surface cell is drawn as its own small quad into a
-  supersampled single-channel buffer with additive blending; cells thinner
-  than a pixel are widened to a pixel and their light scaled by their true
-  size, so silhouettes never shimmer. The buffer is filtered down in the
-  final pass.
+  with a flat-topped response (nearly edge-on faces of the shallowly seen
+  sheet stay near full brightness, faces that turn towards the viewer fade),
+  times how large each bit of sheet appears on screen: a bit spread over many
+  pixels gives more light per pixel than the same bit squeezed into a sliver.
+  The light therefore falls towards nothing exactly where the sheet turns
+  edge-on, so a fold's glow is a soft strip just inside the turn with no hard
+  line at the silhouette, and overlapping layers add up. Every surface cell is
+  drawn as its own small quad into a supersampled single-channel buffer with
+  additive blending; cells thinner than a pixel are widened to a pixel and
+  their light scaled by their true size, so silhouettes never shimmer. The
+  buffer is filtered down in the final pass.
 - The background is a small image per month and per day/night, blended by
   the day of the month and by the hour, upscaled with a B-spline filter and
   eased from frame to frame. A bright-pass bloom pyramid of background plus
   wave adds the glare.
 - About 2,000 sparkles are flung off the moving sheet by bursts and trail
   walkers, keep the velocity they are flung with (about as fast as the band's
-  lines, slightly more of them rising than falling), spin, and are drawn as
-  billboards with depth of field: mostly neutral dots and short streaks, dim
-  flat discs near the camera and a few iridescent ones, plus a soft glint pass,
+  lines, slightly more of them rising than falling) and spin. Each is drawn
+  as a flat round disc in 3D, turned by its spin (towards the camera when
+  close to it, never fully edge-on, so an edge-on disc shows as a short thin
+  line), with a crisp edge that softens out of focus (depth of field); they
+  are mostly neutral with a few iridescent ones, plus a soft round glint pass,
   the same at every time of day. They are drawn
   straight onto the output after the final pass (the dither is applied just
   before them), which saves a full-resolution colour buffer.
@@ -148,6 +157,12 @@ straight from the repository and on GitHub Pages. The sources:
 The files in `src/main/` share one scope and are joined in the order listed
 in `src/main/ORDER`.
 
+After changing any of the spring net's constants in `src/sim.js`, run
+`node tools/mkstate.js` to settle the net again and write the new starting
+state into `src/sim.js`, then rebuild `index.html`. Until then the stored
+state no longer matches, and the page settles the net itself at start-up,
+which takes a few seconds.
+
 Deterministic frames for side-by-side comparison come from `tools/render.js`
 (needs Playwright with Chromium), for example:
 
@@ -161,21 +176,27 @@ README).
 
 ## Status
 
-Verified side by side against public recordings (see `docs/REFERENCES.md`)
+Compared side by side against public recordings (see `docs/REFERENCES.md`)
 and, like for like, against the reference frames and clips run through the
 same measurement tools as my renders (the spec's section 4.6 statistics,
-re-measured that way): the band's placement, its brightness over the day,
-the number of strands per column, how much of the band is lit, the
-face-to-fold contrast, the width of its lines and edges, the line-to-band
-contrast, the partings between strands, the strands moving together, the
-gentle swell and the slow drift of features. Still short of the reference:
-its lines sit more in the middle of the band than at the fringes, it has
-somewhat fewer crossings and dark partings between strands, its faces are a
-little brighter relative to the folds, and its picture changes a little
-faster (0.3 correlation after one second against 0.4);
-the night look; the palettes for February, April (through a late-March
-capture), May, August, October/November and September (purple); the sparkle
-population and look; the glare's subtlety.
+re-measured that way). The latest measurements of each change are in
+`docs/references/tuning-log.md`.
+
+- The wave (spec version 14, with its fixed slow drive and light damping):
+  close to the reference in its placement, its brightness over the day, the
+  number of strands per column, the time the swell takes to cross the screen
+  (18 s against 13) and how fast the picture changes (0.33 correlation after
+  one second against 0.41). Still short of it: the sheet's faces are much
+  dimmer relative to the folds and lines, the band narrows to a thin line
+  too often or too rarely depending on the seed, less of the band is lit, and
+  the dark partings between strands drift about half as fast. Its shape
+  varies far more from seed to seed than before.
+- The sparkles (spec version 15, flat discs): matched to sparkle clips of the
+  original in how many are on screen, their brightness, their speed and how
+  few are strongly coloured; fewer of them look elongated than in the clips.
+- Also compared: the night look; the palettes for February, April (through a
+  late-March capture), May, August, October/November and September (purple);
+  the glare's subtlety.
 
 Not verifiable from the references available so far: the palettes for
 January, March, June, July and December (and theme 1, silver), the look in
