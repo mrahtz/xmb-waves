@@ -53,7 +53,7 @@ function XMBW_SIM() {
     twistAmp: 0.005927, twistW: 0.21,  // a gentle ripple, one cycle across the width, travelling across it
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 10.18, x0: 0.7921, wid: 5.056, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 10.18, x0: 0.7921, wid: 12.0, height: 1.5, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
@@ -63,13 +63,13 @@ function XMBW_SIM() {
     burstP: 0.45, burstN: 14,
     walkerP: 0.01, walkMin: 40, walkMax: 160, gridAlong: 64, gridAcross: 6,
     cone: 1.1, reverseP: 0.12,
-    speedK: 0.24, speedPow: 0.5, speedMin: 0.027, // scene units / s: on screen about as fast as the band's lines rise and fall
+    speedK: 0.105, speedPow: 0.5, speedMin: 0.012, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
     rampIn: 0.06, rampOut: 0.16,
     jitter: 0.003, gravity: 0.0002, friction: 0.0,  // per second units: a sparkle keeps the velocity it is flung with
     upLean: 0.12,                                   // share of downward-flung sparkles turned round, so slightly more rise than fall
     spinA: 2.2, spinF: [0.21, 0.37],                // rad/s amplitude, oscillation freq range (rad/s)
-    box: [[-7, 7], [-3.0, 3.2], [-3.5, 5.0]],
+    box: [[-7, 7], [-3.0, 3.2], [-4.0, 6.5]],
     boxFade: 0.6,                                   // opacity fades out over this distance from the box's faces (scene units)
   };
   const SPARK_STRIDE = 11; // prev xyz, cur xyz, facing xyz, opacity, random (not used for brightness)

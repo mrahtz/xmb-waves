@@ -150,9 +150,9 @@ group('Glare', [
   live('GLARE_DESAT', 'desaturation', () => GLARE_DESAT, v => { GLARE_DESAT = v; }, 0, 1, 0.01),
 ]);
 group('Sparkles', [
-  mood('sparkBright', 'brightness', 0, 2, 0.01), mood('sparkSize', 'size (mood)', 0.2, 3, 0.01), mood('focusFar', 'far focus', 6, 20, 0.1), mood('glint', 'glint', 0, 1, 0.01),
+  mood('sparkBright', 'brightness', 0, 2, 0.01), mood('sparkSize', 'size (mood)', 0.2, 3, 0.01), mood('focusFar', 'far focus', 2, 12, 0.05), mood('glint', 'glint', 0, 1, 0.01),
   field('SPARKR', SPARKR, 'size', 'size', 0.5, 8, 0.1), field('SPARKR', SPARKR, 'blur', 'bokeh blur', 0, 12, 0.1),
-  field('SPARKR', SPARKR, 'dofPow', 'bokeh dimming', 0.2, 3, 0.05), field('SPARKR', SPARKR, 'focusNear', 'near focus', 3, 15, 0.1),
+  field('SPARKR', SPARKR, 'dofPow', 'bokeh dimming', 0.2, 3, 0.05), field('SPARKR', SPARKR, 'focusNear', 'near focus', 1, 10, 0.05),
   field('SPARKR', SPARKR, 'nearSoft', 'near softness', 0.5, 6, 0.1), field('SPARKR', SPARKR, 'farSoft', 'far softness', 0.5, 6, 0.1),
   field('SPARKR', SPARKR, 'bright', 'base brightness', 0, 2, 0.01),
   field('SPARKR', SPARKR, 'diffuse', 'diffuse light', 0, 3, 0.01), field('SPARKR', SPARKR, 'spec', 'highlight', 0, 10, 0.05),

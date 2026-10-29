@@ -37,22 +37,22 @@ const MOOD_KEYS = [
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 5.0, base: 0.24, fres: 1.0, sizeK: 1.0, threadAmp: 0.0,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 1.7,
+  night: { waveBright: 0.31, base: 0.24, fres: 4.0, sizeK: 3.4, threadAmp: 0.0,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 4.5,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
-    focusFar: 12.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dawn: { waveBright: 4.9, base: 0.30, fres: 1.0, sizeK: 1.0, threadAmp: 0.0,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 2.7,
+    focusFar: 5.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+  dawn: { waveBright: 0.3, base: 0.30, fres: 4.0, sizeK: 3.4, threadAmp: 0.0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 9.5,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 12.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  day: { waveBright: 4.9, base: 0.30, fres: 1.0, sizeK: 1.0, threadAmp: 0.0,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 1.352,
+    focusFar: 5.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+  day: { waveBright: 0.3, base: 0.30, fres: 4.0, sizeK: 3.4, threadAmp: 0.0,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 8.0,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 12.5, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 5.0, base: 0.32, fres: 1.0, sizeK: 1.0, threadAmp: 0.0,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 2.7,
+    focusFar: 5.45, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+  dusk: { waveBright: 0.31, base: 0.32, fres: 4.0, sizeK: 3.4, threadAmp: 0.0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 9.5,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 12.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 5.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -106,7 +106,11 @@ function partsOf(d) {
 // Camera (original design): looks across the sheet from in front, yawed so the
 // sheet is seen obliquely and pitched down a little; the pitch follows the mood.
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 18, yaw: -20, dist: 11, target: [0.8, 0.30, 0.0], near: 0.1, far: 40 }; // far back with a narrow view, so near and far parts look alike
+// Spec 4.4d (version 16): a moderate field of view and a closer camera, so the projected space of the shading stretches
+// the vertical only moderately; the sheet's length runs across the view, nearly at right angles to the line of sight,
+// and the camera looks down on the flat sheet at a small angle, so a typical bit of it is seen obliquely (the projected
+// cosine of 4.5 has a median of about 0.4-0.55 over the visible sheet, depending on the mood's pitch)
+const CAMERA = { fovY: 40, yaw: -10, dist: 4.8, target: [0.8, 0.30, 0.0], near: 0.1, far: 40 };
 function cameraFor(pitchDeg, aspect) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
@@ -135,14 +139,14 @@ const WAVE = {
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
   // shading (spec 4.5, version 16), the same in every mood: the size factors over which the sheen falls away (it is
   // flat below the first and gone above the second), and the glow's peak in cosine x size factor and its sharpness
-  sizeCut: [0.8, 1.6], fresPeak: 0.1, fresSharp: 2.0,
+  sizeCut: [0.15, 0.5], fresPeak: 0.05, fresSharp: 2.0,
   tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
 };
 const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
 // (these scalars are let, not const, only so the settings menu can change them live)
 let BG_HL = 0.12; // strength of the drifting daytime highlight
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
-const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 2.5, farSoft: 3.0, focusNear: 9.0, camFade: [3.0, 5.0],
+const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 1.1, farSoft: 1.3, focusNear: 3.9, camFade: [1.3, 2.2],
   bright: 0.56, glintSize: 4.5, glintBright: 0.10,
   // lighting (spec 6, version 16): one point light in the scene (above, in front and to the left of the sheet); diffuse
   // and specular strengths, the highlight's sharpness, the iridescent map's exponent, the saturating curve's gain
