@@ -8,10 +8,18 @@ function setBgAndWave(pr, bgT, bgOn, waveOn, dstW, dstH) {
   gl.uniform1i(pr.u.uBgOn, bgOn ? 1 : 0); gl.uniform1i(pr.u.uWaveOn, waveOn ? 1 : 0);
   // wave taps: bilinear taps at the centres of 2 x 2 blocks, so the box over
   // one destination pixel is exact when the ratio is a power of two
-  const taps = Math.max(1, Math.min(4, Math.ceil(RT.ww / dstW / 2 * WAVE.filterSpread - 1e-3)));
-  gl.uniform1i(pr.u.uWTaps, taps); gl.uniform2f(pr.u.uWTexel, 1 / dstW, 1 / dstH); gl.uniform1f(pr.u.uWSpread, WAVE.filterSpread);
+  const taps = Math.max(1, Math.min(4, Math.ceil(RT.ww / dstW / 2 - 1e-3)));
+  gl.uniform1i(pr.u.uWTaps, taps); gl.uniform2f(pr.u.uWTexel, 1 / dstW, 1 / dstH);
   gl.uniform3fv(pr.u.uTintTop, BG_TINT.top); gl.uniform3fv(pr.u.uTintBot, BG_TINT.bottom);
   gl.uniform3fv(pr.u.uTintL, WAVE.tintL); gl.uniform3fv(pr.u.uTintR, WAVE.tintR);
+}
+
+// The size factor of a flat bit of sheet at rest, seen face-on at the camera's distance from its target, in the
+// projected space (clip x and y scale a face-on area by f^2 / aspect): the size factors are relative to it, so the
+// mood's scale (sizeK) is about 1 for such a bit.
+function waveSizeRef(cam) {
+  const S = SIMM.tunables.SCENE, area = S.len * S.wid / ((NN - 3) * (NN - 3)); // a surface element's area at rest, per unit of s and t
+  return cam.f * cam.f / cam.aspect * area / CAMERA.dist;
 }
 
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
@@ -57,10 +65,10 @@ function renderFrame(st, outTarget) {
     gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp);
     const SA = 16 * WAVE.samplesAlong, SV = 16 * WAVE.samplesAcross;
     gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV); gl.uniform2f(pr.u.uRes, ww, wh); gl.uniform1f(pr.u.uMinW, WAVE.minWidth);
-    gl.uniform3fv(pr.u.uCam, cam.pos);
-    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uBaseC, m.baseC); gl.uniform1f(pr.u.uBaseK, m.baseK);
-    gl.uniform1f(pr.u.uSizeRef, CAMERA.dist);
-    gl.uniform1f(pr.u.uAreaRef, SIMM.tunables.SCENE.len * SIMM.tunables.SCENE.wid / ((NN - 1) * (NN - 1))); // a surface element's area at rest
+    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uFres, m.fres);
+    gl.uniform1f(pr.u.uSizeK, m.sizeK); gl.uniform1f(pr.u.uSizeRef, waveSizeRef(cam));
+    gl.uniform1f(pr.u.uCut0, WAVE.sizeCut[0]); gl.uniform1f(pr.u.uCut1, WAVE.sizeCut[1]);
+    gl.uniform1f(pr.u.uFresPeak, WAVE.fresPeak); gl.uniform1f(pr.u.uFresSharp, WAVE.fresSharp);
     gl.uniform1f(pr.u.uThreads, WAVE.threads); gl.uniform1f(pr.u.uThreadAmp, m.threadAmp);
     gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
     gl.bindVertexArray(emptyVao);
@@ -127,10 +135,11 @@ function sparkUniforms(pr, m, cam, st) {
   gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
   gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
   gl.uniform1f(pr.u.uCamFade0, SPARKR.camFade[0]); gl.uniform1f(pr.u.uCamFade1, SPARKR.camFade[1]);
-  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uIri, SPARKR.iri);
-  gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare); gl.uniform1f(pr.u.uDimPow, SPARKR.dimPow);
-  gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow); gl.uniform1f(pr.u.uIriShare, SPARKR.iriShare);
-  gl.uniform1f(pr.u.uF, cam.f); gl.uniform1f(pr.u.uMinTilt, SPARKR.minTilt);
+  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow);
+  gl.uniform3fv(pr.u.uCamRight, cam.right); gl.uniform3fv(pr.u.uCamUp, cam.up); gl.uniform3fv(pr.u.uLight, SPARKR.light);
+  gl.uniform1f(pr.u.uDiffuse, SPARKR.diffuse); gl.uniform1f(pr.u.uSpec, SPARKR.spec); gl.uniform1f(pr.u.uShiny, SPARKR.shiny);
+  gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uSat, SPARKR.sat); gl.uniform1f(pr.u.uTiltPow, SPARKR.tiltPow);
+  gl.uniform1f(pr.u.uF, cam.f);
   gl.uniform2f(pr.u.uRes, ow, oh);
 }
 
