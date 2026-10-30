@@ -6,5 +6,5 @@ wave, sparkles, glare). The only shipped files besides the page are:
 | File | What | How it was made |
 | --- | --- | --- |
 | `assets/icon-512.png`, `assets/icon-192.png`, `assets/icon-180.png` | Home-screen icons | Rendered by this project's own `index.html` (score mode: 1 September, 12:00, seed 7, 300 frames, 512 x 512), then downscaled with Lanczos filtering. |
-| `docs/media/demo.gif` | Animated demonstration in the README (not used by the page) | Rendered by this project's own `index.html` (score mode: 15 September, 12:00, seed 1, frames 600 to 1076 every 4th frame, 480 x 270, without the dither layer), assembled with ffmpeg at 15 fps with a 128-colour palette and ordered dither. |
+| `docs/media/demo.gif` | Comparison in the README (not used by the page): 10 s of the original, then 10 s of this project | The first half is `comparison/original/original-2026-10-29-2130.mp4` (footage of the original, see its README). The second half is rendered by this project's own `index.html` (score mode: 29 October 2026, 21:30, automatic theme, seed 1, frames 600 to 1198 every 2nd frame, 960 x 540). Both halves scaled to 480 x 270 at 10 fps, labelled, and assembled with ffmpeg with a 128-colour palette and ordered dither. |
 | `assets/manifest.webmanifest` | Web-app manifest (full screen on the iPad home screen) | Hand-written. |
