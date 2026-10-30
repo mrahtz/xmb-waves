@@ -5,10 +5,10 @@ background: a flowing, luminous wave of fine lines drifting across a softly
 coloured gradient, with glowing sparkles around it, whose colours follow the
 time of day and the month.
 
-![10 seconds of the original at 21:30 on 29 October, then 10 seconds of this project at the same date and time, both at real speed](docs/media/demo.gif)
+![The original (left) and this project (right) at 21:30 on 29 October, 10 seconds side by side at real speed](docs/media/demo.gif)
 
-Above: 10 s of the original (footage in `comparison/original/`), then 10 s of
-this project at the same date and time.
+Above: the original (left; footage in `comparison/original/`) and this project
+(right) at the same date and time, side by side.
 
 Not affiliated with, endorsed by or connected to Sony Interactive Entertainment. PlayStation, PS3 and XMB are trademarks or terms of Sony Interactive Entertainment.
 
