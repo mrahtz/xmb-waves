@@ -60,7 +60,7 @@ def mkvar_args(vals):
     m = c['mood']
     for k in ('camPitch', 'base', 'fres', 'sizeK'): out.append('day.%s=%s' % (k, fmt(m[k])))
     out += ['cam.fovY=' + fmt(m['fovY']), 'cam.dist=' + fmt(m['camDist']), 'wave.fresPeak=' + fmt(m['fresPeak']), 'wave.fresPow=' + fmt(m['fresPow'])]
-    out.append('raw.main=sheenCut: [1.0, 2.5]>>>sheenCut: [%s, %s]' % (fmt(m['cut0']), fmt(m['cut1'])))
+    out += ['wave.sheenCut0=' + fmt(m['cut0']), 'wave.sheenCut1=' + fmt(m['cut1'])]
     return out
 def fmt(v): return '%.4g' % v
 

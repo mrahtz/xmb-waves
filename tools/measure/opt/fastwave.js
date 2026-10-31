@@ -44,7 +44,7 @@ function loadPage(path) {
   const waveTxt = src.match(/const WAVE = \{[\s\S]*?\n\};/)[0];
   const tint = (name) => { const m = waveTxt.match(new RegExp(name + ': \\[([^\\]]*)\\]')); return m ? m[1].split(',').map(Number) : [1, 1, 1]; };
   const WAVE = { fadeEnds: num(waveTxt, 'fadeEnds', 0.1), fadeEdges: num(waveTxt, 'fadeEdges', 0.04), filterSpread: num(waveTxt, 'filterSpread', 5.5), tintL: tint('tintL'), tintR: tint('tintR'),
-    sheenCut: tint('sheenCut'), fresPeak: num(waveTxt, 'fresPeak', 0.15), fresPow: num(waveTxt, 'fresPow', 3) };
+    sheenCut: [num(waveTxt, 'sheenCut0', 1), num(waveTxt, 'sheenCut1', 2.5)], fresPeak: num(waveTxt, 'fresPeak', 0.15), fresPow: num(waveTxt, 'fresPow', 3) };
   return { XMBW_SIM, XMBW_SIM_FAST, cameraFor, cameraForOv, mood, WAVE, path, camYaw: num(camLine, 'yaw', -20), camDist: num(camLine, 'dist', 11) };
 }
 

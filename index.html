@@ -637,7 +637,7 @@ function cameraFor(pitchDeg, aspect) {
 // ---------------------------------------------------------------------------
 const WAVE = {
   samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
-  sheenCut: [1.0, 2.5],                 // the sheen is cut off between these size factors (the fused thread profile)
+  sheenCut0: 1.0, sheenCut1: 2.5,       // the sheen is cut off between these size factors (the fused thread profile)
   fresPeak: 0.15, fresPow: 3.0,         // the Fresnel-like peak: where it sits in cosine x size factor, and how narrow
   fadeEnds: 0.10, fadeEdges: 0.04,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
@@ -1196,7 +1196,7 @@ function renderFrame(st, outTarget) {
     const SC = SIMM.tunables.SCENE, aRest = SC.len * SC.wid / ((NN - 1) * (NN - 1)) * cam.f * cam.f * wh / ww;
     gl.uniform1f(pr.u.uSizeNorm, m.sizeK * CAMERA.dist / aRest);
     gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uFres, m.fres);
-    gl.uniform1f(pr.u.uCut0, WAVE.sheenCut[0]); gl.uniform1f(pr.u.uCut1, WAVE.sheenCut[1]);
+    gl.uniform1f(pr.u.uCut0, WAVE.sheenCut0); gl.uniform1f(pr.u.uCut1, WAVE.sheenCut1);
     gl.uniform1f(pr.u.uFresPeak, WAVE.fresPeak); gl.uniform1f(pr.u.uFresPow, WAVE.fresPow);
     gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
     gl.bindVertexArray(emptyVao);

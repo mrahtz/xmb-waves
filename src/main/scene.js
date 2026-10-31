@@ -130,7 +130,7 @@ function cameraFor(pitchDeg, aspect) {
 // ---------------------------------------------------------------------------
 const WAVE = {
   samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
-  sheenCut: [1.0, 2.5],                 // the sheen is cut off between these size factors (the fused thread profile)
+  sheenCut0: 1.0, sheenCut1: 2.5,       // the sheen is cut off between these size factors (the fused thread profile)
   fresPeak: 0.15, fresPow: 3.0,         // the Fresnel-like peak: where it sits in cosine x size factor, and how narrow
   fadeEnds: 0.10, fadeEdges: 0.04,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels

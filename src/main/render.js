@@ -63,7 +63,7 @@ function renderFrame(st, outTarget) {
     const SC = SIMM.tunables.SCENE, aRest = SC.len * SC.wid / ((NN - 1) * (NN - 1)) * cam.f * cam.f * wh / ww;
     gl.uniform1f(pr.u.uSizeNorm, m.sizeK * CAMERA.dist / aRest);
     gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uFres, m.fres);
-    gl.uniform1f(pr.u.uCut0, WAVE.sheenCut[0]); gl.uniform1f(pr.u.uCut1, WAVE.sheenCut[1]);
+    gl.uniform1f(pr.u.uCut0, WAVE.sheenCut0); gl.uniform1f(pr.u.uCut1, WAVE.sheenCut1);
     gl.uniform1f(pr.u.uFresPeak, WAVE.fresPeak); gl.uniform1f(pr.u.uFresPow, WAVE.fresPow);
     gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
     gl.bindVertexArray(emptyVao);
