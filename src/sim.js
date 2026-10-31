@@ -53,26 +53,22 @@ function XMBW_SIM() {
     twistAmp: 0.005927, twistW: 0.21,  // a gentle ripple, one cycle across the width, travelling across it
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 10.18, x0: 0.7921, wid: 12.0, height: 1.5, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 10.18, x0: 0.7921, wid: 5.056, height: 7.0, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
 
   const SPARK = {
     pool: 2000,
-    // births (spec 16): bursts supply nearly all of them, a batch of burstN sparkles on burstP of the steps; a single
-    // walker adds short trails, one sparkle every other step while it steps point by point along the length. Births
-    // land on the sample points of the sheet's mesh (gridAlong x gridAcross per patch, as drawn)
-    burstP: 0.45, burstN: 14,
-    walkerP: 0.01, walkMin: 40, walkMax: 160, gridAlong: 64, gridAcross: 6,
+    burstP: 0.30, burstMin: 1, burstMax: 9,        // per step
+    walkers: 6, walkerP: 0.05, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 1.1, reverseP: 0.12,
-    speedK: 0.105, speedPow: 0.5, speedMin: 0.012, // scene units / s: on screen about as fast as the band's lines rise and fall
+    speedK: 0.24, speedPow: 0.5, speedMin: 0.027, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
     rampIn: 0.06, rampOut: 0.16,
     jitter: 0.003, gravity: 0.0002, friction: 0.0,  // per second units: a sparkle keeps the velocity it is flung with
     upLean: 0.12,                                   // share of downward-flung sparkles turned round, so slightly more rise than fall
     spinA: 2.2, spinF: [0.21, 0.37],                // rad/s amplitude, oscillation freq range (rad/s)
-    box: [[-7, 7], [-3.0, 3.2], [-4.0, 6.5]],
-    boxFade: 0.6,                                   // opacity fades out over this distance from the box's faces (scene units)
+    box: [[-7, 7], [-3.0, 3.2], [-3.5, 5.0]],
   };
-  const SPARK_STRIDE = 11; // prev xyz, cur xyz, facing xyz, opacity, random (not used for brightness)
+  const SPARK_STRIDE = 11; // prev xyz, cur xyz, facing xyz, opacity, random
 
   function mulberry(seed) {
     let s = seed >>> 0;
@@ -98,7 +94,7 @@ function XMBW_SIM() {
   // Live tuning from the settings menu: values maps dotted paths into the tunables
   // above ('NET.kStruct', 'LAT.rollW', ...) to numbers. Only a number that
   // already exists is set, so a stale or mistyped key does nothing. Sizes fixed at
-  // creation (the pool, the lattice cells) are not tunable.
+  // creation (the pool, the lattice cells, the walker count) are not tunable.
   const TUNABLES = { NET, LAT, SCENE, SPARK };
   // Settled starting state of the net, written by tools/mkstate.js from this simulation's own run (positions and
   // velocities, the clocks, and the net constants it was made with). It is used only while those constants are unchanged;
@@ -171,7 +167,8 @@ function XMBW_SIM() {
     const alive = new Uint8Array(S);
     const free = new Int32Array(S); let nFree = S;
     for (let i = 0; i < S; i++) free[i] = S - 1 - i;
-    const walker = { on: false, s: 0, t: 0, dir: 1, left: 0, odd: false };
+    const walkers = [];
+    for (let w = 0; w < SPARK.walkers; w++) walkers.push({ on: false, s: 0, t: 0, dir: 1, left: 0 });
 
     function lattice() {
       const T = simTime, L = LAT;
@@ -304,29 +301,25 @@ function XMBW_SIM() {
       }
       sRnd[i] = rng();
     }
-    // a random sample point of the mesh (patch units)
-    function randPoint() {
-      const ga = SPARK.gridAlong, gc = SPARK.gridAcross;
-      return [Math.floor(rng() * ((N - 3) * ga + 1)) / ga, Math.floor(rng() * ((N - 3) * gc + 1)) / gc];
-    }
+    function randPoint() { return [rng() * (N - 3), rng() * (N - 3)]; }
 
-    // The burst's births come first and the walker's after them, so when the pool is full the walker's are dropped.
     function emit() {
       if (rng() < SPARK.burstP) {
-        for (let b = 0; b < SPARK.burstN; b++) { const p = randPoint(); birth(p[0], p[1]); }
+        const n = SPARK.burstMin + Math.floor(rng() * (SPARK.burstMax - SPARK.burstMin + 1));
+        for (let b = 0; b < n; b++) { const p = randPoint(); birth(p[0], p[1]); }
       }
-      const w = walker;
-      if (!w.on) {
-        if (rng() < SPARK.walkerP) {
-          const p = randPoint(); w.on = true; w.s = p[0]; w.t = p[1]; w.odd = false;
-          w.dir = rng() < 0.5 ? -1 : 1; w.left = SPARK.walkMin + Math.floor(rng() * (SPARK.walkMax - SPARK.walkMin));
+      for (const w of walkers) {
+        if (!w.on) {
+          if (rng() < SPARK.walkerP) {
+            const p = randPoint(); w.on = true; w.s = p[0]; w.t = p[1];
+            w.dir = rng() < 0.5 ? -1 : 1; w.left = SPARK.walkMin + Math.floor(rng() * (SPARK.walkMax - SPARK.walkMin));
+          }
+          continue;
         }
-        return;
+        birth(w.s, w.t);
+        w.s += w.dir * SPARK.walkStep;
+        if (--w.left <= 0 || w.s < 0 || w.s > N - 3) w.on = false;
       }
-      if (!w.odd) birth(w.s, w.t);
-      w.odd = !w.odd;
-      w.s += w.dir / SPARK.gridAlong; // the next sample point along the length
-      if (--w.left <= 0 || w.s < 0 || w.s > N - 3) w.on = false;
     }
 
     function stepSparks() {
@@ -378,11 +371,7 @@ function XMBW_SIM() {
         const q = i * 4, x = sq[q], y = sq[q + 1], z = sq[q + 2], w = sq[q + 3];
         out[o + 6] = 2 * (x * z + w * y); out[o + 7] = 2 * (y * z - w * x); out[o + 8] = 1 - 2 * (x * x + y * y);
         const op = Math.min(1, a / SPARK.rampIn) * Math.min(1, (1 - a) / SPARK.rampOut);
-        // fading out near the faces of the bounding box
-        const bx = SPARK.box, bf = Math.max(SPARK.boxFade, 1e-6);
-        const edge = Math.min(sp[k] - bx[0][0], bx[0][1] - sp[k], sp[k + 1] - bx[1][0], bx[1][1] - sp[k + 1], sp[k + 2] - bx[2][0], bx[2][1] - sp[k + 2]);
-        const eb = Math.min(Math.max(edge / bf, 0), 1);
-        out[o + 9] = op * op * (3 - 2 * op) * eb * eb * (3 - 2 * eb);
+        out[o + 9] = op * op * (3 - 2 * op);
         out[o + 10] = sRnd[i];
         n++;
       }

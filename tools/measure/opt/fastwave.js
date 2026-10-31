@@ -25,31 +25,21 @@ function loadPage(path) {
   if (fastCode === simCode) throw new Error('could not strip the sparkle steps');
   const XMBW_SIM_FAST = new Function(fastCode + '; return XMBW_SIM;')();
   const camLine = src.match(/const CAMERA = [^\n]*\n/)[0];
-  // the camera's settings stay reachable (CAMERA), so a candidate can change the field of view, distance, yaw or target
-  const camMod = new Function(camLine + src.match(/function cameraFor[\s\S]*?\n\}\n/)[0] + '; return { cameraFor, CAMERA };')();
-  const cameraFor = camMod.cameraFor, CAMERA = camMod.CAMERA, CAMERA0 = JSON.parse(JSON.stringify(CAMERA));
+  const cameraFor = new Function(camLine + src.match(/function cameraFor[\s\S]*?\n\}\n/)[0] + '; return cameraFor;')();
   const dayTxt = src.match(/\n  day: \{[\s\S]*?\},\n/)[0];
   const fsWave = src.match(/const FS_WAVE = `[\s\S]*?`;/)[0];
   const mood = {};
-  for (const k of ['waveBright', 'base', 'baseC', 'baseK', 'edge', 'edgeC', 'fres', 'sizeK', 'envCross', 'camPitch', 'latX', 'latY', 'latZ']) mood[k] = num(dayTxt, k, undefined);
+  for (const k of ['waveBright', 'base', 'baseC', 'baseK', 'edge', 'edgeC', 'envCross', 'camPitch', 'latX', 'latY', 'latZ']) mood[k] = num(dayTxt, k, undefined);
+  if (!/uBaseK/.test(fsWave)) mood.baseK = 1; // older shading: sheen = base * exp(-c / baseC)
   if (mood.latX == null) { mood.latX = mood.latY = mood.latZ = 1; }
+  // spec-10 shading: light times the projected size (c x (sizeRef / distance)^2), no edge-on line
+  if (/uSizeRef/.test(fsWave)) { mood.sizeRef = num(camLine, 'dist', 11); mood.edge = 0; mood.edgeC = 1; }
+  if (/uAreaRef/.test(fsWave)) mood.useArea = true; // spec 10.1: the element's area is part of the projected size
+  if (mood.edge == null) { mood.edge = 0; mood.edgeC = 1; }
   const waveTxt = src.match(/const WAVE = \{[\s\S]*?\n\};/)[0];
   const tint = (name) => { const m = waveTxt.match(new RegExp(name + ': \\[([^\\]]*)\\]')); return m ? m[1].split(',').map(Number) : [1, 1, 1]; };
-  // spec-16 shading: per vertex in the projected space, size factor x (sheen cut off at large size factors + a glow
-  // looked up with cosine x size factor); the down-filter is one output pixel wide
-  const v16 = /uFresPeak/.test(fsWave);
-  if (v16) {
-    const cut = waveTxt.match(/sizeCut: \[([^\]]*)\]/)[1].split(',').map(Number);
-    mood.v16 = true; mood.cut0 = cut[0]; mood.cut1 = cut[1]; mood.fresPeak = num(waveTxt, 'fresPeak', 0.1); mood.fresSharp = num(waveTxt, 'fresSharp', 2);
-  } else {
-    if (!/uBaseK/.test(fsWave)) mood.baseK = 1; // older shading: sheen = base * exp(-c / baseC)
-    // spec-10 shading: light times the projected size (c x (sizeRef / distance)^2), no edge-on line
-    if (/uSizeRef/.test(fsWave)) { mood.sizeRef = num(camLine, 'dist', 11); mood.edge = 0; mood.edgeC = 1; }
-    if (/uAreaRef/.test(fsWave)) mood.useArea = true; // spec 10.1: the element's area is part of the projected size
-    if (mood.edge == null) { mood.edge = 0; mood.edgeC = 1; }
-  }
-  const WAVE = { fadeEnds: num(waveTxt, 'fadeEnds', 0.1), fadeEdges: num(waveTxt, 'fadeEdges', 0.04), filterSpread: num(waveTxt, 'filterSpread', v16 ? 1 : 5.5), tintL: tint('tintL'), tintR: tint('tintR') };
-  return { XMBW_SIM, XMBW_SIM_FAST, cameraFor, CAMERA, CAMERA0, mood, WAVE, path, camYaw: num(camLine, 'yaw', -20) };
+  const WAVE = { fadeEnds: num(waveTxt, 'fadeEnds', 0.1), fadeEdges: num(waveTxt, 'fadeEdges', 0.04), filterSpread: num(waveTxt, 'filterSpread', 5.5), tintL: tint('tintL'), tintR: tint('tintR') };
+  return { XMBW_SIM, XMBW_SIM_FAST, cameraFor, mood, WAVE, path, camYaw: num(camLine, 'yaw', -20) };
 }
 
 // ------------------------------------------------------------------ maths helpers
@@ -154,7 +144,7 @@ class Raster {
     }
   }
 
-  // Splat one frame: net = deformed 19 x 19 x 3 control net (scene units), cam = cameraFor(...), shade = makeShade(mood).
+  // Splat one frame: net = deformed 19 x 19 x 3 control net (scene units), cam = cameraFor(...), shade = { bright, base, baseC, baseK, edge, edgeC }.
   splat(net, cam, shade) {
     const { S, T, NC, H, cw, img, R, RT, colLo, colHi } = this;
     img.fill(0); colLo.fill(H); colHi.fill(-1);
@@ -177,8 +167,6 @@ class Raster {
     const Wpx = this.W, Hpx = H, dsdt = (16 / S) * (16 / T);
     const bright = shade.bright, base = shade.base, baseC = shade.baseC, baseK = shade.baseK, edge = shade.edge, edgeC = shade.edgeC;
     const kIs2 = Math.abs(baseK - 2) < 1e-9, sizeRef2 = shade.sizeRef * shade.sizeRef;
-    const v16 = !!shade.v16, sizeK = shade.sizeK, sizeRefP = shade.sizeRefP, cut0 = shade.cut0, cut1 = shade.cut1, fres = shade.fres, fresPeak = shade.fresPeak, fresSharp = shade.fresSharp;
-    const cosHist = this.cosHist; // optional: histogram of the projected cosine over the on-screen surface samples
     let total = 0;
     for (let k = 0; k < T; k++) {
       const o = k * 57, ft = this.tFade[k];
@@ -205,15 +193,6 @@ class Raster {
         const Xs = 0.5 * Wpx * (xs * wc - xc * ws) * iw2, Ys = -0.5 * Hpx * (ys * wc - yc * ws) * iw2;
         const Xt = 0.5 * Wpx * (xt * wc - xc * wt) * iw2, Yt = -0.5 * Hpx * (yt * wc - yc * wt) * iw2;
         const area = Math.abs(Xs * Yt - Xt * Ys) * dsdt; // projected area of the cell in output px^2
-        let I;
-        if (v16) { // spec 16: in the projected space (clip x, y, w; the camera at the origin)
-          const nx = ys * wt - ws * yt, ny = ws * xt - xs * wt, nz = xs * yt - ys * xt;
-          const d = Math.sqrt(xc * xc + yc * yc + wc * wc), along = Math.abs(nx * xc + ny * yc + nz * wc) / d;
-          const nl = Math.sqrt(nx * nx + ny * ny + nz * nz), c = nl > 0 ? along / nl : 0, kk = sizeK * along / d / sizeRefP;
-          const tc = Math.min(Math.max((kk - cut0) / (cut1 - cut0), 0), 1), xg = c * kk / fresPeak;
-          I = bright * kk * fade * (base * (1 - tc * tc * (3 - 2 * tc)) + fres * Math.pow(Math.max(xg * Math.exp(1 - xg), 0), fresSharp));
-          if (cosHist) cosHist[Math.min(cosHist.length - 1, Math.floor(c * cosHist.length))]++;
-        } else {
         // shading: c = |cos(normal, view)|
         const nx = sy * tz - sz * ty, ny = sz * tx - sx * tz, nz = sx * ty - sy * tx;
         const vx = cx - px, vy = cy - py, vz = cz - pz;
@@ -222,8 +201,7 @@ class Raster {
         const r = c / baseC;
         const sheen = base * Math.exp(-(kIs2 ? r * r : Math.pow(r, baseK)));
         const areaRef = shade.areaRef;
-        I = sizeRef2 > 0 ? bright * sheen * (areaRef > 0 ? c * nl / areaRef : c) * sizeRef2 / (vl * vl) * fade : bright * (sheen + edge * Math.exp(-c / edgeC)) * fade;
-        }
+        const I = sizeRef2 > 0 ? bright * sheen * (areaRef > 0 ? c * nl / areaRef : c) * sizeRef2 / (vl * vl) * fade : bright * (sheen + edge * Math.exp(-c / edgeC)) * fade;
         const val = I * area / cw; // light density per raster cell (cw px wide, 1 px tall)
         total += I * area;
         // bilinear splat
@@ -532,25 +510,16 @@ function motionStats(frames, fps, ras) {
 }
 
 // ------------------------------------------------------------------ driving the simulation
-function makeShade(mood) {
-  return { bright: mood.waveBright, base: mood.base, baseC: mood.baseC, baseK: mood.baseK, edge: mood.edge, edgeC: mood.edgeC, sizeRef: mood.sizeRef || 0, areaRef: mood.useArea ? mood.areaRef : 0,
-    v16: mood.v16, sizeK: mood.sizeK, sizeRefP: mood.sizeRefP, cut0: mood.cut0, cut1: mood.cut1, fres: mood.fres, fresPeak: mood.fresPeak, fresSharp: mood.fresSharp };
-}
+function makeShade(mood) { return { bright: mood.waveBright, base: mood.base, baseC: mood.baseC, baseK: mood.baseK, edge: mood.edge, edgeC: mood.edgeC, sizeRef: mood.sizeRef || 0, areaRef: mood.useArea ? mood.areaRef : 0 }; }
 
 // A page-derived evaluator. tune: dotted-path overrides for the sim tunables (NET.noise, LAT.rollW, SCENE.wid ...),
-// moodOver: overrides of the day mood (camPitch, envCross, ...) and of the shading and camera settings
-// (cut0, cut1, fresPeak, fresSharp; camFov, camDist, camYaw, camTx, camTy, camTz).
+// moodOver: overrides of the day mood (camPitch, envCross, ...).
 function makeSim(page, seed, tune, moodOver, aspect, fast) {
   const M = fast ? page.XMBW_SIM_FAST() : page.XMBW_SIM();
   if (tune) M.setTunables(tune);
   const mood = Object.assign({}, page.mood, moodOver || {});
-  const C = page.CAMERA, C0 = page.CAMERA0;
-  C.fovY = mood.camFov != null ? mood.camFov : C0.fovY; C.dist = mood.camDist != null ? mood.camDist : C0.dist; C.yaw = mood.camYaw != null ? mood.camYaw : C0.yaw;
-  C.target = [mood.camTx != null ? mood.camTx : C0.target[0], mood.camTy != null ? mood.camTy : C0.target[1], mood.camTz != null ? mood.camTz : C0.target[2]];
   const cam = page.cameraFor(mood.camPitch, aspect || 16 / 9);
   mood.areaRef = M.tunables.SCENE.len * M.tunables.SCENE.wid / (18 * 18);
-  // spec 16: the size factor of a flat bit at rest seen face-on at the camera's distance, in the projected space
-  mood.sizeRefP = cam.f * cam.f / (aspect || 16 / 9) * M.tunables.SCENE.len * M.tunables.SCENE.wid / (16 * 16) / C.dist;
   const sim = M.createSim(seed);
   sim.setMood({ envCross: mood.envCross, latScale: [mood.latX, mood.latY, mood.latZ], camFwd: cam.fwd });
   sim.warm(sim.warmSteps);
