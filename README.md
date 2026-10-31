@@ -5,7 +5,7 @@ background: a flowing, luminous wave of fine lines drifting across a softly
 coloured gradient, with glowing sparkles around it, whose colours follow the
 time of day and the month.
 
-![The original (left) and this project (right) at 21:30 on 29 October, 10 seconds side by side at real speed](docs/media/demo.gif)
+![The original (left) and this project (right) at 12:00 on 15 October, 10 seconds side by side at real speed](docs/media/demo.gif)
 
 Above: the original (left; footage in `comparison/original/`) and this project
 (right) at the same date and time, side by side.
