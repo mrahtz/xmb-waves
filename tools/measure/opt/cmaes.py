@@ -72,8 +72,10 @@ OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value). Ta
     ('bwidth', 20.3, 6.0, 1.5, 1.0), ('partings', 3, 2.0, 1.0, -0.7), ('a25', 0.54, 0.1, 0.5, 0.013),
     ('widthLines', 6.5, 1.2, 0.5, 0.6), ('edge', 9.0, 3.0, 0.5, 0.37), ('peaks25', 2.5, 0.5, 0.5, 0.04), ('pinch8', 15, 10, 1.0, -0.4),
     ('lines10', 3, 3, 0.25, 0.3), ('cosMed', 0.5, 0.1, 2.0, 0.0),  # spec 16: a typical bit of sheet seen about halfway between edge-on and face-on
-    ('shift', 0.075, 0.025, 3.0, -0.007), ('adjdiff', 5.7, 2.0, 0.75, -0.7), ('corr1', 0.41, 0.1, 2.0, 0.06), ('outer', 0.74, 0.15, 2.0, -0.018), ('cspeed', 0.020, 0.005, 0.5, 0.0),
-    ('pspeed', 38.0, 12.0, 1.5, 0.0), ('pright', 0.78, 0.15, 1.5, 0.0),  # partings' drift along the band (px/s at 1920) and rightwards share
+    # motion from the two 30 s clips (15 October 12:00 and 21:30): swell shift +0.009 and +0.041 W/s, 1 s correlation 0.36 and 0.15,
+    # adjacent strands 8.8 and 7.2 px/s, centre speed 0.020 H/s, partings' drift 34 and 44 px/s, rightwards 0.47 and 0.50
+    ('shift', 0.025, 0.025, 1.5, -0.007), ('adjdiff', 8.0, 2.0, 0.75, -0.7), ('corr1', 0.25, 0.12, 2.0, 0.06), ('outer', 0.74, 0.15, 2.0, -0.018), ('cspeed', 0.020, 0.005, 0.5, 0.0),
+    ('pspeed', 39.0, 12.0, 1.5, 0.0), ('pright', 0.49, 0.15, 1.0, 0.0),  # partings' drift along the band (px/s at 1920) and rightwards share
 ]
 def objective(r):
     terms = {}; s = 0.0; w = 0.0; pen = {}
