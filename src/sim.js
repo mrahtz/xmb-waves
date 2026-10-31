@@ -63,7 +63,7 @@ function XMBW_SIM() {
     burstP: 0.6, burstN: 12,
     walkers: 1, walkerP: 0.02, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 1.1, reverseP: 0.12,
-    speedK: 0.24, speedPow: 0.5, speedMin: 0.027, // scene units / s: on screen about as fast as the band's lines rise and fall
+    speedK: 0.29, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
     rampIn: 0.06, rampOut: 0.16,
     jitter: 0.003, gravity: 0.0002, friction: 0.0,  // per second units: a sparkle keeps the velocity it is flung with

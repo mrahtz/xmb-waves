@@ -146,7 +146,7 @@ function XMBW_SIM() {
     burstP: 0.6, burstN: 12,
     walkers: 1, walkerP: 0.02, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 1.1, reverseP: 0.12,
-    speedK: 0.24, speedPow: 0.5, speedMin: 0.027, // scene units / s: on screen about as fast as the band's lines rise and fall
+    speedK: 0.29, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
     rampIn: 0.06, rampOut: 0.16,
     jitter: 0.003, gravity: 0.0002, friction: 0.0,  // per second units: a sparkle keeps the velocity it is flung with
@@ -552,19 +552,19 @@ const MOODS = {
   night: { waveBright: 0.29, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 8.66,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
-    focusFar: 3.56, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dawn: { waveBright: 0.5, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 12.66,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 3.56, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 12.66,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 3.59, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.5, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 12.66,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 3.56, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -653,12 +653,12 @@ const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
 // (these scalars are let, not const, only so the settings menu can change them live)
 let BG_HL = 0.12; // strength of the drifting daytime highlight
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
-const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 0.72, farSoft: 0.86, focusNear: 2.59, camFade: [0.86, 1.44], // distances for the camera at 3.16
-  bright: 1.0, glintSize: 4.5, glintBright: 0.10, minTilt: 0.05,
+const SPARKR = { size: 2.6, blur: 6.0, dofPow: 2.0, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59, camFade: [1.3, 2.3], // distances for the camera at 3.16
+  bright: 1.5, glintSize: 4.5, glintBright: 0.10, minTilt: 0.05,
   // lighting (spec 16): one point light in the scene, diffuse kd and specular ks with exponent shin, the highlight tinted
   // by the iridescent map raised to mapExp, the sum through 1 - exp(-satGain x); the disc's opacity falls as it turns
   // edge-on, with the power tiltPow of one minus the cosine; minTilt keeps the patch from being exactly edge-on
-  light: [-4.0, 6.0, -6.0], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.5, satGain: 1.5, tiltPow: 3.0 };
+  light: [-4.0, 6.0, -6.0], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.5, satGain: 1.5, tiltPow: 1.0 };
 let DITHER = 0.85; // output levels, peak
 let GLARE_DESAT = 0.6; // how far the halo is pulled towards white
 
