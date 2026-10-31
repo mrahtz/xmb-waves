@@ -25,7 +25,9 @@ function loadPage(path) {
   if (fastCode === simCode) throw new Error('could not strip the sparkle steps');
   const XMBW_SIM_FAST = new Function(fastCode + '; return XMBW_SIM;')();
   const camLine = src.match(/const CAMERA = [^\n]*\n/)[0];
-  const cameraFor = new Function(camLine + src.match(/function cameraFor[\s\S]*?\n\}\n/)[0] + '; return cameraFor;')();
+  // cameraForOv(ov): the page's camera with some of its constants (fovY, dist, ...) overridden
+  const camFn = new Function('ov', camLine + 'Object.assign(CAMERA, ov || {});' + src.match(/function cameraFor[\s\S]*?\n\}\n/)[0] + '; return cameraFor;');
+  const cameraFor = camFn({}), cameraForOv = ov => camFn(ov);
   const dayTxt = src.match(/\n  day: \{[\s\S]*?\},\n/)[0];
   const fsWave = src.match(/const FS_WAVE = `[\s\S]*?`;/)[0];
   const mood = {};
@@ -43,7 +45,7 @@ function loadPage(path) {
   const tint = (name) => { const m = waveTxt.match(new RegExp(name + ': \\[([^\\]]*)\\]')); return m ? m[1].split(',').map(Number) : [1, 1, 1]; };
   const WAVE = { fadeEnds: num(waveTxt, 'fadeEnds', 0.1), fadeEdges: num(waveTxt, 'fadeEdges', 0.04), filterSpread: num(waveTxt, 'filterSpread', 5.5), tintL: tint('tintL'), tintR: tint('tintR'),
     sheenCut: tint('sheenCut'), fresPeak: num(waveTxt, 'fresPeak', 0.15), fresPow: num(waveTxt, 'fresPow', 3) };
-  return { XMBW_SIM, XMBW_SIM_FAST, cameraFor, mood, WAVE, path, camYaw: num(camLine, 'yaw', -20), camDist: num(camLine, 'dist', 11) };
+  return { XMBW_SIM, XMBW_SIM_FAST, cameraFor, cameraForOv, mood, WAVE, path, camYaw: num(camLine, 'yaw', -20), camDist: num(camLine, 'dist', 11) };
 }
 
 // ------------------------------------------------------------------ maths helpers
@@ -171,7 +173,7 @@ class Raster {
     const Wpx = this.W, Hpx = H, dsdt = (16 / S) * (16 / T);
     const bright = shade.bright, base = shade.base, baseC = shade.baseC, baseK = shade.baseK, edge = shade.edge, edgeC = shade.edgeC;
     const kIs2 = Math.abs(baseK - 2) < 1e-9, sizeRef2 = shade.sizeRef * shade.sizeRef, P16 = shade.p16;
-    let total = 0;
+    let total = 0; const cosH = new Float64Array(20);
     for (let k = 0; k < T; k++) {
       const o = k * 57, ft = this.tFade[k];
       if (ft <= 0) continue;
@@ -214,6 +216,7 @@ class Raster {
           const cq = along / (Math.sqrt(Nx * Nx + Ny * Ny + Nz * Nz) || 1e-12), Sf = along / dist * P16.norm;
           const e = Math.min(Math.max((Sf - P16.c0) / (P16.c1 - P16.c0), 0), 1), x = cq * Sf / P16.peak;
           I = bright * Sf * fade * (base * (1 - e * e * (3 - 2 * e)) + P16.fres * Math.pow(x * Math.exp(1 - x), P16.pow));
+          cosH[Math.min(19, Math.floor(cq * 20))] += area;
         } else {
           const r = c / baseC;
           const sheen = base * Math.exp(-(kIs2 ? r * r : Math.pow(r, baseK)));
@@ -236,6 +239,10 @@ class Raster {
       }
     }
     this.finish();
+    // spec 16: median of the shading cosine over the on-screen sheet (by area)
+    let ct = 0, cm = NaN; for (const h of cosH) ct += h;
+    if (ct > 0) { let c = 0; for (let b = 0; b < 20; b++) { c += cosH[b]; if (c >= ct / 2) { cm = (b + 0.5) / 20; break; } } }
+    this.cosMed = cm;
     return total;
   }
 
@@ -381,7 +388,7 @@ function frameStats(ras) {
   const wd = widths, wl = wd.filter(w => w < 15), ws = wd.filter(w => w >= 15);
   return {
     fmax,
-    cover: xsUsed.length / NC,  // share of the columns the band is found in (it should span the frame)
+    cover: xsUsed.length / NC, cosMed: ras.cosMed,  // share of the columns the band is found in (it should span the frame)
     centre: median(centre), centreMin: Math.min(...centre), centreMax: Math.max(...centre), topMin, botMax, tilt: cr - cl, arch,
     thick: median(thick), thickP10: pct(thick, 10), thickP90: pct(thick, 90), thickRatio: pct(thick, 95) / Math.max(pct(thick, 5), 1e-3),
     pinch8: 100 * thick.filter(v => v < 0.08).length / n, pinch5: 100 * thick.filter(v => v < 0.05).length / n,
@@ -536,12 +543,14 @@ function makeSim(page, seed, tune, moodOver, aspect, fast) {
   const M = fast ? page.XMBW_SIM_FAST() : page.XMBW_SIM();
   if (tune) M.setTunables(tune);
   const mood = Object.assign({}, page.mood, moodOver || {});
-  const cam = page.cameraFor(mood.camPitch, aspect || 16 / 9);
+  const camOv = {}; if (mood.fovY != null) camOv.fovY = mood.fovY; if (mood.camDist != null) camOv.dist = mood.camDist;
+  const cam = page.cameraForOv(camOv)(mood.camPitch, aspect || 16 / 9);
   mood.areaRef = M.tunables.SCENE.len * M.tunables.SCENE.wid / (18 * 18);
   if (mood.spec16) { // the page's projected space and size-factor scale (render.js), for this camera and aspect
     const asp = aspect || 16 / 9, fx = cam.f / asp, fy = cam.f, W = page.WAVE;
-    mood.p16 = { fx, fy, r: cam.right, u: cam.up, w: cam.fwd, norm: mood.sizeK * page.camDist / (mood.areaRef * fx * fy),
-      c0: W.sheenCut[0], c1: W.sheenCut[1], peak: W.fresPeak, pow: W.fresPow, fres: mood.fres };
+    const pick = (k, d) => (mood[k] != null ? mood[k] : d);
+    mood.p16 = { fx, fy, r: cam.right, u: cam.up, w: cam.fwd, norm: mood.sizeK * pick('camDist', page.camDist) / (mood.areaRef * fx * fy),
+      c0: pick('cut0', W.sheenCut[0]), c1: pick('cut1', W.sheenCut[1]), peak: pick('fresPeak', W.fresPeak), pow: pick('fresPow', W.fresPow), fres: mood.fres };
   }
   const sim = M.createSim(seed);
   sim.setMood({ envCross: mood.envCross, latScale: [mood.latX, mood.latY, mood.latZ], camFwd: cam.fwd });
