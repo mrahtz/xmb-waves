@@ -29,6 +29,7 @@ frame.
 | `original-2026-10-15-0600.mp4` | 15 October 2026, 06:00:00 | 10 s | 40 s |
 | `original-2026-10-15-1200.mp4` | 15 October 2026, 12:00:00 | 10 s | 40 s |
 | `original-2026-10-15-1800.mp4` | 15 October 2026, 18:00:00 | 10 s | 40 s |
+| `original-2026-10-15-1200-long.mp4` | 15 October 2026, 12:00:00 | 30 s | 240 s |
 
 Not affiliated with, endorsed by or connected to Sony Interactive Entertainment. PlayStation, PS3
 and XMB are trademarks or terms of Sony Interactive Entertainment.
