@@ -11,8 +11,9 @@ def stats(path):
         ex=win-bg; above=np.where(ex>0.2*ex.max())[0]; band=ex[above.min():above.max()+1]
         pk.append(ex.max()); mn.append(band.mean())
     return np.mean(pk),np.mean(mn)
-d=sys.argv[1]; R=os.path.join(os.environ.get('REF_DIR','refs'),'NDx_%s.png')
-print('time   reference peak/mean   mine peak/mean')
-for t in ['0000','0900','1030','1200','1330','1500','1630','1800']:
-    rp,rm=stats(R%t); mp,mm=stats(os.path.join(d,t+'.png'))
-    print('%s   +%5.1f / +%5.1f        +%5.1f / +%5.1f'%(t,rp,rm,mp,mm))
+if __name__ == '__main__':
+    d=sys.argv[1]; R=os.path.join(os.environ.get('REF_DIR','refs'),'NDx_%s.png')
+    print('time   reference peak/mean   mine peak/mean')
+    for t in ['0000','0900','1030','1200','1330','1500','1630','1800']:
+        rp,rm=stats(R%t); mp,mm=stats(os.path.join(d,t+'.png'))
+        print('%s   +%5.1f / +%5.1f        +%5.1f / +%5.1f'%(t,rp,rm,mp,mm))

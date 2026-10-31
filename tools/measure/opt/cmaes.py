@@ -11,21 +11,21 @@ SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count'
 PARAMS = [
     # spec 14: the drive's rates and travel and the damping are fixed in the build (not tuned); the nudges build the detail.
     # spec 16: the nudges' strength is held where nudgecheck.js puts the free half's speed at 0.5-2 times the drive's peak
-    ('NET.noise', 'log', 1.6e-5, 8e-5, 4e-5),
-    ('NET.drivePhase1', 'lin', 0.36, 1.3, 1.225), ('delta', 'lin', 0.02, 0.9, 0.807),
+    ('NET.noise', 'log', 1.6e-5, 8e-5, 2.734e-05),
+    ('NET.drivePhase1', 'lin', 0.36, 1.3, 1.139), ('delta', 'lin', 0.02, 0.9, 0.665),
     # spec 9: across-springs comparable to the along ones (acrossK near 1), bending clearly stiffer (kBend = bendRatio x kStruct)
-    ('NET.kStruct', 'log', 0.05, 1.5, 0.2104), ('bendRatio', 'log', 2.5, 12.0, 4.662), ('NET.acrossK', 'log', 0.75, 1.33, 1.064),
-    ('NET.push', 'log', 0.0005, 0.03, 0.005034),
+    ('NET.kStruct', 'log', 0.05, 1.5, 0.398), ('bendRatio', 'log', 2.5, 12.0, 3.455), ('NET.acrossK', 'log', 0.75, 1.33, 0.9862),
+    ('NET.push', 'log', 0.0005, 0.03, 0.004559),
     # spec 16: a moderate field of view, a closer camera, a flatter sheet, seen at a small elevation
-    ('SCENE.wid', 'lin', 3.0, 8.0, 5.352), ('SCENE.height', 'log', 0.8, 4.0, 1.6), ('camPitch', 'lin', 0.0, 15.0, 7.0),
-    ('fovY', 'lin', 45.0, 70.0, 58.0), ('camDist', 'log', 2.2, 6.0, 3.15),
+    ('SCENE.wid', 'lin', 3.0, 8.0, 5.618), ('SCENE.height', 'log', 0.8, 4.0, 2.075), ('camPitch', 'lin', 0.0, 15.0, 12.66),
+    ('fovY', 'lin', 45.0, 70.0, 64.4), ('camDist', 'log', 2.2, 6.0, 3.161),
     # spec 11: the slow warp (rolling wave, sliding bump, bob, twist) and the uneven layout along the length
-    ('LAT.rollAmp', 'log', 0.005, 0.12, 0.02), ('LAT.rollW', 'log', 0.08, 1.2, 0.5), ('LAT.rollGrow', 'lin', 1.0, 5.0, 3.0),
-    ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.3), ('LAT.bumpAmp', 'log', 0.004, 0.06, 0.01146), ('LAT.twistAmp', 'log', 0.003, 0.04, 0.01),
-    ('LAT.spread', 'log', 1.5, 15.0, 3.0), ('SCENE.len', 'lin', 6.0, 16.0, 9.879), ('SCENE.x0', 'lin', -2.0, 4.0, 0.3146),
+    ('LAT.rollAmp', 'log', 0.005, 0.12, 0.0272), ('LAT.rollW', 'log', 0.08, 1.2, 0.58), ('LAT.rollGrow', 'lin', 1.0, 5.0, 3.446),
+    ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.189), ('LAT.bumpAmp', 'log', 0.004, 0.06, 0.005516), ('LAT.twistAmp', 'log', 0.003, 0.04, 0.01214),
+    ('LAT.spread', 'log', 1.5, 15.0, 5.643), ('SCENE.len', 'lin', 6.0, 16.0, 12.15), ('SCENE.x0', 'lin', -2.0, 4.0, 0.7873),
     # spec 16 shading (day mood): sheen level, Fresnel-like strength, size-factor scale; sheen cut-off; the peak's place and narrowness
-    ('base', 'log', 0.05, 3.0, 0.5), ('fres', 'log', 0.05, 5.0, 1.0), ('sizeK', 'log', 0.2, 5.0, 1.0),
-    ('cut0', 'log', 0.3, 3.0, 1.0), ('cutW', 'lin', 1.2, 4.0, 2.5), ('fresPeak', 'log', 0.03, 0.6, 0.15), ('fresPow', 'lin', 1.0, 8.0, 3.0),
+    ('base', 'log', 0.05, 3.0, 1.469), ('fres', 'log', 0.05, 5.0, 2.013), ('sizeK', 'log', 0.2, 5.0, 1.496),
+    ('cut0', 'log', 0.3, 3.0, 0.3348), ('cutW', 'lin', 1.2, 4.0, 1.87), ('fresPeak', 'log', 0.03, 0.6, 0.0936), ('fresPow', 'lin', 1.0, 8.0, 3.5),
 ]
 D = len(PARAMS)
 def to_z(vals):
@@ -71,7 +71,7 @@ OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value). Ta
     ('partcol', 0.59, 0.25, 2.0, 0.14), ('linepk', 1.46, 0.15, 1.0, -0.21), ('a40', 0.37, 0.08, 1.0, 0.014), ('dark', 0.30, 0.1, 2.0, 0.0),
     ('bwidth', 20.3, 6.0, 1.5, 1.0), ('partings', 3, 2.0, 1.0, -0.7), ('a25', 0.54, 0.1, 0.5, 0.013),
     ('widthLines', 6.5, 1.2, 0.5, 0.6), ('edge', 9.0, 3.0, 0.5, 0.37), ('peaks25', 2.5, 0.5, 0.5, 0.04), ('pinch8', 15, 10, 1.0, -0.4),
-    ('lines10', 3, 3, 0.25, 0.3), ('cosMed', 0.5, 0.1, 2.0, 0.0),  # spec 16: a typical bit of sheet seen about halfway between edge-on and face-on
+    ('lines10', 3, 3, 0.25, 0.3), ('tilt', 0.06, 0.1, 1.0, 0.0), ('cosMed', 0.5, 0.1, 2.0, 0.0),  # spec 16: a typical bit of sheet seen about halfway between edge-on and face-on
     # motion from the two 30 s clips (15 October 12:00 and 21:30): swell shift +0.009 and +0.041 W/s, 1 s correlation 0.36 and 0.15,
     # adjacent strands 8.8 and 7.2 px/s, centre speed 0.020 H/s, partings' drift 34 and 44 px/s, rightwards 0.47 and 0.50
     ('shift', 0.025, 0.025, 1.5, -0.007), ('adjdiff', 8.0, 2.0, 0.75, -0.7), ('corr1', 0.25, 0.12, 2.0, 0.06), ('outer', 0.74, 0.15, 2.0, -0.018), ('cspeed', 0.020, 0.005, 0.5, 0.0),
