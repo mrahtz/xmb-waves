@@ -36,7 +36,8 @@ const VS_WAVE = `#version 300 es
 precision highp float;
 uniform highp sampler2D uNet0, uNet1; uniform float uAlpha;
 uniform mat4 uVP; uniform int uSA, uSV; uniform vec2 uRes; uniform float uMinW;
-out vec3 vP; out vec3 vN; out vec2 vST; out float vWidth;
+uniform vec3 uCam, uRight, uUp, uFwd; uniform vec2 uProj; uniform float uSizeNorm;
+out float vCos, vSize; out vec2 vST; out float vWidth;
 vec3 cp(ivec2 ij){ return mix(texelFetch(uNet0, ij, 0).xyz, texelFetch(uNet1, ij, 0).xyz, uAlpha); }
 void basis(float t, out vec4 b, out vec4 d){
   float t2 = t * t, t3 = t2 * t, u = 1.0 - t;
@@ -57,7 +58,17 @@ void main(){
     for (int a = 0; a < 4; a++) { vec3 c = cp(ivec2(is_ + a, it + b)); rb += bs[a] * c; rd += ds[a] * c; }
     P += bt[b] * rb; Ps += bt[b] * rd; Pt += dt[b] * rb;
   }
-  vP = P; vN = cross(Ps, Pt); vST = vec2(s, t) / ${NN - 3}.0;
+  // shading per vertex, in the projected space: view axes scaled by the projection (x by f / aspect, y by f), before
+  // the perspective divide. The B-spline commutes with this linear map, so the surface, its derivatives and their
+  // unnormalised cross product (its length the element's area there) are those of the projected surface.
+  vec3 D = P - uCam;
+  vec3 Q = vec3(uProj.x * dot(uRight, D), uProj.y * dot(uUp, D), dot(uFwd, D));
+  vec3 Qs = vec3(uProj.x * dot(uRight, Ps), uProj.y * dot(uUp, Ps), dot(uFwd, Ps));
+  vec3 Qt = vec3(uProj.x * dot(uRight, Pt), uProj.y * dot(uUp, Pt), dot(uFwd, Pt));
+  vec3 Nq = cross(Qs, Qt); float dist = max(length(Q), 1e-4), along = abs(dot(Nq, Q)) / dist;
+  vCos = along / max(length(Nq), 1e-12);   // cosine between the normal and the line of sight (a distorted view angle)
+  vSize = along / dist * uSizeNorm;        // area times cosine, over the first power of the distance, per-mood scale
+  vST = vec2(s, t) / ${NN - 3}.0;
   vec4 clip = uVP * vec4(P, 1.0);
   // the cell's other corners, linearised from the derivatives
   float dsv = (cs == 0 ? 1.0 : -1.0) * ${NN - 3}.0 / float(uSA), dtv = (ct == 0 ? 1.0 : -1.0) * ${NN - 3}.0 / float(uSV);
@@ -77,38 +88,25 @@ void main(){
   clip.xy = p / (0.5 * uRes) * clip.w;
   gl_Position = clip;
 }`;
-// Per fragment: c = cosine between the normal and the line of sight. The light of
-// each bit of sheet is a response to the view angle, exp(-(c / baseC)^baseK), times
-// its projected size: how large it appears on screen, the surface element's area
-// (how much cloth it holds; less where the sheet is bunched) times the cosine
-// (foreshortening) times the inverse square of its distance (relative to the camera's distance from
-// its target). A bit spread over many pixels therefore gives more light per pixel
-// than the same bit squeezed into a sliver, and the light falls towards nothing
-// exactly where the sheet turns edge-on: a fold's glow sits just inside the turn as a
-// soft strip, with no separate hard line at the silhouette. The cell's true size also
-// scales the light where it was widened (see the vertex shader), so overlapping
-// layers add up to the right total.
+// Per fragment, from the per-vertex cosine c and size factor S (interpolated): the light is S times the edge fade times
+// the sum of two terms. The sheen is the base level times the (fused, so flat) thread profile, which is cut off where
+// S is large: bits of sheet that appear large on screen (near, face-on, big cells) carry no sheen. The Fresnel-like
+// term is a strength times one narrow peak indexed by the product c x S: nothing exactly edge-on, a steep rise to the
+// peak, nothing from moderate values up. It is the soft strip just inside every edge-on turn, nearer the turn where S
+// is large. The cell's true size also scales the light where it was widened (see the vertex shader).
 const FS_WAVE = `#version 300 es
 precision highp float;
-in vec3 vP; in vec3 vN; in vec2 vST; in float vWidth;
-uniform vec3 uCam; uniform float uBright, uBase, uBaseC, uBaseK, uSizeRef, uAreaRef, uThreads, uThreadAmp, uFadeEnds, uFadeEdges;
+in float vCos, vSize; in vec2 vST; in float vWidth;
+uniform float uBright, uBase, uFres, uCut0, uCut1, uFresPeak, uFresPow, uFadeEnds, uFadeEdges;
 out vec4 o;
-float band(float x, float amp){ // a periodic profile, pre-filtered by its on-screen density
-  float w = fwidth(x);
-  return amp * cos(6.2831853 * x) * (1.0 - smoothstep(0.2, 0.6, w));
-}
 void main(){
-  vec3 D = uCam - vP; vec3 V = normalize(D);
-  float c = abs(dot(normalize(vN), V));
-  // projected size of this bit of sheet: its area (relative to the area at rest) times the cosine, i.e. the
-  // unnormalised normal's component along the line of sight, times the inverse square of its distance
-  float size = abs(dot(vN, V)) / uAreaRef * uSizeRef * uSizeRef / dot(D, D);
-  float sheen = uBase * exp(-pow(c / uBaseC, uBaseK)) * size;
+  float S = max(vSize, 0.0), x = vCos * S / uFresPeak;
+  float sheen = uBase * (1.0 - smoothstep(uCut0, uCut1, S));
+  float fres = uFres * pow(x * exp(1.0 - x), uFresPow);
   float t = vST.y;
-  float pat = 1.0 + band(t * uThreads, uThreadAmp);
   float fade = smoothstep(0.0, uFadeEnds, vST.x) * smoothstep(1.0, 1.0 - uFadeEnds, vST.x)
              * smoothstep(0.0, uFadeEdges, t) * smoothstep(1.0, 1.0 - uFadeEdges, t);
-  o = vec4(uBright * sheen * pat * fade * vWidth, 0.0, 0.0, 1.0);
+  o = vec4(uBright * S * (sheen + fres) * fade * vWidth, 0.0, 0.0, 1.0);
 }`;
 
 // B-spline filtered upscale of the small background image (four bilinear taps).
@@ -123,9 +121,8 @@ vec3 bicubicBg(vec2 uv){
   return g0.y * (g0.x * texture(uBg, vec2(p0.x, p0.y)).rgb + g1.x * texture(uBg, vec2(p1.x, p0.y)).rgb)
        + g1.y * (g0.x * texture(uBg, vec2(p0.x, p1.y)).rgb + g1.x * texture(uBg, vec2(p1.x, p1.y)).rgb);
 }`;
-// Smoothing filter over the supersampled wave buffer: n x n bilinear taps spread
-// over one destination pixel (uWTexel = destination pixel size in uv) times
-// uWSpread (1 = a plain box; wider softens the sharpest silhouettes a little).
+// Down-filter over the supersampled wave buffer: a box exactly one destination pixel wide (n x n bilinear taps over
+// uWTexel, the destination pixel size in uv, times uWSpread = 1).
 const GLSL_WAVEBOX = `
 uniform sampler2D uWave; uniform vec2 uWTexel; uniform int uWTaps; uniform float uWSpread;
 float waveBox(vec2 uv){
@@ -200,10 +197,16 @@ precision highp float;
 layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
 uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uPxScale, uSize, uBlur, uF;
-uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uIri, uIriExp, uFlare, uDimPow, uDofPow;
-uniform float uGlint, uExt, uIriShare, uMinTilt; uniform vec2 uRes;
+uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uDofPow;
+uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uSatGain, uTiltPow;
+uniform float uGlint, uExt, uMinTilt; uniform vec2 uRes;
 out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
-vec3 ramp(float x){ return 0.5 + 0.5 * cos(6.2831853 * (x + vec3(0.0, 0.33, 0.67))); }
+// iridescent colour map indexed by the facing direction's two screen-plane components (a lit-sphere lookup): the hue
+// turns with the direction's angle and its distance from the centre, paler towards the centre
+vec3 iriMap(vec2 q){
+  float r = min(length(q), 1.0), h = atan(q.y, q.x) / 6.2831853 + 0.6 * r;
+  return mix(vec3(1.0), 0.5 + 0.5 * cos(6.2831853 * (h + vec3(0.0, 0.33, 0.67))), r);
+}
 void main(){
   vec3 P = mix(aP0, aP1, uAlpha);
   vec3 d = P - uCam; float z = dot(d, uCamFwd);
@@ -211,23 +214,23 @@ void main(){
   out_ = min(out_, 1.5);
   float base = uSize * (0.75 + 0.5 * aRnd);
   float sizePx = (base + uBlur * out_) * uPxScale, sharpPx = base * uPxScale;
-  // a wide spread of brightness: most sparkles are faint, a few are bright
-  float dim = pow(fract(aRnd * 7.31), uDimPow);
-  float I = uBright * aOp * dim * pow(sharpPx / sizePx, uDofPow) * smoothstep(uCamFade0, uCamFade1, z);
+  float I = uBright * aOp * pow(sharpPx / sizePx, uDofPow) * smoothstep(uCamFade0, uCamFade1, z);
   vec3 V = normalize(-d);
-  float a = pow(abs(dot(aF, V)), uIriExp);
-  vec3 L1 = normalize(vec3(0.4, 0.8, -0.45)), L2 = normalize(vec3(-0.7, 0.3, -0.6)), L3 = normalize(vec3(0.1, -0.5, -0.85));
-  float fl = pow(max(dot(aF, L1), 0.0), 24.0) + pow(max(dot(aF, L2), 0.0), 24.0) + pow(max(dot(aF, L3), 0.0), 24.0);
-  // mostly neutral: only a few sparkles carry strong colour, and out-of-focus ones are grey
-  float colourful = step(fract(aRnd * 13.7), uIriShare);
-  vC = mix(vec3(1.0), ramp(a + 0.15 * aRnd), mix(0.02, uIri, colourful) * (1.0 - 0.8 * clamp(out_, 0.0, 1.0)));
-  vI = I * (0.55 + uFlare * fl) * uGlint;
   vSoft = clamp(out_, 0.0, 1.0);
   // the disc's plane: its own facing from the spin, turned towards the camera when close to it, and never quite edge-on
   // (at least uMinTilt of a face-on view, so an edge-on disc is a short thin line rather than nothing)
   vec3 N = aF * sign(dot(aF, V) + 1e-6);
   N = normalize(mix(N, V, clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0)));
   float c = dot(N, V); if (c < uMinTilt) N = normalize(mix(N, V, (uMinTilt - c) / max(1.0 - c, 1e-3)));
+  // lighting (spec 16): one point light; a two-sided diffuse term plus a sharp specular highlight tinted by the
+  // iridescent map, through a soft saturating curve. No random brightness: the spread and the twinkle come from the
+  // spin. The disc fades out as it turns edge-on.
+  vec3 L = normalize(uLight - P), Hh = normalize(L + V);
+  float diff = abs(dot(N, L)), spec = pow(abs(dot(N, Hh)), uShin);
+  vec3 iri = pow(iriMap(vec2(dot(aF, uRight), dot(aF, uUp))), vec3(uMapExp));
+  vec3 lit = 1.0 - exp(-uSatGain * (uKd * diff + uKs * spec * iri));
+  vC = mix(lit, vec3(dot(lit, vec3(0.299, 0.587, 0.114))), 0.8 * vSoft); // out of focus: grey
+  vI = I * (1.0 - pow(1.0 - max(c, 0.0), uTiltPow)) * uGlint;
   vec3 Ub = normalize(cross(N, abs(N.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0))), Vb = cross(N, Ub);
   // the disc's radius in scene units for its size in pixels at this distance; the patch is uExt times the disc
   float Rw = max(sizePx, 0.7) * max(z, 0.05) * 2.0 / (uF * uRes.y);

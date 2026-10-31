@@ -31,25 +31,25 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 // Moods: complete parameter sets, blended linearly with one shared factor.
 // ---------------------------------------------------------------------------
 const MOOD_KEYS = [
-  'waveBright', 'base', 'baseC', 'baseK', 'threadAmp',
+  'waveBright', 'base', 'fres', 'sizeK',
   'latX', 'latY', 'latZ', 'envCross', 'camPitch',
   'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 5.0, base: 0.24, baseC: 0.3202, baseK: 2.209, threadAmp: 0.0,
+  night: { waveBright: 1.0, base: 0.30, fres: 1.0, sizeK: 1.0,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 1.7,
     exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
     focusFar: 12.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dawn: { waveBright: 4.9, base: 0.30, baseC: 0.3202, baseK: 2.209, threadAmp: 0.0,
+  dawn: { waveBright: 1.0, base: 0.30, fres: 1.0, sizeK: 1.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 2.7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  day: { waveBright: 4.9, base: 0.30, baseC: 0.234, baseK: 1.421, threadAmp: 0.0,
+  day: { waveBright: 1.0, base: 0.30, fres: 1.0, sizeK: 1.0,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 1.352,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.5, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 5.0, base: 0.32, baseC: 0.3202, baseK: 2.209, threadAmp: 0.0,
+  dusk: { waveBright: 1.0, base: 0.30, fres: 1.0, sizeK: 1.0,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 2.7,
     exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
     focusFar: 12.4, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
@@ -130,10 +130,11 @@ function cameraFor(pitchDeg, aspect) {
 // ---------------------------------------------------------------------------
 const WAVE = {
   samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
-  threads: 400,                         // thread periods across the sheet
+  sheenCut: [1.0, 2.5],                 // the sheen is cut off between these size factors (the fused thread profile)
+  fresPeak: 0.15, fresPow: 3.0,         // the Fresnel-like peak: where it sits in cosine x size factor, and how narrow
   fadeEnds: 0.10, fadeEdges: 0.04,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
-  filterSpread: 5.5,                    // width of the down-filter over the wave buffer, in output pixels
+  filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
   tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
 };
 const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
@@ -141,9 +142,11 @@ const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
 let BG_HL = 0.12; // strength of the drifting daytime highlight
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = { size: 3.2, blur: 6.0, dofPow: 1.2, nearSoft: 2.5, farSoft: 3.0, focusNear: 9.0, camFade: [3.0, 5.0],
-  bright: 0.56, dimPow: 5.5, iri: 0.6, iriShare: 0.02, iriExp: 2.0, flare: 1.4, glintSize: 4.5, glintBright: 0.10,
-  minTilt: 0.15 }; // iriShare: share of strongly coloured sparkles; minTilt: how far from edge-on a disc is ever seen
-                   // (the cosine of its tilt to the view), so an edge-on disc shows as a short thin line
+  bright: 1.0, glintSize: 4.5, glintBright: 0.10, minTilt: 0.05,
+  // lighting (spec 16): one point light in the scene, diffuse kd and specular ks with exponent shin, the highlight tinted
+  // by the iridescent map raised to mapExp, the sum through 1 - exp(-satGain x); the disc's opacity falls as it turns
+  // edge-on, with the power tiltPow of one minus the cosine; minTilt keeps the patch from being exactly edge-on
+  light: [-4.0, 6.0, -6.0], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.5, satGain: 1.5, tiltPow: 3.0 };
 let DITHER = 0.85; // output levels, peak
 let GLARE_DESAT = 0.6; // how far the halo is pulled towards white
 

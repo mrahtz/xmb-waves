@@ -57,8 +57,11 @@ function XMBW_SIM() {
 
   const SPARK = {
     pool: 2000,
-    burstP: 0.30, burstMin: 1, burstMax: 9,        // per step
-    walkers: 6, walkerP: 0.05, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
+    // births (spec 16): bursts on a large share of the steps, each a fixed batch at random points of the sheet, supply nearly
+    // all of them; a single walker leaves a trail along the length, one sparkle every other step, and its births come after
+    // the bursts' so they are the ones dropped once the pool is full
+    burstP: 0.6, burstN: 12,
+    walkers: 1, walkerP: 0.02, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 1.1, reverseP: 0.12,
     speedK: 0.24, speedPow: 0.5, speedMin: 0.027, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
@@ -67,6 +70,7 @@ function XMBW_SIM() {
     upLean: 0.12,                                   // share of downward-flung sparkles turned round, so slightly more rise than fall
     spinA: 2.2, spinF: [0.21, 0.37],                // rad/s amplitude, oscillation freq range (rad/s)
     box: [[-7, 7], [-3.0, 3.2], [-3.5, 5.0]],
+    boxFade: 0.8,                                   // sparkles fade out over this distance from the box's faces
   };
   const SPARK_STRIDE = 11; // prev xyz, cur xyz, facing xyz, opacity, random
 
@@ -304,10 +308,7 @@ function XMBW_SIM() {
     function randPoint() { return [rng() * (N - 3), rng() * (N - 3)]; }
 
     function emit() {
-      if (rng() < SPARK.burstP) {
-        const n = SPARK.burstMin + Math.floor(rng() * (SPARK.burstMax - SPARK.burstMin + 1));
-        for (let b = 0; b < n; b++) { const p = randPoint(); birth(p[0], p[1]); }
-      }
+      if (rng() < SPARK.burstP) for (let b = 0; b < SPARK.burstN; b++) { const p = randPoint(); birth(p[0], p[1]); }
       for (const w of walkers) {
         if (!w.on) {
           if (rng() < SPARK.walkerP) {
@@ -316,7 +317,7 @@ function XMBW_SIM() {
           }
           continue;
         }
-        birth(w.s, w.t);
+        if (w.left % 2 === 0) birth(w.s, w.t);
         w.s += w.dir * SPARK.walkStep;
         if (--w.left <= 0 || w.s < 0 || w.s > N - 3) w.on = false;
       }
@@ -371,7 +372,11 @@ function XMBW_SIM() {
         const q = i * 4, x = sq[q], y = sq[q + 1], z = sq[q + 2], w = sq[q + 3];
         out[o + 6] = 2 * (x * z + w * y); out[o + 7] = 2 * (y * z - w * x); out[o + 8] = 1 - 2 * (x * x + y * y);
         const op = Math.min(1, a / SPARK.rampIn) * Math.min(1, (1 - a) / SPARK.rampOut);
-        out[o + 9] = op * op * (3 - 2 * op);
+        // fade near the bounding box's faces
+        const box = SPARK.box; let edge = Infinity;
+        for (let ax = 0; ax < 3; ax++) edge = Math.min(edge, sp[k + ax] - box[ax][0], box[ax][1] - sp[k + ax]);
+        const bf = Math.min(1, Math.max(0, edge / SPARK.boxFade));
+        out[o + 9] = op * op * (3 - 2 * op) * bf * bf * (3 - 2 * bf);
         out[o + 10] = sRnd[i];
         n++;
       }

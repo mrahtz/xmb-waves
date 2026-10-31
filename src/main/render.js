@@ -57,11 +57,14 @@ function renderFrame(st, outTarget) {
     gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp);
     const SA = 16 * WAVE.samplesAlong, SV = 16 * WAVE.samplesAcross;
     gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV); gl.uniform2f(pr.u.uRes, ww, wh); gl.uniform1f(pr.u.uMinW, WAVE.minWidth);
-    gl.uniform3fv(pr.u.uCam, cam.pos);
-    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uBaseC, m.baseC); gl.uniform1f(pr.u.uBaseK, m.baseK);
-    gl.uniform1f(pr.u.uSizeRef, CAMERA.dist);
-    gl.uniform1f(pr.u.uAreaRef, SIMM.tunables.SCENE.len * SIMM.tunables.SCENE.wid / ((NN - 1) * (NN - 1))); // a surface element's area at rest
-    gl.uniform1f(pr.u.uThreads, WAVE.threads); gl.uniform1f(pr.u.uThreadAmp, m.threadAmp);
+    gl.uniform3fv(pr.u.uCam, cam.pos); gl.uniform3fv(pr.u.uRight, cam.right); gl.uniform3fv(pr.u.uUp, cam.up); gl.uniform3fv(pr.u.uFwd, cam.fwd);
+    gl.uniform2f(pr.u.uProj, cam.f * wh / ww, cam.f);
+    // size factor scale: a face-on cell at rest, at the camera's distance, has size factor sizeK
+    const SC = SIMM.tunables.SCENE, aRest = SC.len * SC.wid / ((NN - 1) * (NN - 1)) * cam.f * cam.f * wh / ww;
+    gl.uniform1f(pr.u.uSizeNorm, m.sizeK * CAMERA.dist / aRest);
+    gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uFres, m.fres);
+    gl.uniform1f(pr.u.uCut0, WAVE.sheenCut[0]); gl.uniform1f(pr.u.uCut1, WAVE.sheenCut[1]);
+    gl.uniform1f(pr.u.uFresPeak, WAVE.fresPeak); gl.uniform1f(pr.u.uFresPow, WAVE.fresPow);
     gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
     gl.bindVertexArray(emptyVao);
     gl.drawArrays(gl.TRIANGLES, 0, 6 * SA * SV);
@@ -127,9 +130,10 @@ function sparkUniforms(pr, m, cam, st) {
   gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
   gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
   gl.uniform1f(pr.u.uCamFade0, SPARKR.camFade[0]); gl.uniform1f(pr.u.uCamFade1, SPARKR.camFade[1]);
-  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uIri, SPARKR.iri);
-  gl.uniform1f(pr.u.uIriExp, SPARKR.iriExp); gl.uniform1f(pr.u.uFlare, SPARKR.flare); gl.uniform1f(pr.u.uDimPow, SPARKR.dimPow);
-  gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow); gl.uniform1f(pr.u.uIriShare, SPARKR.iriShare);
+  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow);
+  gl.uniform3fv(pr.u.uLight, SPARKR.light); gl.uniform3fv(pr.u.uRight, cam.right); gl.uniform3fv(pr.u.uUp, cam.up);
+  gl.uniform1f(pr.u.uKd, SPARKR.kd); gl.uniform1f(pr.u.uKs, SPARKR.ks); gl.uniform1f(pr.u.uShin, SPARKR.shin);
+  gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uSatGain, SPARKR.satGain); gl.uniform1f(pr.u.uTiltPow, SPARKR.tiltPow);
   gl.uniform1f(pr.u.uF, cam.f); gl.uniform1f(pr.u.uMinTilt, SPARKR.minTilt);
   gl.uniform2f(pr.u.uRes, ow, oh);
 }

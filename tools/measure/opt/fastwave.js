@@ -29,7 +29,10 @@ function loadPage(path) {
   const dayTxt = src.match(/\n  day: \{[\s\S]*?\},\n/)[0];
   const fsWave = src.match(/const FS_WAVE = `[\s\S]*?`;/)[0];
   const mood = {};
-  for (const k of ['waveBright', 'base', 'baseC', 'baseK', 'edge', 'edgeC', 'envCross', 'camPitch', 'latX', 'latY', 'latZ']) mood[k] = num(dayTxt, k, undefined);
+  for (const k of ['waveBright', 'base', 'baseC', 'baseK', 'edge', 'edgeC', 'envCross', 'camPitch', 'latX', 'latY', 'latZ', 'fres', 'sizeK']) mood[k] = num(dayTxt, k, undefined);
+  // spec-16 shading: per vertex in the projected space, a sheen cut off at large size factors plus a Fresnel-like peak
+  // indexed by cosine x size factor, both times the size factor (area x cosine over the first power of the distance)
+  if (/uSizeNorm/.test(src)) mood.spec16 = true;
   if (!/uBaseK/.test(fsWave)) mood.baseK = 1; // older shading: sheen = base * exp(-c / baseC)
   if (mood.latX == null) { mood.latX = mood.latY = mood.latZ = 1; }
   // spec-10 shading: light times the projected size (c x (sizeRef / distance)^2), no edge-on line
@@ -38,8 +41,9 @@ function loadPage(path) {
   if (mood.edge == null) { mood.edge = 0; mood.edgeC = 1; }
   const waveTxt = src.match(/const WAVE = \{[\s\S]*?\n\};/)[0];
   const tint = (name) => { const m = waveTxt.match(new RegExp(name + ': \\[([^\\]]*)\\]')); return m ? m[1].split(',').map(Number) : [1, 1, 1]; };
-  const WAVE = { fadeEnds: num(waveTxt, 'fadeEnds', 0.1), fadeEdges: num(waveTxt, 'fadeEdges', 0.04), filterSpread: num(waveTxt, 'filterSpread', 5.5), tintL: tint('tintL'), tintR: tint('tintR') };
-  return { XMBW_SIM, XMBW_SIM_FAST, cameraFor, mood, WAVE, path, camYaw: num(camLine, 'yaw', -20) };
+  const WAVE = { fadeEnds: num(waveTxt, 'fadeEnds', 0.1), fadeEdges: num(waveTxt, 'fadeEdges', 0.04), filterSpread: num(waveTxt, 'filterSpread', 5.5), tintL: tint('tintL'), tintR: tint('tintR'),
+    sheenCut: tint('sheenCut'), fresPeak: num(waveTxt, 'fresPeak', 0.15), fresPow: num(waveTxt, 'fresPow', 3) };
+  return { XMBW_SIM, XMBW_SIM_FAST, cameraFor, mood, WAVE, path, camYaw: num(camLine, 'yaw', -20), camDist: num(camLine, 'dist', 11) };
 }
 
 // ------------------------------------------------------------------ maths helpers
@@ -166,7 +170,7 @@ class Raster {
     const v0 = v[0], v4 = v[4], v8 = v[8], v12 = v[12], v1 = v[1], v5 = v[5], v9 = v[9], v13 = v[13], v3 = v[3], v7 = v[7], v11 = v[11], v15 = v[15];
     const Wpx = this.W, Hpx = H, dsdt = (16 / S) * (16 / T);
     const bright = shade.bright, base = shade.base, baseC = shade.baseC, baseK = shade.baseK, edge = shade.edge, edgeC = shade.edgeC;
-    const kIs2 = Math.abs(baseK - 2) < 1e-9, sizeRef2 = shade.sizeRef * shade.sizeRef;
+    const kIs2 = Math.abs(baseK - 2) < 1e-9, sizeRef2 = shade.sizeRef * shade.sizeRef, P16 = shade.p16;
     let total = 0;
     for (let k = 0; k < T; k++) {
       const o = k * 57, ft = this.tFade[k];
@@ -198,10 +202,24 @@ class Raster {
         const vx = cx - px, vy = cy - py, vz = cz - pz;
         const nl = Math.sqrt(nx * nx + ny * ny + nz * nz), vl = Math.sqrt(vx * vx + vy * vy + vz * vz);
         const c = nl > 0 ? Math.abs(nx * vx + ny * vy + nz * vz) / (nl * vl) : 0;
-        const r = c / baseC;
-        const sheen = base * Math.exp(-(kIs2 ? r * r : Math.pow(r, baseK)));
-        const areaRef = shade.areaRef;
-        const I = sizeRef2 > 0 ? bright * sheen * (areaRef > 0 ? c * nl / areaRef : c) * sizeRef2 / (vl * vl) * fade : bright * (sheen + edge * Math.exp(-c / edgeC)) * fade;
+        let I;
+        if (P16) {
+          // spec 16: cosine and size factor in the projected space (view axes scaled by the projection, before the divide)
+          const dx = px - cx, dy = py - cy, dz = pz - cz;
+          const Qx = P16.fx * (P16.r[0] * dx + P16.r[1] * dy + P16.r[2] * dz), Qy = P16.fy * (P16.u[0] * dx + P16.u[1] * dy + P16.u[2] * dz), Qz = P16.w[0] * dx + P16.w[1] * dy + P16.w[2] * dz;
+          const Sx = P16.fx * (P16.r[0] * sx + P16.r[1] * sy + P16.r[2] * sz), Sy = P16.fy * (P16.u[0] * sx + P16.u[1] * sy + P16.u[2] * sz), Sz = P16.w[0] * sx + P16.w[1] * sy + P16.w[2] * sz;
+          const Tx = P16.fx * (P16.r[0] * tx + P16.r[1] * ty + P16.r[2] * tz), Ty = P16.fy * (P16.u[0] * tx + P16.u[1] * ty + P16.u[2] * tz), Tz = P16.w[0] * tx + P16.w[1] * ty + P16.w[2] * tz;
+          const Nx = Sy * Tz - Sz * Ty, Ny = Sz * Tx - Sx * Tz, Nz = Sx * Ty - Sy * Tx;
+          const dist = Math.sqrt(Qx * Qx + Qy * Qy + Qz * Qz) || 1e-4, along = Math.abs(Nx * Qx + Ny * Qy + Nz * Qz) / dist;
+          const cq = along / (Math.sqrt(Nx * Nx + Ny * Ny + Nz * Nz) || 1e-12), Sf = along / dist * P16.norm;
+          const e = Math.min(Math.max((Sf - P16.c0) / (P16.c1 - P16.c0), 0), 1), x = cq * Sf / P16.peak;
+          I = bright * Sf * fade * (base * (1 - e * e * (3 - 2 * e)) + P16.fres * Math.pow(x * Math.exp(1 - x), P16.pow));
+        } else {
+          const r = c / baseC;
+          const sheen = base * Math.exp(-(kIs2 ? r * r : Math.pow(r, baseK)));
+          const areaRef = shade.areaRef;
+          I = sizeRef2 > 0 ? bright * sheen * (areaRef > 0 ? c * nl / areaRef : c) * sizeRef2 / (vl * vl) * fade : bright * (sheen + edge * Math.exp(-c / edgeC)) * fade;
+        }
         const val = I * area / cw; // light density per raster cell (cw px wide, 1 px tall)
         total += I * area;
         // bilinear splat
@@ -510,7 +528,7 @@ function motionStats(frames, fps, ras) {
 }
 
 // ------------------------------------------------------------------ driving the simulation
-function makeShade(mood) { return { bright: mood.waveBright, base: mood.base, baseC: mood.baseC, baseK: mood.baseK, edge: mood.edge, edgeC: mood.edgeC, sizeRef: mood.sizeRef || 0, areaRef: mood.useArea ? mood.areaRef : 0 }; }
+function makeShade(mood) { return { bright: mood.waveBright, base: mood.base, baseC: mood.baseC, baseK: mood.baseK, edge: mood.edge, edgeC: mood.edgeC, sizeRef: mood.sizeRef || 0, areaRef: mood.useArea ? mood.areaRef : 0, p16: mood.p16 || null }; }
 
 // A page-derived evaluator. tune: dotted-path overrides for the sim tunables (NET.noise, LAT.rollW, SCENE.wid ...),
 // moodOver: overrides of the day mood (camPitch, envCross, ...).
@@ -520,6 +538,11 @@ function makeSim(page, seed, tune, moodOver, aspect, fast) {
   const mood = Object.assign({}, page.mood, moodOver || {});
   const cam = page.cameraFor(mood.camPitch, aspect || 16 / 9);
   mood.areaRef = M.tunables.SCENE.len * M.tunables.SCENE.wid / (18 * 18);
+  if (mood.spec16) { // the page's projected space and size-factor scale (render.js), for this camera and aspect
+    const asp = aspect || 16 / 9, fx = cam.f / asp, fy = cam.f, W = page.WAVE;
+    mood.p16 = { fx, fy, r: cam.right, u: cam.up, w: cam.fwd, norm: mood.sizeK * page.camDist / (mood.areaRef * fx * fy),
+      c0: W.sheenCut[0], c1: W.sheenCut[1], peak: W.fresPeak, pow: W.fresPow, fres: mood.fres };
+  }
   const sim = M.createSim(seed);
   sim.setMood({ envCross: mood.envCross, latScale: [mood.latX, mood.latY, mood.latZ], camFwd: cam.fwd });
   sim.warm(sim.warmSteps);
