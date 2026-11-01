@@ -174,21 +174,19 @@ README).
 
 ## Status
 
-Verified side by side against public recordings (see `docs/REFERENCES.md`)
-and, like for like, against the reference frames and clips run through the
-same measurement tools as my renders (the spec's section 4.6 statistics,
-re-measured that way): the band's placement, its brightness over the day,
-the number of strands per column, how much of the band is lit, the
-face-to-fold contrast, the width of its lines and edges, the line-to-band
-contrast, the partings between strands, the strands moving together, the
-gentle swell and the slow drift of features. Still short of the reference:
-its lines sit more in the middle of the band than at the fringes, it has
-somewhat fewer crossings and dark partings between strands, its faces are a
-little brighter relative to the folds, and its picture changes a little
-faster (0.3 correlation after one second against 0.4);
-the night look; the palettes for February, April (through a late-March
-capture), May, August, October/November and September (purple); the sparkle
-population and look; the glare's subtlety.
+Built to spec version 17 and tuned against the original's recordings in
+`comparison/original/`, measured with the same tools as my renders (see
+`docs/references/tuning-log.md`). Matched: the band's centre speed and
+height change over time, the sideways drift of the dark partings, the number
+of strands per column, the band's brightness at night, and the sparkles'
+count, brightness, look and motion at noon. The geometry checks of 4.4d
+(framing, depth, camera below the sheet) and 4.5 (where the sheet sits on the
+shading curves) pass in every mood. Still short of the original: the picture
+changes faster (0.08 correlation after one second against 0.15-0.36), the swell
+crosses a little quickly (20 s against 25-107 s), the band arches less and is
+thinner, its lines stand out more over the band, and the brightest sparkles
+are a little dim. The palettes are fitted to the recordings at four months
+(mean difference about 12.5 levels per channel).
 
 Not verifiable from the references available so far: the palettes for
 January, March, June, July and December (and theme 1, silver), the look in
