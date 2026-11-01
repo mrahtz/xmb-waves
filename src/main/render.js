@@ -10,9 +10,11 @@ function setBgAndWave(pr, bgT, bgOn, waveOn, dstW, dstH) {
   // one destination pixel is exact when the ratio is a power of two
   const taps = Math.max(1, Math.min(4, Math.ceil(RT.ww / dstW / 2 * WAVE.filterSpread - 1e-3)));
   gl.uniform1i(pr.u.uWTaps, taps); gl.uniform2f(pr.u.uWTexel, 1 / dstW, 1 / dstH); gl.uniform1f(pr.u.uWSpread, WAVE.filterSpread);
-  gl.uniform3fv(pr.u.uTintTop, BG_TINT.top); gl.uniform3fv(pr.u.uTintBot, BG_TINT.bottom);
   gl.uniform3fv(pr.u.uTintL, WAVE.tintL); gl.uniform3fv(pr.u.uTintR, WAVE.tintR);
 }
+// the composite's per-mood exposure and tone curve (spec 17)
+function setTone(pr, m) { gl.uniform1f(pr.u.uBlack, m.black); gl.uniform1f(pr.u.uGain, m.exposure); gl.uniform1f(pr.u.uWhite, m.white); }
+function toneJS(c, m) { c = Math.max(c - m.black, 0) * m.exposure; return c * (1 + c / (m.white * m.white)) / (1 + c); }
 
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
 // The settings menu may add: view {x, y} (where the picture sits in the output
@@ -35,8 +37,13 @@ function renderFrame(st, outTarget) {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bgImages); gl.uniform1i(pr.u.uImg, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform1i(pr.u.uPrev, 1);
     gl.uniform1f(pr.u.uTiles, 24); gl.uniform1f(pr.u.uA, sc.monA); gl.uniform1f(pr.u.uB, sc.monB);
-    gl.uniform1f(pr.u.uF, sc.monF); gl.uniform1f(pr.u.uNight, sc.night); gl.uniform1f(pr.u.uWday, sc.wday);
-    gl.uniform1f(pr.u.uHL, BG_HL); gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
+    gl.uniform1f(pr.u.uMc, sc.monC); gl.uniform1f(pr.u.uMw, sc.monW); gl.uniform1f(pr.u.uNight, sc.night);
+    gl.uniform1f(pr.u.uDaylight, sc.daylight); gl.uniform1f(pr.u.uWday, sc.wday); gl.uniform1f(pr.u.uWnight, sc.wnight);
+    gl.uniform1f(pr.u.uDusk, sc.dusk); gl.uniform1f(pr.u.uMidSat, BGL.midSat * sc.mid);
+    gl.uniform1f(pr.u.uNightMix, BGL.nightMix); gl.uniform1f(pr.u.uSpot, BGL.spot); gl.uniform1f(pr.u.uGlow, BGL.glow);
+    gl.uniform1f(pr.u.uLightBase, BGL.base); gl.uniform1f(pr.u.uNightBase, BGL.nightBase); gl.uniform1f(pr.u.uPale, BGL.pale);
+    gl.uniform1f(pr.u.uDuskDark, BGL.duskDark); gl.uniform1f(pr.u.uDuskSat, BGL.duskSat);
+    gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
     quad(); RT.bgFresh = false;
     RT.bgA = dst; RT.bgB = src;
   }
@@ -87,7 +94,7 @@ function renderFrame(st, outTarget) {
     if (T) T.begin('composite');
     const pr = PR.final; gl.useProgram(pr.p);
     bindTarget(outTarget); gl.viewport(vx, vy, ow, oh);
-    setBgAndWave(pr, bgT, L.bg, L.wave, ow, oh);
+    setBgAndWave(pr, bgT, L.bg, L.wave, ow, oh); setTone(pr, m);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT.tex : bgT.tex); gl.uniform1i(pr.u.uGlare, 2);
     gl.uniform1i(pr.u.uGlareOn, glareT ? 1 : 0); gl.uniform1f(pr.u.uGlareK, glareK);
     gl.uniform1i(pr.u.uDither, L.dither ? 1 : 0); gl.uniform1f(pr.u.uDitherAmp, DITHER);
@@ -125,28 +132,26 @@ function renderFrame(st, outTarget) {
 function sparkUniforms(pr, m, cam, st) {
   const { ow, oh } = RT;
   gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp); gl.uniform3fv(pr.u.uCam, cam.pos); gl.uniform3fv(pr.u.uCamFwd, cam.fwd);
-  gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniform1f(pr.u.uPxScale, oh / 1080);
-  gl.uniform1f(pr.u.uSize, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
+  gl.uniform1f(pr.u.uAlpha, st.alpha);
+  gl.uniform1f(pr.u.uSizeW, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
   gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
   gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
-  gl.uniform1f(pr.u.uCamFade0, SPARKR.camFade[0]); gl.uniform1f(pr.u.uCamFade1, SPARKR.camFade[1]);
-  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow);
+  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofDim, SPARKR.dofDim); gl.uniform1f(pr.u.uTurn, SPARKR.turn);
   gl.uniform3fv(pr.u.uLight, SPARKR.light); gl.uniform3fv(pr.u.uRight, cam.right); gl.uniform3fv(pr.u.uUp, cam.up);
   gl.uniform1f(pr.u.uKd, SPARKR.kd); gl.uniform1f(pr.u.uKs, SPARKR.ks); gl.uniform1f(pr.u.uShin, SPARKR.shin);
-  gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uSatGain, SPARKR.satGain); gl.uniform1f(pr.u.uTiltPow, SPARKR.tiltPow);
-  gl.uniform1f(pr.u.uF, cam.f); gl.uniform1f(pr.u.uMinTilt, SPARKR.minTilt);
+  gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uMapSat, SPARKR.mapSat); gl.uniform1f(pr.u.uSatGain, SPARKR.satGain);
+  gl.uniform1f(pr.u.uTiltPow, SPARKR.tiltPow); gl.uniform1f(pr.u.uF, cam.f);
   gl.uniform2f(pr.u.uRes, ow, oh);
 }
 
 function buildGlare(m, bgT, bgOn, waveOn, peak) {
   const lv = RT.levels;
-  // bright-pass at quarter size
+  // bright-pass at a small size (the pyramid's first level is far below the screen's resolution)
   let pr = PR.bright; gl.useProgram(pr.p);
   bindTarget(lv[0].a); gl.viewport(0, 0, lv[0].w, lv[0].h);
   setBgAndWave(pr, bgT, bgOn, waveOn, lv[0].w, lv[0].h);
-  gl.uniform1f(pr.u.uExposure, m.exposure); gl.uniform1f(pr.u.uWhite, m.white);
-  gl.uniform1f(pr.u.uThr, Math.max(m.glareThr, Math.min(0.97, peak * m.exposure + 0.06)));
-  gl.uniform1f(pr.u.uDesat, GLARE_DESAT);
+  setTone(pr, m);
+  gl.uniform1f(pr.u.uThr, Math.max(m.glareThr, Math.min(0.97, toneJS(peak, m) + 0.06)));
   gl.activeTexture(gl.TEXTURE0);
   quad();
   // mip pyramid
@@ -156,9 +161,9 @@ function buildGlare(m, bgT, bgOn, waveOn, peak) {
     gl.bindTexture(gl.TEXTURE_2D, lv[i - 1].a.tex); gl.uniform2f(pr.u.uTexel, 0.5 / lv[i - 1].w, 0.5 / lv[i - 1].h);
     quad();
   }
-  // separable blur per level, slightly different radius per channel
+  // separable blur per level, the radius growing slightly from red to blue
   pr = PR.blur; gl.useProgram(pr.p); gl.uniform1i(pr.u.uT, 0);
-  const s = m.glareSigma; gl.uniform3f(pr.u.uSigma, s * 1.08, s, s * 0.93);
+  const s = m.glareSigma; gl.uniform3f(pr.u.uSigma, s * 0.93, s, s * 1.08);
   for (const l of lv) {
     gl.viewport(0, 0, l.w, l.h);
     bindTarget(l.b); gl.bindTexture(gl.TEXTURE_2D, l.a.tex); gl.uniform2f(pr.u.uDir, 1 / l.w, 0); quad();

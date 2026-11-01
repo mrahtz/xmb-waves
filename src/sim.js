@@ -62,14 +62,17 @@ function XMBW_SIM() {
     // the bursts' so they are the ones dropped once the pool is full
     burstP: 0.6, burstN: 12,
     walkers: 1, walkerP: 0.02, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
-    cone: 1.1, reverseP: 0.12,
+    cone: 0.6, reverseP: 0.12,                      // cone: half-angle (rad) of the birth cone, deviation spread evenly up to it
     speedK: 0.29, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
-    rampIn: 0.06, rampOut: 0.16,
-    jitter: 0.003, gravity: 0.0002, friction: 0.0,  // per second units: a sparkle keeps the velocity it is flung with
-    upLean: 0.12,                                   // share of downward-flung sparkles turned round, so slightly more rise than fall
-    spinA: 2.2, spinF: [0.21, 0.37],                // rad/s amplitude, oscillation freq range (rad/s)
-    box: [[-7, 7], [-3.0, 3.2], [-3.5, 5.0]],
+    rampIn: 0.04, rampOut: 0.07,                    // short linear ramps of the life (fraction), the fade-in the quicker
+    // jitter (spec 17): each sparkle's push, one value per axis, is held for long stretches (redrawn jitterRedraw times per
+    // second on average), a small steady acceleration differing from sparkle to sparkle; gravity and friction are weak
+    jitter: 0.004, jitterRedraw: 0.3, gravity: 0.0002, friction: 0.03,  // per second units
+    // spin (spec 17): the same schedule over every sparkle's life: angular velocity per axis = spinA x
+    // sin(2 pi x spinCycles[axis] x life fraction + spinPhase[axis])
+    spinA: 2.2, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
+    box: [[-10, 10], [-6, 6], [-3.5, 9]],          // the bounding box: its faces lie outside the view
     boxFade: 0.8,                                   // sparkles fade out over this distance from the box's faces
   };
   const SPARK_STRIDE = 11; // prev xyz, cur xyz, facing xyz, opacity, random
@@ -167,7 +170,7 @@ function XMBW_SIM() {
     const S = SPARK.pool;
     const sp = new Float64Array(S * 3), sv = new Float64Array(S * 3), spPrev = new Float64Array(S * 3);
     const sq = new Float64Array(S * 4), sAge = new Float64Array(S), sRate = new Float64Array(S);
-    const sSpin = new Float64Array(S * 6), sRnd = new Float64Array(S);
+    const sJit = new Float64Array(S * 3), sRnd = new Float64Array(S);
     const alive = new Uint8Array(S);
     const free = new Int32Array(S); let nFree = S;
     for (let i = 0; i < S; i++) free[i] = S - 1 - i;
@@ -278,39 +281,35 @@ function XMBW_SIM() {
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (d < 1e-7) return;
       dx /= d; dy /= d; dz /= d;
-      // spread within a cone: add a random perpendicular-ish offset
-      const c = SPARK.cone;
-      dx += c * gauss() * 0.5; dy += c * gauss() * 0.5; dz += c * gauss() * 0.5;
+      // spread within a cone with a hard edge: a random direction at right angles to the motion, turned by an angle spread
+      // evenly up to the cone's half-angle
+      let px = gauss(), py = gauss(), pz = gauss();
+      const pd = px * dx + py * dy + pz * dz; px -= pd * dx; py -= pd * dy; pz -= pd * dz;
+      const pn = Math.sqrt(px * px + py * py + pz * pz) || 1, th = SPARK.cone * rng(), ct = Math.cos(th), st = Math.sin(th) / pn;
+      dx = dx * ct + px * st; dy = dy * ct + py * st; dz = dz * ct + pz * st;
       if (rng() < SPARK.reverseP) { dx = -dx; dy = -dy; dz = -dz; }
-      if (dy < 0 && rng() < SPARK.upLean) { dx = -dx; dy = -dy; dz = -dz; }
+      // the component along the viewing axis is removed and the rest is not rescaled, so a birth moving partly towards or
+      // away from the camera starts slower
       const f = mood.camFwd, along = dx * f[0] + dy * f[1] + dz * f[2];
       dx -= along * f[0]; dy -= along * f[1]; dz -= along * f[2];
-      const n = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (n < 1e-6) return;
+      if (dx * dx + dy * dy + dz * dz < 1e-12) return;
       const speed = Math.max(SPARK.speedMin, SPARK.speedK * Math.pow(d / DT, SPARK.speedPow)) * (0.6 + 0.8 * rng());
       const i = free[--nFree];
       alive[i] = 1;
       const k = i * 3;
       sp[k] = spPrev[k] = P1[0]; sp[k + 1] = spPrev[k + 1] = P1[1]; sp[k + 2] = spPrev[k + 2] = P1[2];
-      sv[k] = dx / n * speed; sv[k + 1] = dy / n * speed; sv[k + 2] = dz / n * speed;
+      sv[k] = dx * speed; sv[k + 1] = dy * speed; sv[k + 2] = dz * speed;
+      sJit[k] = SPARK.jitter * gauss(); sJit[k + 1] = SPARK.jitter * gauss(); sJit[k + 2] = SPARK.jitter * gauss();
       sAge[i] = 0;
       sRate[i] = Math.max(SPARK.rateMin, SPARK.rateMean * (1 + SPARK.rateSpread * gauss()));
       // random initial orientation
       let qx = gauss(), qy = gauss(), qz = gauss(), qw = gauss();
       const qn = Math.sqrt(qx * qx + qy * qy + qz * qz + qw * qw) || 1;
       sq[i * 4] = qx / qn; sq[i * 4 + 1] = qy / qn; sq[i * 4 + 2] = qz / qn; sq[i * 4 + 3] = qw / qn;
-      for (let a = 0; a < 3; a++) {
-        sSpin[i * 6 + a] = SPARK.spinF[0] + (SPARK.spinF[1] - SPARK.spinF[0]) * rng();
-        sSpin[i * 6 + 3 + a] = rng() * 6.2832;
-      }
       sRnd[i] = rng();
     }
-    // a random point of the sheet, uniform over its area along the length: the net is laid out unevenly (layout()), so
-    // the along-length parameter is drawn through the layout's inverse rather than uniformly
-    function randPoint() {
-      const a = Math.log(Math.max(LAT.spread, 1.0001)), fx = Math.log1p(rng() * Math.expm1(a)) / a;
-      return [fx * (N - 3), rng() * (N - 3)];
-    }
+    // a random point of the sheet, uniform in the surface's two parameters (spec 17), so births crowd where the sheet is compressed
+    function randPoint() { return [rng() * (N - 3), rng() * (N - 3)]; }
 
     function emit() {
       if (rng() < SPARK.burstP) for (let b = 0; b < SPARK.burstN; b++) { const p = randPoint(); birth(p[0], p[1]); }
@@ -334,15 +333,16 @@ function XMBW_SIM() {
         if (!alive[i]) continue;
         const k = i * 3;
         spPrev[k] = sp[k]; spPrev[k + 1] = sp[k + 1]; spPrev[k + 2] = sp[k + 2];
-        const ax = jit * gauss() - fr * sv[k], ay = jit * gauss() - g - fr * sv[k + 1], az = jit * gauss() - fr * sv[k + 2];
+        if (rng() < SPARK.jitterRedraw * DT) { sJit[k] = jit * gauss(); sJit[k + 1] = jit * gauss(); sJit[k + 2] = jit * gauss(); }
+        const ax = sJit[k] - fr * sv[k], ay = sJit[k + 1] - g - fr * sv[k + 1], az = sJit[k + 2] - fr * sv[k + 2];
         sv[k] += ax * DT; sv[k + 1] += ay * DT; sv[k + 2] += az * DT;
         sp[k] += sv[k] * DT; sp[k + 1] += sv[k + 1] * DT; sp[k + 2] += sv[k + 2] * DT;
         sAge[i] += sRate[i] * DT;
-        // spin: angular velocity oscillating slowly with age
-        const age = sAge[i] / sRate[i];
-        const wx = SPARK.spinA * Math.sin(sSpin[i * 6] * age + sSpin[i * 6 + 3]);
-        const wy = SPARK.spinA * Math.sin(sSpin[i * 6 + 1] * age + sSpin[i * 6 + 4]);
-        const wz = SPARK.spinA * Math.sin(sSpin[i * 6 + 2] * age + sSpin[i * 6 + 5]);
+        // spin: the same schedule over the life fraction for every sparkle
+        const lf = 6.283185307179586 * sAge[i], cy = SPARK.spinCycles, ph = SPARK.spinPhase;
+        const wx = SPARK.spinA * Math.sin(cy[0] * lf + ph[0]);
+        const wy = SPARK.spinA * Math.sin(cy[1] * lf + ph[1]);
+        const wz = SPARK.spinA * Math.sin(cy[2] * lf + ph[2]);
         const q = i * 4, x = sq[q], y = sq[q + 1], z = sq[q + 2], w = sq[q + 3], h = 0.5 * DT;
         let nx = x + h * (wx * w + wy * z - wz * y), ny = y + h * (wy * w + wz * x - wx * z);
         let nz = z + h * (wz * w + wx * y - wy * x), nw = w - h * (wx * x + wy * y + wz * z);
@@ -376,12 +376,12 @@ function XMBW_SIM() {
         // facing = q * (0, 0, 1)
         const q = i * 4, x = sq[q], y = sq[q + 1], z = sq[q + 2], w = sq[q + 3];
         out[o + 6] = 2 * (x * z + w * y); out[o + 7] = 2 * (y * z - w * x); out[o + 8] = 1 - 2 * (x * x + y * y);
-        const op = Math.min(1, a / SPARK.rampIn) * Math.min(1, (1 - a) / SPARK.rampOut);
+        const op = Math.min(1, a / SPARK.rampIn, (1 - a) / SPARK.rampOut);  // linear ramps
         // fade near the bounding box's faces
         const box = SPARK.box; let edge = Infinity;
         for (let ax = 0; ax < 3; ax++) edge = Math.min(edge, sp[k + ax] - box[ax][0], box[ax][1] - sp[k + ax]);
         const bf = Math.min(1, Math.max(0, edge / SPARK.boxFade));
-        out[o + 9] = op * op * (3 - 2 * op) * bf * bf * (3 - 2 * bf);
+        out[o + 9] = op * bf * bf * (3 - 2 * bf);
         out[o + 10] = sRnd[i];
         n++;
       }

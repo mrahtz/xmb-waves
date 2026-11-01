@@ -145,14 +145,17 @@ function XMBW_SIM() {
     // the bursts' so they are the ones dropped once the pool is full
     burstP: 0.6, burstN: 12,
     walkers: 1, walkerP: 0.02, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
-    cone: 1.1, reverseP: 0.12,
+    cone: 0.6, reverseP: 0.12,                      // cone: half-angle (rad) of the birth cone, deviation spread evenly up to it
     speedK: 0.29, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
-    rampIn: 0.06, rampOut: 0.16,
-    jitter: 0.003, gravity: 0.0002, friction: 0.0,  // per second units: a sparkle keeps the velocity it is flung with
-    upLean: 0.12,                                   // share of downward-flung sparkles turned round, so slightly more rise than fall
-    spinA: 2.2, spinF: [0.21, 0.37],                // rad/s amplitude, oscillation freq range (rad/s)
-    box: [[-7, 7], [-3.0, 3.2], [-3.5, 5.0]],
+    rampIn: 0.04, rampOut: 0.07,                    // short linear ramps of the life (fraction), the fade-in the quicker
+    // jitter (spec 17): each sparkle's push, one value per axis, is held for long stretches (redrawn jitterRedraw times per
+    // second on average), a small steady acceleration differing from sparkle to sparkle; gravity and friction are weak
+    jitter: 0.004, jitterRedraw: 0.3, gravity: 0.0002, friction: 0.03,  // per second units
+    // spin (spec 17): the same schedule over every sparkle's life: angular velocity per axis = spinA x
+    // sin(2 pi x spinCycles[axis] x life fraction + spinPhase[axis])
+    spinA: 2.2, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
+    box: [[-10, 10], [-6, 6], [-3.5, 9]],          // the bounding box: its faces lie outside the view
     boxFade: 0.8,                                   // sparkles fade out over this distance from the box's faces
   };
   const SPARK_STRIDE = 11; // prev xyz, cur xyz, facing xyz, opacity, random
@@ -250,7 +253,7 @@ function XMBW_SIM() {
     const S = SPARK.pool;
     const sp = new Float64Array(S * 3), sv = new Float64Array(S * 3), spPrev = new Float64Array(S * 3);
     const sq = new Float64Array(S * 4), sAge = new Float64Array(S), sRate = new Float64Array(S);
-    const sSpin = new Float64Array(S * 6), sRnd = new Float64Array(S);
+    const sJit = new Float64Array(S * 3), sRnd = new Float64Array(S);
     const alive = new Uint8Array(S);
     const free = new Int32Array(S); let nFree = S;
     for (let i = 0; i < S; i++) free[i] = S - 1 - i;
@@ -361,39 +364,35 @@ function XMBW_SIM() {
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (d < 1e-7) return;
       dx /= d; dy /= d; dz /= d;
-      // spread within a cone: add a random perpendicular-ish offset
-      const c = SPARK.cone;
-      dx += c * gauss() * 0.5; dy += c * gauss() * 0.5; dz += c * gauss() * 0.5;
+      // spread within a cone with a hard edge: a random direction at right angles to the motion, turned by an angle spread
+      // evenly up to the cone's half-angle
+      let px = gauss(), py = gauss(), pz = gauss();
+      const pd = px * dx + py * dy + pz * dz; px -= pd * dx; py -= pd * dy; pz -= pd * dz;
+      const pn = Math.sqrt(px * px + py * py + pz * pz) || 1, th = SPARK.cone * rng(), ct = Math.cos(th), st = Math.sin(th) / pn;
+      dx = dx * ct + px * st; dy = dy * ct + py * st; dz = dz * ct + pz * st;
       if (rng() < SPARK.reverseP) { dx = -dx; dy = -dy; dz = -dz; }
-      if (dy < 0 && rng() < SPARK.upLean) { dx = -dx; dy = -dy; dz = -dz; }
+      // the component along the viewing axis is removed and the rest is not rescaled, so a birth moving partly towards or
+      // away from the camera starts slower
       const f = mood.camFwd, along = dx * f[0] + dy * f[1] + dz * f[2];
       dx -= along * f[0]; dy -= along * f[1]; dz -= along * f[2];
-      const n = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (n < 1e-6) return;
+      if (dx * dx + dy * dy + dz * dz < 1e-12) return;
       const speed = Math.max(SPARK.speedMin, SPARK.speedK * Math.pow(d / DT, SPARK.speedPow)) * (0.6 + 0.8 * rng());
       const i = free[--nFree];
       alive[i] = 1;
       const k = i * 3;
       sp[k] = spPrev[k] = P1[0]; sp[k + 1] = spPrev[k + 1] = P1[1]; sp[k + 2] = spPrev[k + 2] = P1[2];
-      sv[k] = dx / n * speed; sv[k + 1] = dy / n * speed; sv[k + 2] = dz / n * speed;
+      sv[k] = dx * speed; sv[k + 1] = dy * speed; sv[k + 2] = dz * speed;
+      sJit[k] = SPARK.jitter * gauss(); sJit[k + 1] = SPARK.jitter * gauss(); sJit[k + 2] = SPARK.jitter * gauss();
       sAge[i] = 0;
       sRate[i] = Math.max(SPARK.rateMin, SPARK.rateMean * (1 + SPARK.rateSpread * gauss()));
       // random initial orientation
       let qx = gauss(), qy = gauss(), qz = gauss(), qw = gauss();
       const qn = Math.sqrt(qx * qx + qy * qy + qz * qz + qw * qw) || 1;
       sq[i * 4] = qx / qn; sq[i * 4 + 1] = qy / qn; sq[i * 4 + 2] = qz / qn; sq[i * 4 + 3] = qw / qn;
-      for (let a = 0; a < 3; a++) {
-        sSpin[i * 6 + a] = SPARK.spinF[0] + (SPARK.spinF[1] - SPARK.spinF[0]) * rng();
-        sSpin[i * 6 + 3 + a] = rng() * 6.2832;
-      }
       sRnd[i] = rng();
     }
-    // a random point of the sheet, uniform over its area along the length: the net is laid out unevenly (layout()), so
-    // the along-length parameter is drawn through the layout's inverse rather than uniformly
-    function randPoint() {
-      const a = Math.log(Math.max(LAT.spread, 1.0001)), fx = Math.log1p(rng() * Math.expm1(a)) / a;
-      return [fx * (N - 3), rng() * (N - 3)];
-    }
+    // a random point of the sheet, uniform in the surface's two parameters (spec 17), so births crowd where the sheet is compressed
+    function randPoint() { return [rng() * (N - 3), rng() * (N - 3)]; }
 
     function emit() {
       if (rng() < SPARK.burstP) for (let b = 0; b < SPARK.burstN; b++) { const p = randPoint(); birth(p[0], p[1]); }
@@ -417,15 +416,16 @@ function XMBW_SIM() {
         if (!alive[i]) continue;
         const k = i * 3;
         spPrev[k] = sp[k]; spPrev[k + 1] = sp[k + 1]; spPrev[k + 2] = sp[k + 2];
-        const ax = jit * gauss() - fr * sv[k], ay = jit * gauss() - g - fr * sv[k + 1], az = jit * gauss() - fr * sv[k + 2];
+        if (rng() < SPARK.jitterRedraw * DT) { sJit[k] = jit * gauss(); sJit[k + 1] = jit * gauss(); sJit[k + 2] = jit * gauss(); }
+        const ax = sJit[k] - fr * sv[k], ay = sJit[k + 1] - g - fr * sv[k + 1], az = sJit[k + 2] - fr * sv[k + 2];
         sv[k] += ax * DT; sv[k + 1] += ay * DT; sv[k + 2] += az * DT;
         sp[k] += sv[k] * DT; sp[k + 1] += sv[k + 1] * DT; sp[k + 2] += sv[k + 2] * DT;
         sAge[i] += sRate[i] * DT;
-        // spin: angular velocity oscillating slowly with age
-        const age = sAge[i] / sRate[i];
-        const wx = SPARK.spinA * Math.sin(sSpin[i * 6] * age + sSpin[i * 6 + 3]);
-        const wy = SPARK.spinA * Math.sin(sSpin[i * 6 + 1] * age + sSpin[i * 6 + 4]);
-        const wz = SPARK.spinA * Math.sin(sSpin[i * 6 + 2] * age + sSpin[i * 6 + 5]);
+        // spin: the same schedule over the life fraction for every sparkle
+        const lf = 6.283185307179586 * sAge[i], cy = SPARK.spinCycles, ph = SPARK.spinPhase;
+        const wx = SPARK.spinA * Math.sin(cy[0] * lf + ph[0]);
+        const wy = SPARK.spinA * Math.sin(cy[1] * lf + ph[1]);
+        const wz = SPARK.spinA * Math.sin(cy[2] * lf + ph[2]);
         const q = i * 4, x = sq[q], y = sq[q + 1], z = sq[q + 2], w = sq[q + 3], h = 0.5 * DT;
         let nx = x + h * (wx * w + wy * z - wz * y), ny = y + h * (wy * w + wz * x - wx * z);
         let nz = z + h * (wz * w + wx * y - wy * x), nw = w - h * (wx * x + wy * y + wz * z);
@@ -459,12 +459,12 @@ function XMBW_SIM() {
         // facing = q * (0, 0, 1)
         const q = i * 4, x = sq[q], y = sq[q + 1], z = sq[q + 2], w = sq[q + 3];
         out[o + 6] = 2 * (x * z + w * y); out[o + 7] = 2 * (y * z - w * x); out[o + 8] = 1 - 2 * (x * x + y * y);
-        const op = Math.min(1, a / SPARK.rampIn) * Math.min(1, (1 - a) / SPARK.rampOut);
+        const op = Math.min(1, a / SPARK.rampIn, (1 - a) / SPARK.rampOut);  // linear ramps
         // fade near the bounding box's faces
         const box = SPARK.box; let edge = Infinity;
         for (let ax = 0; ax < 3; ax++) edge = Math.min(edge, sp[k + ax] - box[ax][0], box[ax][1] - sp[k + ax]);
         const bf = Math.min(1, Math.max(0, edge / SPARK.boxFade));
-        out[o + 9] = op * op * (3 - 2 * op) * bf * bf * (3 - 2 * bf);
+        out[o + 9] = op * bf * bf * (3 - 2 * bf);
         out[o + 10] = sRnd[i];
         n++;
       }
@@ -520,7 +520,7 @@ const TAU = Math.PI * 2;
 //   top, bottom: colours at the top and bottom edge
 //   glow: colour added by a broad soft highlight, glowPos [x, y], glowSize
 //   tilt: brightness change from left to right
-//   night: [colour of the faint hint, where it sits (0 = left, 1 = right)]
+//   night: [colour of the night glow over the lower part, where it is strongest (0 = left, 1 = right)]
 // Colours are display values (sRGB-encoded) in 0..1.
 // ---------------------------------------------------------------------------
 const PALETTES = [
@@ -545,26 +545,26 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 const MOOD_KEYS = [
   'waveBright', 'base', 'fres', 'sizeK',
   'latX', 'latY', 'latZ', 'envCross', 'camPitch',
-  'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
+  'black', 'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
   night: { waveBright: 0.29, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 8.66,
-    exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
-    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    black: 0.02, exposure: 1.5, white: 1.0, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
+    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.5, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 12.66,
-    exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    black: 0.02, exposure: 1.1, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 1.3,
+    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 12.66,
-    exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    black: 0.02, exposure: 1.0, white: 0.9, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.5, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 12.66,
-    exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    black: 0.02, exposure: 1.25, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -581,7 +581,7 @@ function moodAt(hour) {
   return blendMood(MOODS.night, MOODS.night, 0);
 }
 function blendMood(A, B, f) { const o = {}; for (const k of MOOD_KEYS) o[k] = A[k] + (B[k] - A[k]) * f; return o; }
-// Background night weight: fades out 00:00-05:00, zero by day, fades in 18:30-20:30.
+// Background night weight (N6): fades out 00:00-05:00, zero by day, fades in 18:30-20:30.
 function nightWeight(hour) {
   const h = ((hour % 24) + 24) % 24;
   if (h < 5) return 1 - ease(h / 5);
@@ -589,10 +589,35 @@ function nightWeight(hour) {
   if (h < 20.5) return ease((h - 18.5) / 2);
   return 1;
 }
+// The day image's daylight factor (N8): darkest about 02:00, steep rise 03:00-06:00, gentle to mid-afternoon, fading
+// 19:00-22:00. Eased between these keys (hour, level).
+const DAYLIGHT = [[0, 0.10], [2, 0.03], [3, 0.06], [6, 0.82], [15, 1.0], [19, 1.0], [22, 0.14], [24, 0.10]];
+function daylight(hour) {
+  const h = ((hour % 24) + 24) % 24;
+  for (let i = 1; i < DAYLIGHT.length; i++) if (h <= DAYLIGHT[i][0]) {
+    const [h0, a] = DAYLIGHT[i - 1], [h1, b] = DAYLIGHT[i]; return a + (b - a) * ease((h - h0) / (h1 - h0));
+  }
+  return DAYLIGHT[0][1];
+}
 // Warped hour: advances slowly around midday and quickly around midnight; returns 0..1 over the day.
 function warpedDay(hour) {
   const p = ((hour - 12) / 24) * TAU; // -pi..pi, 0 at noon
   return 0.5 + (p - 0.6 * Math.sin(p)) / TAU;
+}
+// The night image's clock, noon to noon: its light rises at the left in the evening, is high in the middle at midnight
+// and sets at the right towards morning.
+function warpedNight(hour) { return warpedDay(hour + 12); }
+// Dawn and dusk: 1 around 06:30 and 18:00, 0 around midday and midnight.
+function duskTerm(hour) {
+  const h = ((hour % 24) + 24) % 24, b = (c) => Math.exp(-Math.pow(Math.min(Math.abs(h - c), 24 - Math.abs(h - c)) / 1.6, 2));
+  return Math.max(b(6.5), b(18));
+}
+// Next month's images rising from the bottom (N7): the centre of the S-shaped step (in screen heights, 0 = bottom) and its
+// half-width for the month's progress p (whole days): nothing before about the 6th, about half and half over the whole
+// screen in the middle (a very broad step), next month's complete at the bottom by about the 22nd and the top by the 26th.
+function monthStep(p) {
+  const c = -0.2 + 1.4 * Math.min(Math.max((p - 0.2) / 0.65, 0), 1);
+  return [c, 0.15 + 3.0 * Math.exp(-Math.pow((p - 0.5) / 0.1, 2))];
 }
 function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
 
@@ -600,10 +625,12 @@ function sceneParams(tp, theme) {
   const [y, mon, day, hh, mm, ss] = tp;
   const hour = hh + mm / 60 + ss / 3600;
   if (theme >= 1 && theme <= 12) {
-    return { monA: theme - 1, monB: theme % 12, monF: 0, night: 0, wday: warpedDay(12), mood: { ...MOODS.day } };
+    return { monA: theme - 1, monB: theme % 12, monC: -5, monW: 0.15, mid: 0, night: 0, daylight: 1, wday: warpedDay(12),
+      wnight: warpedNight(12), dusk: 0, mood: { ...MOODS.day } };
   }
-  const dim = daysInMonth(y, mon);
-  return { monA: mon - 1, monB: mon % 12, monF: (day - 1) / dim, night: nightWeight(hour), wday: warpedDay(hour), mood: moodAt(hour) };
+  const p = (day - 1) / daysInMonth(y, mon), [monC, monW] = monthStep(p);
+  return { monA: mon - 1, monB: mon % 12, monC, monW, mid: Math.exp(-Math.pow((p - 0.5) / 0.15, 2)), night: nightWeight(hour),
+    daylight: daylight(hour), wday: warpedDay(hour), wnight: warpedNight(hour), dusk: duskTerm(hour), mood: moodAt(hour) };
 }
 function parseTime(s) {
   const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2})(?::(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?)?)?/.exec(s || '');
@@ -647,20 +674,28 @@ const WAVE = {
   fadeEnds: 0.10, fadeEdges: 0.04,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
-  tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
+  tintL: [0.94, 0.94, 0.94], tintR: [1.0, 1.0, 1.0], // a neutral tint brightening slightly from left to right
 };
-const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
 // (these scalars are let, not const, only so the settings menu can change them live)
-let BG_HL = 0.12; // strength of the drifting daytime highlight
+// background lighting (spec 17, original design): base level away from the lights, the spot's and the bottom glow's
+// added light, the night image's base, how much paler lit areas get, how far dawn and dusk darken and saturate the top,
+// the mid-month saturation drop, and the night image's share of the mix at full night weight
+const NIGHT_GLOW = 3.0; // the night images' glow, relative to the palette's night colour
+const BGL = { base: 0.8, spot: 0.35, glow: 0.25, nightBase: 0.6, pale: 0.25, duskDark: 0.35, duskSat: 0.35, midSat: 0.10, nightMix: 0.6 };
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
-const SPARKR = { size: 2.6, blur: 6.0, dofPow: 2.0, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59, camFade: [1.3, 2.3], // distances for the camera at 3.16
-  bright: 1.5, glintSize: 4.5, glintBright: 0.10, minTilt: 0.05,
-  // lighting (spec 16): one point light in the scene, diffuse kd and specular ks with exponent shin, the highlight tinted
-  // by the iridescent map raised to mapExp, the sum through 1 - exp(-satGain x); the disc's opacity falls as it turns
-  // edge-on, with the power tiltPow of one minus the cosine; minTilt keeps the patch from being exactly edge-on
-  light: [-4.0, 6.0, -6.0], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.5, satGain: 1.5, tiltPow: 1.0 };
+const SPARKR = {
+  // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
+  // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
+  size: 0.010, blur: 0.8, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
+  turn: 0.3,                       // part of the way every disc is turned towards the camera (fully when close)
+  bright: 1.5, glintSize: 4.5, glintBright: 0.10,
+  // lighting (spec 16 and 17): one point light in the scene in front of the camera, diffuse kd and specular ks with exponent
+  // shin, the highlight tinted by the iridescent map (saturation mapSat everywhere, exponent mapExp = 1 leaves it unchanged),
+  // the sum through 1 - exp(-satGain x); opacity falls as a disc turns towards edge-on, with the power tiltPow of one minus
+  // the cosine
+  light: [1.3, 0.7, -1.5], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.0, mapSat: 0.45, satGain: 1.5, tiltPow: 1.0,
+};
 let DITHER = 0.85; // output levels, peak
-let GLARE_DESAT = 0.6; // how far the halo is pulled towards white
 
 // ---------------------------------------------------------------------------
 // WebGL setup
@@ -678,25 +713,56 @@ const VS_QUAD = `#version 300 es
 out vec2 vUv;
 void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2); vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
 
-// Background gradient for this frame, into a small target.
+// Background gradient for this frame, into a small target (spec 17). The month's day and night images are processed in
+// hue, saturation and value: the value is scaled by the lighting (a sun-like spot on an arc across the upper part and an
+// opposite glow along the bottom, driven by the warped hour; the night image by its own noon-to-noon clock), lit areas
+// become slightly paler, dawn and dusk darken the top and deepen its colour, and the middle of the month is a little less
+// saturated. Next month's images rise from the bottom of the screen. The day image carries its own daylight factor, and
+// even at full night weight the picture is a mix of the night image and the (dark) day image.
 const FS_BGGEN = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
-uniform sampler2D uImg, uPrev; uniform float uTiles, uA, uB, uF, uNight, uWday, uEase, uHL;
+uniform sampler2D uImg, uPrev; uniform float uTiles, uA, uB, uMc, uMw, uNight, uNightMix, uDaylight, uWday, uWnight;
+uniform float uEase, uSpot, uGlow, uLightBase, uNightBase, uPale, uDusk, uDuskDark, uDuskSat, uMidSat;
 vec3 img(float idx, vec2 uv){
   vec2 q = vec2(uv.x, (idx + clamp(uv.y, 0.5 / ${BG_H}.0, 1.0 - 0.5 / ${BG_H}.0)) / uTiles);
   return texture(uImg, q).rgb;
 }
+vec3 rgb2hsv(vec3 c){
+  vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y);
+  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
+}
+vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
+// the two soft lights of a clock w (0..1): a spot on an arc across the upper part (low at the left at 0, high at the top
+// centre at 0.5, low at the right at 1) and a glow along the bottom edge moving the other way
+float lights(vec2 uv, float w, out float spot){
+  vec2 s = vec2(mix(-0.05, 1.05, w), 0.55 + 0.42 * sin(3.14159265 * clamp(w, 0.0, 1.0)));
+  vec2 ds = (uv - s) / vec2(0.45, 0.38); spot = exp(-dot(ds, ds));
+  float gx = (uv.x - mix(1.05, -0.05, w)) / 0.5;
+  return uSpot * spot + uGlow * exp(-gx * gx) * exp(-uv.y / 0.22);
+}
+vec3 process(vec3 c, vec2 uv, float base, float w, float gain){
+  vec3 h = rgb2hsv(c); float spot; float L = lights(uv, w, spot);
+  h.z *= (base + L) * gain;
+  h.y *= 1.0 - uPale * L;                                   // lit areas slightly paler
+  float top = smoothstep(0.45, 1.0, uv.y) * uDusk;          // dawn and dusk: the top darker and deeper in colour
+  h.z *= 1.0 - uDuskDark * top; h.y = min(1.0, h.y * (1.0 + uDuskSat * top));
+  h.y *= 1.0 - uMidSat;                                     // mid-month: a little less saturated
+  return hsv2rgb(h);
+}
 void main(){
   vec2 uv = vUv; // y = 0 at the bottom
   vec2 iu = vec2(uv.x, 1.0 - uv.y); // image rows are stored top first
-  vec3 day = mix(img(uA * 2.0, iu), img(uB * 2.0, iu), uF);
-  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), uF);
-  // the day light drifts slowly from left to right through the day
-  float hx = mix(-0.1, 1.1, uWday);
-  float hl = exp(-pow((uv.x - hx) / 0.55, 2.0)) * (0.55 + 0.45 * uv.y);
-  day *= 1.0 + uHL * (hl - 0.35);
-  vec3 c = mix(day, night, uNight);
+  // next month's images rise from the bottom: a soft S-shaped step down the screen, centre uMc, half-width uMw
+  float f = smoothstep(-1.0, 1.0, (uMc - uv.y) / uMw);
+  vec3 day = mix(img(uA * 2.0, iu), img(uB * 2.0, iu), f);
+  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f);
+  day = process(day, uv, uLightBase, uWday, uDaylight);
+  night = process(night, uv, uNightBase, uWnight, 1.0);
+  vec3 c = mix(day, night, uNight * uNightMix);
   vec3 prev = texture(uPrev, vUv).rgb;
   o = vec4(mix(prev, c, uEase), 1.0);
 }`;
@@ -810,22 +876,27 @@ float waveBox(vec2 uv){
   return s / (n * n);
 }`;
 
-// Glare chain. Bright-pass at quarter size from the composited background and wave.
+// The composite's exposure and tone curve (spec 17), per mood: a small black offset is subtracted, a gain applied, then the
+// extended Reinhard curve with a white point (1 leaves the curve neutral; below 1 it lifts the brightest values slightly).
+const GLSL_TONE = `
+uniform float uBlack, uGain, uWhite;
+vec3 toneMap(vec3 c){ c = max(c - vec3(uBlack), vec3(0.0)) * uGain; return c * (1.0 + c / (uWhite * uWhite)) / (1.0 + c); }`;
+// Glare chain. Bright-pass at reduced size from the composite (background and wave) after its tone curve.
 const FS_BRIGHT = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
 ${GLSL_BG}
 ${GLSL_WAVEBOX}
-uniform int uBgOn, uWaveOn; uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uExposure, uWhite, uThr, uDesat;
+${GLSL_TONE}
+uniform int uBgOn, uWaveOn; uniform vec3 uTintL, uTintR; uniform float uThr;
 void main(){
   vec3 c = vec3(0.0);
-  if (uBgOn == 1) c += bicubicBg(vUv) * mix(uTintBot, uTintTop, vUv.y);
+  if (uBgOn == 1) c += bicubicBg(vUv);
   if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);
-  c *= uExposure;
-  vec3 tone = c * (1.0 + c / (uWhite * uWhite)) / (1.0 + c); // soft curve with a white point
-  vec3 b = max(tone - vec3(uThr), vec3(0.0)) / (1.0 - uThr);     // keep only what exceeds the threshold
-  float l = dot(b, vec3(0.299, 0.587, 0.114));
-  o = vec4(mix(b, vec3(l), uDesat), 1.0);                          // the halo is mostly white
+  c = toneMap(c);
+  // keep the colour: one weight from the brightest channel, a soft knee (zero up to the threshold, rising above it)
+  float m = max(c.r, max(c.g, c.b)), e = max(m - uThr, 0.0);
+  o = vec4(c * (e * e / (e + 0.1 * (1.0 - uThr))) / max(m, 1e-4), 1.0);
 }`;
 const FS_DOWN = `#version 300 es
 precision highp float;
@@ -854,13 +925,15 @@ precision highp float;
 in vec2 vUv; out vec4 o;
 ${GLSL_BG}
 ${GLSL_WAVEBOX}
+${GLSL_TONE}
 uniform sampler2D uGlare; uniform int uBgOn, uWaveOn, uGlareOn, uDither;
-uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uGlareK, uDitherAmp, uFrame;
+uniform vec3 uTintL, uTintR; uniform float uGlareK, uDitherAmp, uFrame;
 float h12(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 void main(){
   vec3 c = vec3(0.0);
-  if (uBgOn == 1) c += bicubicBg(vUv) * mix(uTintBot, uTintTop, vUv.y);
-  if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);
+  if (uBgOn == 1) c += bicubicBg(vUv);                               // no tint on the background
+  if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);  // a neutral tint brightening slightly to the right
+  c = toneMap(c);
   if (uGlareOn == 1) c += uGlareK * texture(uGlare, vUv).rgb;
   if (uDither == 1) c += uDitherAmp / 255.0 * (h12(gl_FragCoord.xy + uFrame * vec2(37.0, 17.0)) * 2.0 - 1.0);
   o = vec4(clamp(c, 0.0, 1.0), 1.0);
@@ -872,49 +945,58 @@ const VS_SPARK = `#version 300 es
 precision highp float;
 layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
-uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uPxScale, uSize, uBlur, uF;
-uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uDofPow;
-uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uSatGain, uTiltPow;
-uniform float uGlint, uExt, uMinTilt; uniform vec2 uRes;
+uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uSizeW, uBlur, uF;
+uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uBright, uDofDim, uTurn;
+uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uMapSat, uSatGain, uTiltPow;
+uniform float uGlint, uExt; uniform vec2 uRes;
 out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
 // iridescent colour map indexed by the facing direction's two screen-plane components (a lit-sphere lookup): the hue
-// turns with the direction's angle and its distance from the centre, paler towards the centre
+// turns with the direction's angle and its distance from the centre, at the same moderate saturation everywhere
 vec3 iriMap(vec2 q){
-  float r = min(length(q), 1.0), h = atan(q.y, q.x) / 6.2831853 + 0.6 * r;
-  return mix(vec3(1.0), 0.5 + 0.5 * cos(6.2831853 * (h + vec3(0.0, 0.33, 0.67))), r);
+  float h = atan(q.y, q.x) / 6.2831853 + 0.6 * min(length(q), 1.0);
+  return mix(vec3(1.0), 0.5 + 0.5 * cos(6.2831853 * (h + vec3(0.0, 0.33, 0.67))), uMapSat);
 }
 void main(){
   vec3 P = mix(aP0, aP1, uAlpha);
   vec3 d = P - uCam; float z = dot(d, uCamFwd);
+  // depth of field (spec 17): out of focus a disc grows modestly and its edge softens; its brightness per pixel drops
+  // only a little (more the nearer it is), with no greying and no separate fade near the camera
   float out_ = clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0) + clamp((z - uFocusFar) / uFarSoft, 0.0, 1.0);
   out_ = min(out_, 1.5);
-  float base = uSize * (0.75 + 0.5 * aRnd);
-  float sizePx = (base + uBlur * out_) * uPxScale, sharpPx = base * uPxScale;
-  float I = uBright * aOp * pow(sharpPx / sizePx, uDofPow) * smoothstep(uCamFade0, uCamFade1, z);
+  float Rw = uSizeW * (1.0 + uBlur * out_);  // the disc's radius in scene units: smaller the farther it is
+  float I = uBright * aOp / (1.0 + uDofDim * out_);
   vec3 V = normalize(-d);
   vSoft = clamp(out_, 0.0, 1.0);
-  // the disc's plane: its own facing from the spin, turned towards the camera when close to it, and never quite edge-on
-  // (at least uMinTilt of a face-on view, so an edge-on disc is a short thin line rather than nothing)
+  // the disc's plane: its own facing from the spin, turned a modest part of the way towards the camera at any distance and
+  // fully when close to it, so no disc is ever seen fully edge-on
   vec3 N = aF * sign(dot(aF, V) + 1e-6);
-  N = normalize(mix(N, V, clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0)));
-  float c = dot(N, V); if (c < uMinTilt) N = normalize(mix(N, V, (uMinTilt - c) / max(1.0 - c, 1e-3)));
-  // lighting (spec 16): one point light; a two-sided diffuse term plus a sharp specular highlight tinted by the
-  // iridescent map, through a soft saturating curve. No random brightness: the spread and the twinkle come from the
-  // spin. The disc fades out as it turns edge-on.
+  N = normalize(mix(N, V, max(uTurn, clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0))));
+  float c = dot(N, V);
+  // lighting (spec 16 and 17): one point light in front of the camera; a two-sided diffuse term plus a sharp specular
+  // highlight tinted by the iridescent map, through a soft saturating curve. No random brightness: the spread and the
+  // twinkle come from the spin. The disc fades as it turns towards edge-on.
   vec3 L = normalize(uLight - P), Hh = normalize(L + V);
   float diff = abs(dot(N, L)), spec = pow(abs(dot(N, Hh)), uShin);
   vec3 iri = pow(iriMap(vec2(dot(aF, uRight), dot(aF, uUp))), vec3(uMapExp));
-  vec3 lit = 1.0 - exp(-uSatGain * (uKd * diff + uKs * spec * iri));
-  vC = mix(lit, vec3(dot(lit, vec3(0.299, 0.587, 0.114))), 0.8 * vSoft); // out of focus: grey
-  vI = I * (1.0 - pow(1.0 - max(c, 0.0), uTiltPow)) * uGlint;
-  vec3 Ub = normalize(cross(N, abs(N.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0))), Vb = cross(N, Ub);
-  // the disc's radius in scene units for its size in pixels at this distance; the patch is uExt times the disc
-  float Rw = max(sizePx, 0.7) * max(z, 0.05) * 2.0 / (uF * uRes.y);
+  float tilt = 1.0 - pow(1.0 - max(c, 0.0), uTiltPow);
   vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)) * 2.0 - 1.0;
-  vec4 clip = uVP * vec4(P + (Ub * corner.x + Vb * corner.y) * Rw * uExt, 1.0);
+  vec3 Ub, Vb; float R;
+  if (uExt > 1.5) {
+    // glint pass: a round soft halo facing the camera, its size and strength following the specular highlight, carrying
+    // only the highlight's tinted light
+    Ub = uRight; Vb = uUp; R = Rw * uExt * sqrt(spec);
+    vC = iri; vI = I * tilt * uKs * spec * uGlint;
+  } else {
+    Ub = normalize(cross(N, abs(N.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0))); Vb = cross(N, Ub); R = Rw * uExt;
+    vC = 1.0 - exp(-uSatGain * (uKd * diff + uKs * spec * iri));
+    vI = I * tilt * uGlint;
+  }
+  // a disc smaller than a pixel keeps a one-pixel patch, dimmed by its area
+  float px = Rw * uF * uRes.y / (2.0 * max(z, 0.05));
+  if (px < 0.7) { R *= 0.7 / max(px, 1e-4); vI *= (px * px) / 0.49; }
+  vec4 clip = uVP * vec4(P + (Ub * corner.x + Vb * corner.y) * R, 1.0);
   if (z < 0.05) clip = vec4(2.0, 2.0, 2.0, 1.0);
   vQ = corner * uExt;
-  if (sizePx < 0.7) vI *= (sizePx * sizePx) / 0.49;
   gl_Position = clip;
 }`;
 const FS_SPARK = `#version 300 es
@@ -924,12 +1006,12 @@ out vec4 o;
 void main(){
   float r = length(vQ); // 1 at the disc's edge; the patch reaches uExt, so the disc is zero well inside it
   float k;
-  if (uExt > 1.5) { // glint pass: a soft round halo in the disc's plane, zero before the patch's edge
+  if (uExt > 1.5) { // glint pass: a soft round halo, zero before the patch's edge
     float q = r / uExt;
-    k = 0.45 * exp(-q * q * 6.0) * smoothstep(1.0, 0.8, q) * (1.0 - vSoft);
-  } else { // a flat disc: a crisp, anti-aliased edge in focus, softening out of focus
+    k = 0.45 * exp(-q * q * 6.0) * smoothstep(1.0, 0.8, q);
+  } else { // a flat disc: a crisp, anti-aliased edge in focus, softening out of focus until it fills its patch
     float e = max(fwidth(r) * 1.2, 0.04 + 0.6 * vSoft);
-    k = 1.0 - smoothstep(1.0 - e, 1.0, r);
+    k = 1.0 - smoothstep(1.0 - e, 1.0 + 0.2 * vSoft, r);
   }
   o = vec4(vC * vI * k, 1.0);
 }`;
@@ -1067,10 +1149,9 @@ function makeBackgroundImages() {
       const glow = Math.exp(-(dx * dx + dy * dy));
       const tilt = 1 + P.tilt * (u - 0.5);
       put(m * 2, x, y, [0, 1, 2].map(i => (base[i] + P.glow[i] * glow) * tilt));
-      // night: near-dark, a faint hint of the month's colour low on one side
-      const nx = (u - P.night[1]) / 0.7, ny = (1 - v) / 0.45;
-      const hint = Math.exp(-(nx * nx + ny * ny)) * 0.8 + 0.2 * v * v;
-      put(m * 2 + 1, x, y, [0, 1, 2].map(i => P.night[0][i] * hint));
+      // night (spec 17): black at the top, a clear dim glow in the month's colour over the lower part
+      const low = Math.pow(Math.min(Math.max((v - 0.3) / 0.7, 0), 1), 1.4), side = 1 + 0.25 * Math.cos(TAU * (u - P.night[1]));
+      put(m * 2 + 1, x, y, [0, 1, 2].map(i => P.night[0][i] * NIGHT_GLOW * low * side));
     }
   });
   return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
@@ -1080,14 +1161,15 @@ const bgImages = makeBackgroundImages();
 // what exceeds the background itself, so a bright palette never blooms into a haze).
 function bgPeak(sc) {
   let peak = 0; const n = BG_W * BG_H;
-  const a = sc.monA * 2 * n * 4, b = sc.monB * 2 * n * 4, na = a + n * 4, nb = b + n * 4, f = sc.monF, k = sc.night;
+  const a = sc.monA * 2 * n * 4, b = sc.monB * 2 * n * 4, na = a + n * 4, nb = b + n * 4;
+  const f = Math.min(Math.max(((sc.monC - 0.5) / sc.monW + 1) / 2, 0), 1), k = sc.night * BGL.nightMix; // the month mix mid-screen
   for (let i = 0; i < n * 4; i += 4) {
     let l = 0;
     for (let c = 0; c < 3; c++) {
       const w = [0.299, 0.587, 0.114][c];
       const day = bgImageData[a + i + c] + (bgImageData[b + i + c] - bgImageData[a + i + c]) * f;
       const night = bgImageData[na + i + c] + (bgImageData[nb + i + c] - bgImageData[na + i + c]) * f;
-      l += w * (day * (1 + BG_HL * 0.65) * (1 - k) + night * k);
+      l += w * (day * sc.daylight * (BGL.base + BGL.spot + BGL.glow) * (1 - k) + night * (BGL.nightBase + BGL.spot) * k);
     }
     if (l > peak) peak = l;
   }
@@ -1127,7 +1209,7 @@ function ensureTargets(cw, ch, ow, oh, ss) {
   RT.wave = makeTarget(ww, wh, 'r16f');
   RT.bgA = makeTarget(64, 36, 'rgba16f'); RT.bgB = makeTarget(64, 36, 'rgba16f'); RT.bgFresh = true;
   RT.levels = [];
-  let lw = Math.max(1, Math.ceil(ow / 4)), lh = Math.max(1, Math.ceil(oh / 4));
+  let lw = Math.max(1, Math.ceil(ow / 8)), lh = Math.max(1, Math.ceil(oh / 8));
   while (RT.levels.length < 7) {
     RT.levels.push({ a: makeTarget(lw, lh, 'rgba16f'), b: makeTarget(lw, lh, 'rgba16f'), c: makeTarget(lw, lh, 'rgba16f'), w: lw, h: lh });
     if (lh <= 6) break;
@@ -1148,9 +1230,11 @@ function setBgAndWave(pr, bgT, bgOn, waveOn, dstW, dstH) {
   // one destination pixel is exact when the ratio is a power of two
   const taps = Math.max(1, Math.min(4, Math.ceil(RT.ww / dstW / 2 * WAVE.filterSpread - 1e-3)));
   gl.uniform1i(pr.u.uWTaps, taps); gl.uniform2f(pr.u.uWTexel, 1 / dstW, 1 / dstH); gl.uniform1f(pr.u.uWSpread, WAVE.filterSpread);
-  gl.uniform3fv(pr.u.uTintTop, BG_TINT.top); gl.uniform3fv(pr.u.uTintBot, BG_TINT.bottom);
   gl.uniform3fv(pr.u.uTintL, WAVE.tintL); gl.uniform3fv(pr.u.uTintR, WAVE.tintR);
 }
+// the composite's per-mood exposure and tone curve (spec 17)
+function setTone(pr, m) { gl.uniform1f(pr.u.uBlack, m.black); gl.uniform1f(pr.u.uGain, m.exposure); gl.uniform1f(pr.u.uWhite, m.white); }
+function toneJS(c, m) { c = Math.max(c - m.black, 0) * m.exposure; return c * (1 + c / (m.white * m.white)) / (1 + c); }
 
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
 // The settings menu may add: view {x, y} (where the picture sits in the output
@@ -1173,8 +1257,13 @@ function renderFrame(st, outTarget) {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bgImages); gl.uniform1i(pr.u.uImg, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform1i(pr.u.uPrev, 1);
     gl.uniform1f(pr.u.uTiles, 24); gl.uniform1f(pr.u.uA, sc.monA); gl.uniform1f(pr.u.uB, sc.monB);
-    gl.uniform1f(pr.u.uF, sc.monF); gl.uniform1f(pr.u.uNight, sc.night); gl.uniform1f(pr.u.uWday, sc.wday);
-    gl.uniform1f(pr.u.uHL, BG_HL); gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
+    gl.uniform1f(pr.u.uMc, sc.monC); gl.uniform1f(pr.u.uMw, sc.monW); gl.uniform1f(pr.u.uNight, sc.night);
+    gl.uniform1f(pr.u.uDaylight, sc.daylight); gl.uniform1f(pr.u.uWday, sc.wday); gl.uniform1f(pr.u.uWnight, sc.wnight);
+    gl.uniform1f(pr.u.uDusk, sc.dusk); gl.uniform1f(pr.u.uMidSat, BGL.midSat * sc.mid);
+    gl.uniform1f(pr.u.uNightMix, BGL.nightMix); gl.uniform1f(pr.u.uSpot, BGL.spot); gl.uniform1f(pr.u.uGlow, BGL.glow);
+    gl.uniform1f(pr.u.uLightBase, BGL.base); gl.uniform1f(pr.u.uNightBase, BGL.nightBase); gl.uniform1f(pr.u.uPale, BGL.pale);
+    gl.uniform1f(pr.u.uDuskDark, BGL.duskDark); gl.uniform1f(pr.u.uDuskSat, BGL.duskSat);
+    gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
     quad(); RT.bgFresh = false;
     RT.bgA = dst; RT.bgB = src;
   }
@@ -1225,7 +1314,7 @@ function renderFrame(st, outTarget) {
     if (T) T.begin('composite');
     const pr = PR.final; gl.useProgram(pr.p);
     bindTarget(outTarget); gl.viewport(vx, vy, ow, oh);
-    setBgAndWave(pr, bgT, L.bg, L.wave, ow, oh);
+    setBgAndWave(pr, bgT, L.bg, L.wave, ow, oh); setTone(pr, m);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, glareT ? glareT.tex : bgT.tex); gl.uniform1i(pr.u.uGlare, 2);
     gl.uniform1i(pr.u.uGlareOn, glareT ? 1 : 0); gl.uniform1f(pr.u.uGlareK, glareK);
     gl.uniform1i(pr.u.uDither, L.dither ? 1 : 0); gl.uniform1f(pr.u.uDitherAmp, DITHER);
@@ -1263,28 +1352,26 @@ function renderFrame(st, outTarget) {
 function sparkUniforms(pr, m, cam, st) {
   const { ow, oh } = RT;
   gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp); gl.uniform3fv(pr.u.uCam, cam.pos); gl.uniform3fv(pr.u.uCamFwd, cam.fwd);
-  gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniform1f(pr.u.uPxScale, oh / 1080);
-  gl.uniform1f(pr.u.uSize, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
+  gl.uniform1f(pr.u.uAlpha, st.alpha);
+  gl.uniform1f(pr.u.uSizeW, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
   gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
   gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
-  gl.uniform1f(pr.u.uCamFade0, SPARKR.camFade[0]); gl.uniform1f(pr.u.uCamFade1, SPARKR.camFade[1]);
-  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofPow, SPARKR.dofPow);
+  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofDim, SPARKR.dofDim); gl.uniform1f(pr.u.uTurn, SPARKR.turn);
   gl.uniform3fv(pr.u.uLight, SPARKR.light); gl.uniform3fv(pr.u.uRight, cam.right); gl.uniform3fv(pr.u.uUp, cam.up);
   gl.uniform1f(pr.u.uKd, SPARKR.kd); gl.uniform1f(pr.u.uKs, SPARKR.ks); gl.uniform1f(pr.u.uShin, SPARKR.shin);
-  gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uSatGain, SPARKR.satGain); gl.uniform1f(pr.u.uTiltPow, SPARKR.tiltPow);
-  gl.uniform1f(pr.u.uF, cam.f); gl.uniform1f(pr.u.uMinTilt, SPARKR.minTilt);
+  gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uMapSat, SPARKR.mapSat); gl.uniform1f(pr.u.uSatGain, SPARKR.satGain);
+  gl.uniform1f(pr.u.uTiltPow, SPARKR.tiltPow); gl.uniform1f(pr.u.uF, cam.f);
   gl.uniform2f(pr.u.uRes, ow, oh);
 }
 
 function buildGlare(m, bgT, bgOn, waveOn, peak) {
   const lv = RT.levels;
-  // bright-pass at quarter size
+  // bright-pass at a small size (the pyramid's first level is far below the screen's resolution)
   let pr = PR.bright; gl.useProgram(pr.p);
   bindTarget(lv[0].a); gl.viewport(0, 0, lv[0].w, lv[0].h);
   setBgAndWave(pr, bgT, bgOn, waveOn, lv[0].w, lv[0].h);
-  gl.uniform1f(pr.u.uExposure, m.exposure); gl.uniform1f(pr.u.uWhite, m.white);
-  gl.uniform1f(pr.u.uThr, Math.max(m.glareThr, Math.min(0.97, peak * m.exposure + 0.06)));
-  gl.uniform1f(pr.u.uDesat, GLARE_DESAT);
+  setTone(pr, m);
+  gl.uniform1f(pr.u.uThr, Math.max(m.glareThr, Math.min(0.97, toneJS(peak, m) + 0.06)));
   gl.activeTexture(gl.TEXTURE0);
   quad();
   // mip pyramid
@@ -1294,9 +1381,9 @@ function buildGlare(m, bgT, bgOn, waveOn, peak) {
     gl.bindTexture(gl.TEXTURE_2D, lv[i - 1].a.tex); gl.uniform2f(pr.u.uTexel, 0.5 / lv[i - 1].w, 0.5 / lv[i - 1].h);
     quad();
   }
-  // separable blur per level, slightly different radius per channel
+  // separable blur per level, the radius growing slightly from red to blue
   pr = PR.blur; gl.useProgram(pr.p); gl.uniform1i(pr.u.uT, 0);
-  const s = m.glareSigma; gl.uniform3f(pr.u.uSigma, s * 1.08, s, s * 0.93);
+  const s = m.glareSigma; gl.uniform3f(pr.u.uSigma, s * 0.93, s, s * 1.08);
   for (const l of lv) {
     gl.viewport(0, 0, l.w, l.h);
     bindTarget(l.b); gl.bindTexture(gl.TEXTURE_2D, l.a.tex); gl.uniform2f(pr.u.uDir, 1 / l.w, 0); quad();
@@ -1580,19 +1667,23 @@ group('Camera', [
   index('CAMERA.target', CAMERA.target, 2, 'target z', -5, 5, 0.05),
 ]);
 group('Background', [
-  live('BG_HL', 'daytime highlight', () => BG_HL, v => { BG_HL = v; }, 0, 0.5, 0.005),
+  field('BGL', BGL, 'base', 'light: base level', 0, 2, 0.01), field('BGL', BGL, 'spot', 'light: sun spot', 0, 2, 0.01),
+  field('BGL', BGL, 'glow', 'light: bottom glow', 0, 2, 0.01), field('BGL', BGL, 'nightBase', 'night light: base', 0, 2, 0.01),
+  field('BGL', BGL, 'pale', 'lit areas paler', 0, 1, 0.01), field('BGL', BGL, 'duskDark', 'dawn/dusk: top darker', 0, 1, 0.01),
+  field('BGL', BGL, 'duskSat', 'dawn/dusk: top deeper', 0, 2, 0.01), field('BGL', BGL, 'midSat', 'mid-month desaturation', 0, 0.5, 0.01),
+  field('BGL', BGL, 'nightMix', 'night image share', 0, 1, 0.01),
   live('BG_EASE', 'frame easing', () => BG_EASE, v => { BG_EASE = v; }, 0.005, 1, 0.005),
   live('DITHER', 'dither amplitude', () => DITHER, v => { DITHER = v; }, 0, 3, 0.05),
 ]);
 group('Glare', [
-  mood('exposure', 'exposure', 0.2, 3, 0.01), mood('white', 'white point', 0.5, 4, 0.05), mood('glareThr', 'threshold', 0, 1, 0.01),
-  mood('glareSigma', 'blur radius', 0.3, 4, 0.05), mood('glareRatio', 'level ratio', 0.3, 1.5, 0.01), mood('glareStrength', 'strength', 0, 3, 0.01),
-  live('GLARE_DESAT', 'desaturation', () => GLARE_DESAT, v => { GLARE_DESAT = v; }, 0, 1, 0.01),
+  mood('black', 'black offset', 0, 0.3, 0.005), mood('exposure', 'exposure (gain)', 0.2, 4, 0.01), mood('white', 'white point', 0.5, 4, 0.01),
+  mood('glareThr', 'glare threshold', 0, 1, 0.01), mood('glareSigma', 'blur radius', 0.3, 4, 0.05), mood('glareRatio', 'level ratio', 0.1, 1.0, 0.01),
+  mood('glareStrength', 'strength', 0, 3, 0.01),
 ]);
 group('Sparkles', [
-  mood('sparkBright', 'brightness', 0, 2, 0.01), mood('sparkSize', 'size (mood)', 0.2, 3, 0.01), mood('focusFar', 'far focus', 1, 10, 0.05), mood('glint', 'glint', 0, 1, 0.01),
-  field('SPARKR', SPARKR, 'size', 'size', 0.5, 8, 0.1), field('SPARKR', SPARKR, 'blur', 'bokeh blur', 0, 12, 0.1),
-  field('SPARKR', SPARKR, 'dofPow', 'bokeh dimming', 0.2, 3, 0.05), field('SPARKR', SPARKR, 'focusNear', 'near focus', 0.5, 10, 0.05),
+  mood('sparkBright', 'brightness', 0, 2, 0.01), mood('sparkSize', 'size (mood)', 0.2, 3, 0.01), mood('focusFar', 'far focus', 1, 60, 0.1), mood('glint', 'glint', 0, 1, 0.01),
+  field('SPARKR', SPARKR, 'size', 'size (scene units)', 0.001, 0.05, 0.0005), field('SPARKR', SPARKR, 'blur', 'bokeh growth', 0, 3, 0.05),
+  field('SPARKR', SPARKR, 'dofDim', 'bokeh dimming', 0, 2, 0.01), field('SPARKR', SPARKR, 'focusNear', 'near focus', 0.5, 10, 0.05),
   field('SPARKR', SPARKR, 'nearSoft', 'near softness', 0.5, 6, 0.1), field('SPARKR', SPARKR, 'farSoft', 'far softness', 0.5, 6, 0.1),
   field('SPARKR', SPARKR, 'bright', 'base brightness', 0, 4, 0.01), field('SPARKR', SPARKR, 'kd', 'diffuse', 0, 2, 0.01),
   field('SPARKR', SPARKR, 'ks', 'highlight', 0, 6, 0.01), field('SPARKR', SPARKR, 'shin', 'highlight sharpness', 1, 200, 1),
@@ -1600,14 +1691,14 @@ group('Sparkles', [
   field('SPARKR', SPARKR, 'tiltPow', 'edge-on fade', 0.5, 10, 0.1),
   field('SPARKR', SPARKR, 'glintSize', 'glint size', 1, 10, 0.1),
   field('SPARKR', SPARKR, 'glintBright', 'glint brightness', 0, 0.5, 0.005),
-  field('SPARKR', SPARKR, 'minTilt', 'least disc tilt', 0, 1, 0.01),
+  field('SPARKR', SPARKR, 'turn', 'turn towards camera', 0, 1, 0.01), field('SPARKR', SPARKR, 'mapSat', 'colour map saturation', 0, 1, 0.01),
   sim('SPARK.burstP', 'burst chance', 0, 1, 0.01), sim('SPARK.burstN', 'burst size', 1, 40, 1),
   sim('SPARK.walkerP', 'walker chance', 0, 0.3, 0.005), sim('SPARK.walkStep', 'walker step', 0.005, 0.2, 0.005),
   sim('SPARK.cone', 'birth cone', 0, 1, 0.01), sim('SPARK.reverseP', 'reversed births', 0, 0.5, 0.01),
   sim('SPARK.speedK', 'speed factor', 0, 1, 0.01), sim('SPARK.speedPow', 'speed exponent', 0.1, 1.5, 0.01), sim('SPARK.speedMin', 'minimum speed', 0, 0.2, 0.005),
   sim('SPARK.rateMean', 'ageing rate', 0.02, 0.5, 0.005), sim('SPARK.rateSpread', 'ageing spread', 0, 1, 0.01),
   sim('SPARK.jitter', 'jitter', 0, 0.05, 0.0005), sim('SPARK.gravity', 'gravity', -0.005, 0.005, 0.0001), sim('SPARK.friction', 'friction', 0, 1, 0.01),
-  sim('SPARK.upLean', 'upward lean', 0, 0.6, 0.01), sim('SPARK.spinA', 'spin', 0, 6, 0.05),
+  sim('SPARK.jitterRedraw', 'jitter redraws per second', 0, 5, 0.01), sim('SPARK.spinA', 'spin', 0, 6, 0.05),
 ]);
 let currentMood = null, tunePending = false;
 function paramValue(it) { // the value in effect

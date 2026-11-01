@@ -2,25 +2,56 @@ const VS_QUAD = `#version 300 es
 out vec2 vUv;
 void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2); vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
 
-// Background gradient for this frame, into a small target.
+// Background gradient for this frame, into a small target (spec 17). The month's day and night images are processed in
+// hue, saturation and value: the value is scaled by the lighting (a sun-like spot on an arc across the upper part and an
+// opposite glow along the bottom, driven by the warped hour; the night image by its own noon-to-noon clock), lit areas
+// become slightly paler, dawn and dusk darken the top and deepen its colour, and the middle of the month is a little less
+// saturated. Next month's images rise from the bottom of the screen. The day image carries its own daylight factor, and
+// even at full night weight the picture is a mix of the night image and the (dark) day image.
 const FS_BGGEN = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
-uniform sampler2D uImg, uPrev; uniform float uTiles, uA, uB, uF, uNight, uWday, uEase, uHL;
+uniform sampler2D uImg, uPrev; uniform float uTiles, uA, uB, uMc, uMw, uNight, uNightMix, uDaylight, uWday, uWnight;
+uniform float uEase, uSpot, uGlow, uLightBase, uNightBase, uPale, uDusk, uDuskDark, uDuskSat, uMidSat;
 vec3 img(float idx, vec2 uv){
   vec2 q = vec2(uv.x, (idx + clamp(uv.y, 0.5 / ${BG_H}.0, 1.0 - 0.5 / ${BG_H}.0)) / uTiles);
   return texture(uImg, q).rgb;
 }
+vec3 rgb2hsv(vec3 c){
+  vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y);
+  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
+}
+vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
+// the two soft lights of a clock w (0..1): a spot on an arc across the upper part (low at the left at 0, high at the top
+// centre at 0.5, low at the right at 1) and a glow along the bottom edge moving the other way
+float lights(vec2 uv, float w, out float spot){
+  vec2 s = vec2(mix(-0.05, 1.05, w), 0.55 + 0.42 * sin(3.14159265 * clamp(w, 0.0, 1.0)));
+  vec2 ds = (uv - s) / vec2(0.45, 0.38); spot = exp(-dot(ds, ds));
+  float gx = (uv.x - mix(1.05, -0.05, w)) / 0.5;
+  return uSpot * spot + uGlow * exp(-gx * gx) * exp(-uv.y / 0.22);
+}
+vec3 process(vec3 c, vec2 uv, float base, float w, float gain){
+  vec3 h = rgb2hsv(c); float spot; float L = lights(uv, w, spot);
+  h.z *= (base + L) * gain;
+  h.y *= 1.0 - uPale * L;                                   // lit areas slightly paler
+  float top = smoothstep(0.45, 1.0, uv.y) * uDusk;          // dawn and dusk: the top darker and deeper in colour
+  h.z *= 1.0 - uDuskDark * top; h.y = min(1.0, h.y * (1.0 + uDuskSat * top));
+  h.y *= 1.0 - uMidSat;                                     // mid-month: a little less saturated
+  return hsv2rgb(h);
+}
 void main(){
   vec2 uv = vUv; // y = 0 at the bottom
   vec2 iu = vec2(uv.x, 1.0 - uv.y); // image rows are stored top first
-  vec3 day = mix(img(uA * 2.0, iu), img(uB * 2.0, iu), uF);
-  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), uF);
-  // the day light drifts slowly from left to right through the day
-  float hx = mix(-0.1, 1.1, uWday);
-  float hl = exp(-pow((uv.x - hx) / 0.55, 2.0)) * (0.55 + 0.45 * uv.y);
-  day *= 1.0 + uHL * (hl - 0.35);
-  vec3 c = mix(day, night, uNight);
+  // next month's images rise from the bottom: a soft S-shaped step down the screen, centre uMc, half-width uMw
+  float f = smoothstep(-1.0, 1.0, (uMc - uv.y) / uMw);
+  vec3 day = mix(img(uA * 2.0, iu), img(uB * 2.0, iu), f);
+  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f);
+  day = process(day, uv, uLightBase, uWday, uDaylight);
+  night = process(night, uv, uNightBase, uWnight, 1.0);
+  vec3 c = mix(day, night, uNight * uNightMix);
   vec3 prev = texture(uPrev, vUv).rgb;
   o = vec4(mix(prev, c, uEase), 1.0);
 }`;
@@ -134,22 +165,27 @@ float waveBox(vec2 uv){
   return s / (n * n);
 }`;
 
-// Glare chain. Bright-pass at quarter size from the composited background and wave.
+// The composite's exposure and tone curve (spec 17), per mood: a small black offset is subtracted, a gain applied, then the
+// extended Reinhard curve with a white point (1 leaves the curve neutral; below 1 it lifts the brightest values slightly).
+const GLSL_TONE = `
+uniform float uBlack, uGain, uWhite;
+vec3 toneMap(vec3 c){ c = max(c - vec3(uBlack), vec3(0.0)) * uGain; return c * (1.0 + c / (uWhite * uWhite)) / (1.0 + c); }`;
+// Glare chain. Bright-pass at reduced size from the composite (background and wave) after its tone curve.
 const FS_BRIGHT = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
 ${GLSL_BG}
 ${GLSL_WAVEBOX}
-uniform int uBgOn, uWaveOn; uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uExposure, uWhite, uThr, uDesat;
+${GLSL_TONE}
+uniform int uBgOn, uWaveOn; uniform vec3 uTintL, uTintR; uniform float uThr;
 void main(){
   vec3 c = vec3(0.0);
-  if (uBgOn == 1) c += bicubicBg(vUv) * mix(uTintBot, uTintTop, vUv.y);
+  if (uBgOn == 1) c += bicubicBg(vUv);
   if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);
-  c *= uExposure;
-  vec3 tone = c * (1.0 + c / (uWhite * uWhite)) / (1.0 + c); // soft curve with a white point
-  vec3 b = max(tone - vec3(uThr), vec3(0.0)) / (1.0 - uThr);     // keep only what exceeds the threshold
-  float l = dot(b, vec3(0.299, 0.587, 0.114));
-  o = vec4(mix(b, vec3(l), uDesat), 1.0);                          // the halo is mostly white
+  c = toneMap(c);
+  // keep the colour: one weight from the brightest channel, a soft knee (zero up to the threshold, rising above it)
+  float m = max(c.r, max(c.g, c.b)), e = max(m - uThr, 0.0);
+  o = vec4(c * (e * e / (e + 0.1 * (1.0 - uThr))) / max(m, 1e-4), 1.0);
 }`;
 const FS_DOWN = `#version 300 es
 precision highp float;
@@ -178,13 +214,15 @@ precision highp float;
 in vec2 vUv; out vec4 o;
 ${GLSL_BG}
 ${GLSL_WAVEBOX}
+${GLSL_TONE}
 uniform sampler2D uGlare; uniform int uBgOn, uWaveOn, uGlareOn, uDither;
-uniform vec3 uTintTop, uTintBot, uTintL, uTintR; uniform float uGlareK, uDitherAmp, uFrame;
+uniform vec3 uTintL, uTintR; uniform float uGlareK, uDitherAmp, uFrame;
 float h12(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 void main(){
   vec3 c = vec3(0.0);
-  if (uBgOn == 1) c += bicubicBg(vUv) * mix(uTintBot, uTintTop, vUv.y);
-  if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);
+  if (uBgOn == 1) c += bicubicBg(vUv);                               // no tint on the background
+  if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);  // a neutral tint brightening slightly to the right
+  c = toneMap(c);
   if (uGlareOn == 1) c += uGlareK * texture(uGlare, vUv).rgb;
   if (uDither == 1) c += uDitherAmp / 255.0 * (h12(gl_FragCoord.xy + uFrame * vec2(37.0, 17.0)) * 2.0 - 1.0);
   o = vec4(clamp(c, 0.0, 1.0), 1.0);
@@ -196,49 +234,58 @@ const VS_SPARK = `#version 300 es
 precision highp float;
 layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
-uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uPxScale, uSize, uBlur, uF;
-uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uCamFade0, uCamFade1, uBright, uDofPow;
-uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uSatGain, uTiltPow;
-uniform float uGlint, uExt, uMinTilt; uniform vec2 uRes;
+uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uSizeW, uBlur, uF;
+uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uBright, uDofDim, uTurn;
+uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uMapSat, uSatGain, uTiltPow;
+uniform float uGlint, uExt; uniform vec2 uRes;
 out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
 // iridescent colour map indexed by the facing direction's two screen-plane components (a lit-sphere lookup): the hue
-// turns with the direction's angle and its distance from the centre, paler towards the centre
+// turns with the direction's angle and its distance from the centre, at the same moderate saturation everywhere
 vec3 iriMap(vec2 q){
-  float r = min(length(q), 1.0), h = atan(q.y, q.x) / 6.2831853 + 0.6 * r;
-  return mix(vec3(1.0), 0.5 + 0.5 * cos(6.2831853 * (h + vec3(0.0, 0.33, 0.67))), r);
+  float h = atan(q.y, q.x) / 6.2831853 + 0.6 * min(length(q), 1.0);
+  return mix(vec3(1.0), 0.5 + 0.5 * cos(6.2831853 * (h + vec3(0.0, 0.33, 0.67))), uMapSat);
 }
 void main(){
   vec3 P = mix(aP0, aP1, uAlpha);
   vec3 d = P - uCam; float z = dot(d, uCamFwd);
+  // depth of field (spec 17): out of focus a disc grows modestly and its edge softens; its brightness per pixel drops
+  // only a little (more the nearer it is), with no greying and no separate fade near the camera
   float out_ = clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0) + clamp((z - uFocusFar) / uFarSoft, 0.0, 1.0);
   out_ = min(out_, 1.5);
-  float base = uSize * (0.75 + 0.5 * aRnd);
-  float sizePx = (base + uBlur * out_) * uPxScale, sharpPx = base * uPxScale;
-  float I = uBright * aOp * pow(sharpPx / sizePx, uDofPow) * smoothstep(uCamFade0, uCamFade1, z);
+  float Rw = uSizeW * (1.0 + uBlur * out_);  // the disc's radius in scene units: smaller the farther it is
+  float I = uBright * aOp / (1.0 + uDofDim * out_);
   vec3 V = normalize(-d);
   vSoft = clamp(out_, 0.0, 1.0);
-  // the disc's plane: its own facing from the spin, turned towards the camera when close to it, and never quite edge-on
-  // (at least uMinTilt of a face-on view, so an edge-on disc is a short thin line rather than nothing)
+  // the disc's plane: its own facing from the spin, turned a modest part of the way towards the camera at any distance and
+  // fully when close to it, so no disc is ever seen fully edge-on
   vec3 N = aF * sign(dot(aF, V) + 1e-6);
-  N = normalize(mix(N, V, clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0)));
-  float c = dot(N, V); if (c < uMinTilt) N = normalize(mix(N, V, (uMinTilt - c) / max(1.0 - c, 1e-3)));
-  // lighting (spec 16): one point light; a two-sided diffuse term plus a sharp specular highlight tinted by the
-  // iridescent map, through a soft saturating curve. No random brightness: the spread and the twinkle come from the
-  // spin. The disc fades out as it turns edge-on.
+  N = normalize(mix(N, V, max(uTurn, clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0))));
+  float c = dot(N, V);
+  // lighting (spec 16 and 17): one point light in front of the camera; a two-sided diffuse term plus a sharp specular
+  // highlight tinted by the iridescent map, through a soft saturating curve. No random brightness: the spread and the
+  // twinkle come from the spin. The disc fades as it turns towards edge-on.
   vec3 L = normalize(uLight - P), Hh = normalize(L + V);
   float diff = abs(dot(N, L)), spec = pow(abs(dot(N, Hh)), uShin);
   vec3 iri = pow(iriMap(vec2(dot(aF, uRight), dot(aF, uUp))), vec3(uMapExp));
-  vec3 lit = 1.0 - exp(-uSatGain * (uKd * diff + uKs * spec * iri));
-  vC = mix(lit, vec3(dot(lit, vec3(0.299, 0.587, 0.114))), 0.8 * vSoft); // out of focus: grey
-  vI = I * (1.0 - pow(1.0 - max(c, 0.0), uTiltPow)) * uGlint;
-  vec3 Ub = normalize(cross(N, abs(N.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0))), Vb = cross(N, Ub);
-  // the disc's radius in scene units for its size in pixels at this distance; the patch is uExt times the disc
-  float Rw = max(sizePx, 0.7) * max(z, 0.05) * 2.0 / (uF * uRes.y);
+  float tilt = 1.0 - pow(1.0 - max(c, 0.0), uTiltPow);
   vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1)) * 2.0 - 1.0;
-  vec4 clip = uVP * vec4(P + (Ub * corner.x + Vb * corner.y) * Rw * uExt, 1.0);
+  vec3 Ub, Vb; float R;
+  if (uExt > 1.5) {
+    // glint pass: a round soft halo facing the camera, its size and strength following the specular highlight, carrying
+    // only the highlight's tinted light
+    Ub = uRight; Vb = uUp; R = Rw * uExt * sqrt(spec);
+    vC = iri; vI = I * tilt * uKs * spec * uGlint;
+  } else {
+    Ub = normalize(cross(N, abs(N.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0))); Vb = cross(N, Ub); R = Rw * uExt;
+    vC = 1.0 - exp(-uSatGain * (uKd * diff + uKs * spec * iri));
+    vI = I * tilt * uGlint;
+  }
+  // a disc smaller than a pixel keeps a one-pixel patch, dimmed by its area
+  float px = Rw * uF * uRes.y / (2.0 * max(z, 0.05));
+  if (px < 0.7) { R *= 0.7 / max(px, 1e-4); vI *= (px * px) / 0.49; }
+  vec4 clip = uVP * vec4(P + (Ub * corner.x + Vb * corner.y) * R, 1.0);
   if (z < 0.05) clip = vec4(2.0, 2.0, 2.0, 1.0);
   vQ = corner * uExt;
-  if (sizePx < 0.7) vI *= (sizePx * sizePx) / 0.49;
   gl_Position = clip;
 }`;
 const FS_SPARK = `#version 300 es
@@ -248,12 +295,12 @@ out vec4 o;
 void main(){
   float r = length(vQ); // 1 at the disc's edge; the patch reaches uExt, so the disc is zero well inside it
   float k;
-  if (uExt > 1.5) { // glint pass: a soft round halo in the disc's plane, zero before the patch's edge
+  if (uExt > 1.5) { // glint pass: a soft round halo, zero before the patch's edge
     float q = r / uExt;
-    k = 0.45 * exp(-q * q * 6.0) * smoothstep(1.0, 0.8, q) * (1.0 - vSoft);
-  } else { // a flat disc: a crisp, anti-aliased edge in focus, softening out of focus
+    k = 0.45 * exp(-q * q * 6.0) * smoothstep(1.0, 0.8, q);
+  } else { // a flat disc: a crisp, anti-aliased edge in focus, softening out of focus until it fills its patch
     float e = max(fwidth(r) * 1.2, 0.04 + 0.6 * vSoft);
-    k = 1.0 - smoothstep(1.0 - e, 1.0, r);
+    k = 1.0 - smoothstep(1.0 - e, 1.0 + 0.2 * vSoft, r);
   }
   o = vec4(vC * vI * k, 1.0);
 }`;

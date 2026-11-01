@@ -60,10 +60,9 @@ function makeBackgroundImages() {
       const glow = Math.exp(-(dx * dx + dy * dy));
       const tilt = 1 + P.tilt * (u - 0.5);
       put(m * 2, x, y, [0, 1, 2].map(i => (base[i] + P.glow[i] * glow) * tilt));
-      // night: near-dark, a faint hint of the month's colour low on one side
-      const nx = (u - P.night[1]) / 0.7, ny = (1 - v) / 0.45;
-      const hint = Math.exp(-(nx * nx + ny * ny)) * 0.8 + 0.2 * v * v;
-      put(m * 2 + 1, x, y, [0, 1, 2].map(i => P.night[0][i] * hint));
+      // night (spec 17): black at the top, a clear dim glow in the month's colour over the lower part
+      const low = Math.pow(Math.min(Math.max((v - 0.3) / 0.7, 0), 1), 1.4), side = 1 + 0.25 * Math.cos(TAU * (u - P.night[1]));
+      put(m * 2 + 1, x, y, [0, 1, 2].map(i => P.night[0][i] * NIGHT_GLOW * low * side));
     }
   });
   return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
@@ -73,14 +72,15 @@ const bgImages = makeBackgroundImages();
 // what exceeds the background itself, so a bright palette never blooms into a haze).
 function bgPeak(sc) {
   let peak = 0; const n = BG_W * BG_H;
-  const a = sc.monA * 2 * n * 4, b = sc.monB * 2 * n * 4, na = a + n * 4, nb = b + n * 4, f = sc.monF, k = sc.night;
+  const a = sc.monA * 2 * n * 4, b = sc.monB * 2 * n * 4, na = a + n * 4, nb = b + n * 4;
+  const f = Math.min(Math.max(((sc.monC - 0.5) / sc.monW + 1) / 2, 0), 1), k = sc.night * BGL.nightMix; // the month mix mid-screen
   for (let i = 0; i < n * 4; i += 4) {
     let l = 0;
     for (let c = 0; c < 3; c++) {
       const w = [0.299, 0.587, 0.114][c];
       const day = bgImageData[a + i + c] + (bgImageData[b + i + c] - bgImageData[a + i + c]) * f;
       const night = bgImageData[na + i + c] + (bgImageData[nb + i + c] - bgImageData[na + i + c]) * f;
-      l += w * (day * (1 + BG_HL * 0.65) * (1 - k) + night * k);
+      l += w * (day * sc.daylight * (BGL.base + BGL.spot + BGL.glow) * (1 - k) + night * (BGL.nightBase + BGL.spot) * k);
     }
     if (l > peak) peak = l;
   }
@@ -120,7 +120,7 @@ function ensureTargets(cw, ch, ow, oh, ss) {
   RT.wave = makeTarget(ww, wh, 'r16f');
   RT.bgA = makeTarget(64, 36, 'rgba16f'); RT.bgB = makeTarget(64, 36, 'rgba16f'); RT.bgFresh = true;
   RT.levels = [];
-  let lw = Math.max(1, Math.ceil(ow / 4)), lh = Math.max(1, Math.ceil(oh / 4));
+  let lw = Math.max(1, Math.ceil(ow / 8)), lh = Math.max(1, Math.ceil(oh / 8));
   while (RT.levels.length < 7) {
     RT.levels.push({ a: makeTarget(lw, lh, 'rgba16f'), b: makeTarget(lw, lh, 'rgba16f'), c: makeTarget(lw, lh, 'rgba16f'), w: lw, h: lh });
     if (lh <= 6) break;

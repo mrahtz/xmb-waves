@@ -8,7 +8,7 @@ const TAU = Math.PI * 2;
 //   top, bottom: colours at the top and bottom edge
 //   glow: colour added by a broad soft highlight, glowPos [x, y], glowSize
 //   tilt: brightness change from left to right
-//   night: [colour of the faint hint, where it sits (0 = left, 1 = right)]
+//   night: [colour of the night glow over the lower part, where it is strongest (0 = left, 1 = right)]
 // Colours are display values (sRGB-encoded) in 0..1.
 // ---------------------------------------------------------------------------
 const PALETTES = [
@@ -33,26 +33,26 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 const MOOD_KEYS = [
   'waveBright', 'base', 'fres', 'sizeK',
   'latX', 'latY', 'latZ', 'envCross', 'camPitch',
-  'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
+  'black', 'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
   night: { waveBright: 0.29, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 8.66,
-    exposure: 1.0, white: 2.2, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.0,
-    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    black: 0.02, exposure: 1.5, white: 1.0, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
+    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.5, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 12.66,
-    exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    black: 0.02, exposure: 1.1, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 1.3,
+    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 12.66,
-    exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    black: 0.02, exposure: 1.0, white: 0.9, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.5, base: 1.469, fres: 2.013, sizeK: 1.496,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 12.66,
-    exposure: 1.0, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.85, glareStrength: 0.9,
-    focusFar: 6.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    black: 0.02, exposure: 1.25, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -69,7 +69,7 @@ function moodAt(hour) {
   return blendMood(MOODS.night, MOODS.night, 0);
 }
 function blendMood(A, B, f) { const o = {}; for (const k of MOOD_KEYS) o[k] = A[k] + (B[k] - A[k]) * f; return o; }
-// Background night weight: fades out 00:00-05:00, zero by day, fades in 18:30-20:30.
+// Background night weight (N6): fades out 00:00-05:00, zero by day, fades in 18:30-20:30.
 function nightWeight(hour) {
   const h = ((hour % 24) + 24) % 24;
   if (h < 5) return 1 - ease(h / 5);
@@ -77,10 +77,35 @@ function nightWeight(hour) {
   if (h < 20.5) return ease((h - 18.5) / 2);
   return 1;
 }
+// The day image's daylight factor (N8): darkest about 02:00, steep rise 03:00-06:00, gentle to mid-afternoon, fading
+// 19:00-22:00. Eased between these keys (hour, level).
+const DAYLIGHT = [[0, 0.10], [2, 0.03], [3, 0.06], [6, 0.82], [15, 1.0], [19, 1.0], [22, 0.14], [24, 0.10]];
+function daylight(hour) {
+  const h = ((hour % 24) + 24) % 24;
+  for (let i = 1; i < DAYLIGHT.length; i++) if (h <= DAYLIGHT[i][0]) {
+    const [h0, a] = DAYLIGHT[i - 1], [h1, b] = DAYLIGHT[i]; return a + (b - a) * ease((h - h0) / (h1 - h0));
+  }
+  return DAYLIGHT[0][1];
+}
 // Warped hour: advances slowly around midday and quickly around midnight; returns 0..1 over the day.
 function warpedDay(hour) {
   const p = ((hour - 12) / 24) * TAU; // -pi..pi, 0 at noon
   return 0.5 + (p - 0.6 * Math.sin(p)) / TAU;
+}
+// The night image's clock, noon to noon: its light rises at the left in the evening, is high in the middle at midnight
+// and sets at the right towards morning.
+function warpedNight(hour) { return warpedDay(hour + 12); }
+// Dawn and dusk: 1 around 06:30 and 18:00, 0 around midday and midnight.
+function duskTerm(hour) {
+  const h = ((hour % 24) + 24) % 24, b = (c) => Math.exp(-Math.pow(Math.min(Math.abs(h - c), 24 - Math.abs(h - c)) / 1.6, 2));
+  return Math.max(b(6.5), b(18));
+}
+// Next month's images rising from the bottom (N7): the centre of the S-shaped step (in screen heights, 0 = bottom) and its
+// half-width for the month's progress p (whole days): nothing before about the 6th, about half and half over the whole
+// screen in the middle (a very broad step), next month's complete at the bottom by about the 22nd and the top by the 26th.
+function monthStep(p) {
+  const c = -0.2 + 1.4 * Math.min(Math.max((p - 0.2) / 0.65, 0), 1);
+  return [c, 0.15 + 3.0 * Math.exp(-Math.pow((p - 0.5) / 0.1, 2))];
 }
 function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
 
@@ -88,10 +113,12 @@ function sceneParams(tp, theme) {
   const [y, mon, day, hh, mm, ss] = tp;
   const hour = hh + mm / 60 + ss / 3600;
   if (theme >= 1 && theme <= 12) {
-    return { monA: theme - 1, monB: theme % 12, monF: 0, night: 0, wday: warpedDay(12), mood: { ...MOODS.day } };
+    return { monA: theme - 1, monB: theme % 12, monC: -5, monW: 0.15, mid: 0, night: 0, daylight: 1, wday: warpedDay(12),
+      wnight: warpedNight(12), dusk: 0, mood: { ...MOODS.day } };
   }
-  const dim = daysInMonth(y, mon);
-  return { monA: mon - 1, monB: mon % 12, monF: (day - 1) / dim, night: nightWeight(hour), wday: warpedDay(hour), mood: moodAt(hour) };
+  const p = (day - 1) / daysInMonth(y, mon), [monC, monW] = monthStep(p);
+  return { monA: mon - 1, monB: mon % 12, monC, monW, mid: Math.exp(-Math.pow((p - 0.5) / 0.15, 2)), night: nightWeight(hour),
+    daylight: daylight(hour), wday: warpedDay(hour), wnight: warpedNight(hour), dusk: duskTerm(hour), mood: moodAt(hour) };
 }
 function parseTime(s) {
   const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2})(?::(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?)?)?/.exec(s || '');
@@ -135,18 +162,26 @@ const WAVE = {
   fadeEnds: 0.10, fadeEdges: 0.04,      // fraction of the sheet over which it fades out
   minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
-  tintL: [1.00, 0.985, 0.96], tintR: [0.97, 0.985, 1.00], // near-white tint across the screen
+  tintL: [0.94, 0.94, 0.94], tintR: [1.0, 1.0, 1.0], // a neutral tint brightening slightly from left to right
 };
-const BG_TINT = { top: [1.0, 1.0, 1.0], bottom: [0.985, 0.98, 0.99] };
 // (these scalars are let, not const, only so the settings menu can change them live)
-let BG_HL = 0.12; // strength of the drifting daytime highlight
+// background lighting (spec 17, original design): base level away from the lights, the spot's and the bottom glow's
+// added light, the night image's base, how much paler lit areas get, how far dawn and dusk darken and saturate the top,
+// the mid-month saturation drop, and the night image's share of the mix at full night weight
+const NIGHT_GLOW = 3.0; // the night images' glow, relative to the palette's night colour
+const BGL = { base: 0.8, spot: 0.35, glow: 0.25, nightBase: 0.6, pale: 0.25, duskDark: 0.35, duskSat: 0.35, midSat: 0.10, nightMix: 0.6 };
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
-const SPARKR = { size: 2.6, blur: 6.0, dofPow: 2.0, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59, camFade: [1.3, 2.3], // distances for the camera at 3.16
-  bright: 1.5, glintSize: 4.5, glintBright: 0.10, minTilt: 0.05,
-  // lighting (spec 16): one point light in the scene, diffuse kd and specular ks with exponent shin, the highlight tinted
-  // by the iridescent map raised to mapExp, the sum through 1 - exp(-satGain x); the disc's opacity falls as it turns
-  // edge-on, with the power tiltPow of one minus the cosine; minTilt keeps the patch from being exactly edge-on
-  light: [-4.0, 6.0, -6.0], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.5, satGain: 1.5, tiltPow: 1.0 };
+const SPARKR = {
+  // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
+  // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
+  size: 0.010, blur: 0.8, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
+  turn: 0.3,                       // part of the way every disc is turned towards the camera (fully when close)
+  bright: 1.5, glintSize: 4.5, glintBright: 0.10,
+  // lighting (spec 16 and 17): one point light in the scene in front of the camera, diffuse kd and specular ks with exponent
+  // shin, the highlight tinted by the iridescent map (saturation mapSat everywhere, exponent mapExp = 1 leaves it unchanged),
+  // the sum through 1 - exp(-satGain x); opacity falls as a disc turns towards edge-on, with the power tiltPow of one minus
+  // the cosine
+  light: [1.3, 0.7, -1.5], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.0, mapSat: 0.45, satGain: 1.5, tiltPow: 1.0,
+};
 let DITHER = 0.85; // output levels, peak
-let GLARE_DESAT = 0.6; // how far the halo is pulled towards white
 

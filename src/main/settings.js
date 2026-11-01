@@ -138,19 +138,23 @@ group('Camera', [
   index('CAMERA.target', CAMERA.target, 2, 'target z', -5, 5, 0.05),
 ]);
 group('Background', [
-  live('BG_HL', 'daytime highlight', () => BG_HL, v => { BG_HL = v; }, 0, 0.5, 0.005),
+  field('BGL', BGL, 'base', 'light: base level', 0, 2, 0.01), field('BGL', BGL, 'spot', 'light: sun spot', 0, 2, 0.01),
+  field('BGL', BGL, 'glow', 'light: bottom glow', 0, 2, 0.01), field('BGL', BGL, 'nightBase', 'night light: base', 0, 2, 0.01),
+  field('BGL', BGL, 'pale', 'lit areas paler', 0, 1, 0.01), field('BGL', BGL, 'duskDark', 'dawn/dusk: top darker', 0, 1, 0.01),
+  field('BGL', BGL, 'duskSat', 'dawn/dusk: top deeper', 0, 2, 0.01), field('BGL', BGL, 'midSat', 'mid-month desaturation', 0, 0.5, 0.01),
+  field('BGL', BGL, 'nightMix', 'night image share', 0, 1, 0.01),
   live('BG_EASE', 'frame easing', () => BG_EASE, v => { BG_EASE = v; }, 0.005, 1, 0.005),
   live('DITHER', 'dither amplitude', () => DITHER, v => { DITHER = v; }, 0, 3, 0.05),
 ]);
 group('Glare', [
-  mood('exposure', 'exposure', 0.2, 3, 0.01), mood('white', 'white point', 0.5, 4, 0.05), mood('glareThr', 'threshold', 0, 1, 0.01),
-  mood('glareSigma', 'blur radius', 0.3, 4, 0.05), mood('glareRatio', 'level ratio', 0.3, 1.5, 0.01), mood('glareStrength', 'strength', 0, 3, 0.01),
-  live('GLARE_DESAT', 'desaturation', () => GLARE_DESAT, v => { GLARE_DESAT = v; }, 0, 1, 0.01),
+  mood('black', 'black offset', 0, 0.3, 0.005), mood('exposure', 'exposure (gain)', 0.2, 4, 0.01), mood('white', 'white point', 0.5, 4, 0.01),
+  mood('glareThr', 'glare threshold', 0, 1, 0.01), mood('glareSigma', 'blur radius', 0.3, 4, 0.05), mood('glareRatio', 'level ratio', 0.1, 1.0, 0.01),
+  mood('glareStrength', 'strength', 0, 3, 0.01),
 ]);
 group('Sparkles', [
-  mood('sparkBright', 'brightness', 0, 2, 0.01), mood('sparkSize', 'size (mood)', 0.2, 3, 0.01), mood('focusFar', 'far focus', 1, 10, 0.05), mood('glint', 'glint', 0, 1, 0.01),
-  field('SPARKR', SPARKR, 'size', 'size', 0.5, 8, 0.1), field('SPARKR', SPARKR, 'blur', 'bokeh blur', 0, 12, 0.1),
-  field('SPARKR', SPARKR, 'dofPow', 'bokeh dimming', 0.2, 3, 0.05), field('SPARKR', SPARKR, 'focusNear', 'near focus', 0.5, 10, 0.05),
+  mood('sparkBright', 'brightness', 0, 2, 0.01), mood('sparkSize', 'size (mood)', 0.2, 3, 0.01), mood('focusFar', 'far focus', 1, 60, 0.1), mood('glint', 'glint', 0, 1, 0.01),
+  field('SPARKR', SPARKR, 'size', 'size (scene units)', 0.001, 0.05, 0.0005), field('SPARKR', SPARKR, 'blur', 'bokeh growth', 0, 3, 0.05),
+  field('SPARKR', SPARKR, 'dofDim', 'bokeh dimming', 0, 2, 0.01), field('SPARKR', SPARKR, 'focusNear', 'near focus', 0.5, 10, 0.05),
   field('SPARKR', SPARKR, 'nearSoft', 'near softness', 0.5, 6, 0.1), field('SPARKR', SPARKR, 'farSoft', 'far softness', 0.5, 6, 0.1),
   field('SPARKR', SPARKR, 'bright', 'base brightness', 0, 4, 0.01), field('SPARKR', SPARKR, 'kd', 'diffuse', 0, 2, 0.01),
   field('SPARKR', SPARKR, 'ks', 'highlight', 0, 6, 0.01), field('SPARKR', SPARKR, 'shin', 'highlight sharpness', 1, 200, 1),
@@ -158,14 +162,14 @@ group('Sparkles', [
   field('SPARKR', SPARKR, 'tiltPow', 'edge-on fade', 0.5, 10, 0.1),
   field('SPARKR', SPARKR, 'glintSize', 'glint size', 1, 10, 0.1),
   field('SPARKR', SPARKR, 'glintBright', 'glint brightness', 0, 0.5, 0.005),
-  field('SPARKR', SPARKR, 'minTilt', 'least disc tilt', 0, 1, 0.01),
+  field('SPARKR', SPARKR, 'turn', 'turn towards camera', 0, 1, 0.01), field('SPARKR', SPARKR, 'mapSat', 'colour map saturation', 0, 1, 0.01),
   sim('SPARK.burstP', 'burst chance', 0, 1, 0.01), sim('SPARK.burstN', 'burst size', 1, 40, 1),
   sim('SPARK.walkerP', 'walker chance', 0, 0.3, 0.005), sim('SPARK.walkStep', 'walker step', 0.005, 0.2, 0.005),
   sim('SPARK.cone', 'birth cone', 0, 1, 0.01), sim('SPARK.reverseP', 'reversed births', 0, 0.5, 0.01),
   sim('SPARK.speedK', 'speed factor', 0, 1, 0.01), sim('SPARK.speedPow', 'speed exponent', 0.1, 1.5, 0.01), sim('SPARK.speedMin', 'minimum speed', 0, 0.2, 0.005),
   sim('SPARK.rateMean', 'ageing rate', 0.02, 0.5, 0.005), sim('SPARK.rateSpread', 'ageing spread', 0, 1, 0.01),
   sim('SPARK.jitter', 'jitter', 0, 0.05, 0.0005), sim('SPARK.gravity', 'gravity', -0.005, 0.005, 0.0001), sim('SPARK.friction', 'friction', 0, 1, 0.01),
-  sim('SPARK.upLean', 'upward lean', 0, 0.6, 0.01), sim('SPARK.spinA', 'spin', 0, 6, 0.05),
+  sim('SPARK.jitterRedraw', 'jitter redraws per second', 0, 5, 0.01), sim('SPARK.spinA', 'spin', 0, 6, 0.05),
 ]);
 let currentMood = null, tunePending = false;
 function paramValue(it) { // the value in effect
