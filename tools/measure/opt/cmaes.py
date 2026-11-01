@@ -78,7 +78,8 @@ OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value; re-
     # adjacent strands 7.45 px/s, partings' drift 35 px/s, rightwards 0.57; optical flow's horizontal part 12.8 px/s (11.6-14.1)
     ('shift', 0.008, 0.012, 1.5, 0.004), ('adjdiff', 7.45, 2.0, 0.75, -0.27), ('corr1', 0.15, 0.08, 2.0, 0.128), ('outer', 0.74, 0.15, 2.0, -0.007), ('cspeed', 0.019, 0.004, 1.0, 0.001),
     ('pspeed', 35.0, 12.0, 1.5, 7.2), ('pright', 0.57, 0.15, 1.0, 0.035),  # partings' drift along the band (px/s at 1920) and rightwards share
-    ('fvxf', 12.8, 4.0, 2.0, 0.0),  # optical flow, horizontal part (motion2.py); the fast evaluator's coarse raster reads it 2.2x high
+    ('fvxf', 12.8, 4.0, 0.0, 0.0),  # optical flow, horizontal part (motion2.py): weight 0. In full renders it barely followed the
+    # candidates (the band's straight edges leave it ill-determined), and the fast evaluator's value did not predict it
 ]
 def objective(r):
     terms = {}; s = 0.0; w = 0.0; pen = {}

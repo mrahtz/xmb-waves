@@ -23,7 +23,7 @@ for d in sorted(glob.glob(os.path.join(D, '2026-*'))):
         except Exception: pass
     if os.path.exists(d + '/motion2.json'): r.update(json.load(open(d + '/motion2.json')))
     rows[k] = r
-keys = ['cspeed', 'shift', 'corr1', 'adjdiff', 'pspeed', 'pright', 'flow_med', 'flow_p90', 'flow_vx_med', 'flow_vy_med', 'flow_left', 'flow_right', 'spec_lo', 'spec_mid', 'spec_hi', 'spec_centroid', 'kymo_vy_med', 'kymo_vx_med', 'kymo_right']
+keys = ['cspeed', 'shift', 'corr1', 'adjdiff', 'pspeed', 'pright', 'flow_med', 'flow_p90', 'flow_vx_med', 'flow_vy_med', 'flow_tex_share', 'flow_tex_vx_med', 'flow_tex_vy_med', 'flow_left', 'flow_right', 'spec_lo', 'spec_mid', 'spec_hi', 'spec_centroid', 'kymo_vy_med', 'kymo_vx_med', 'kymo_right']
 groups = {'00:00': '0000', '06:00': '0600', '12:00': '1200', '18:00': '1800', 'all': ''}
 print('%-14s' % 'statistic' + ''.join('%-22s' % g for g in groups))
 for key in keys:

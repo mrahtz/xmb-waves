@@ -6,7 +6,9 @@
 #  2. temporal spectrum: each band pixel's brightness over time, Fourier-transformed (Hann window), power averaged over
 #     the band; reports the share of the change in three frequency bands and the spectral centroid (Hz).
 #  3. optical flow (Lucas-Kanade, Gaussian window) between frames 1/FPS apart, over the band: median and p90 speed,
-#     the median vertical and horizontal components, and the median speed in the left and right thirds.
+#     the median vertical and horizontal components, and the median speed in the left and right thirds. Where the band is
+#     nearly all straight horizontal edges the horizontal component is ill-determined and reads high, so it is also
+#     reported at the points with texture in two directions only, with their share (the original: 7-14%, the build: ~1%).
 # Frames are converted to grey, scaled to 960x540 and measured there; speeds are quoted in px/s at 1920x1080.
 import sys, os, glob, json
 import numpy as np
@@ -59,13 +61,20 @@ def lk(a, b, sig=6.0):
     Sxt = gaussian_filter(Ix * It, sig); Syt = gaussian_filter(Iy * It, sig)
     det = Sxx * Syy - Sxy ** 2; tr = Sxx + Syy
     u = (-Syy * Sxt + Sxy * Syt) / np.maximum(det, 1e-9); v = (Sxy * Sxt - Sxx * Syt) / np.maximum(det, 1e-9)
-    lam_min = 0.5 * (tr - np.sqrt(np.maximum(tr ** 2 - 4 * det, 0)))
-    ok = lam_min > np.percentile(lam_min[band], 50)                          # well-conditioned (textured) points only
-    return u, v, ok & band
-U = []; V = []; X = []
+    disc = np.sqrt(np.maximum(tr ** 2 - 4 * det, 0)); lam_min = 0.5 * (tr - disc); lam_max = 0.5 * (tr + disc)
+    ok = lam_min > np.percentile(lam_min[band], 50)                          # the better-conditioned half of the band
+    # points with texture in two directions (smaller eigenvalue at least 5% of the larger, on a strong edge): only
+    # there is the motion along an edge measurable; on a straight edge only the motion across it is (aperture problem)
+    tex = band & (lam_max > np.percentile(lam_max[band], 50)) & (lam_min > 0.05 * lam_max)
+    return u, v, ok & band, tex, band & (lam_max > np.percentile(lam_max[band], 50))
+U = []; V = []; X = []; TU = []; TV = []; ntex = 0; nstrong = 0
 for i in range(0, nT - 1, max(1, int(fps // 5))):
-    u, v, ok = lk(F[i], F[i + 1]); ys, xs = np.nonzero(ok)
-    U.append(u[ok]); V.append(v[ok]); X.append(xs)
+    u, v, ok, tex, strong = lk(F[i], F[i + 1]); ys, xs = np.nonzero(ok)
+    U.append(u[ok]); V.append(v[ok]); X.append(xs); TU.append(u[tex]); TV.append(v[tex]); ntex += tex.sum(); nstrong += strong.sum()
+TU = np.concatenate(TU) * fps * SC; TV = np.concatenate(TV) * fps * SC; tg = np.hypot(TU, TV) < 400
+res['flow_tex_share'] = float(ntex / max(nstrong, 1))
+res['flow_tex_vx_med'] = float(np.median(np.abs(TU[tg]))) if tg.any() else float('nan')
+res['flow_tex_vy_med'] = float(np.median(np.abs(TV[tg]))) if tg.any() else float('nan')
 U = np.concatenate(U) * fps * SC; V = np.concatenate(V) * fps * SC; X = np.concatenate(X)
 sp = np.hypot(U, V); good = sp < 400                                         # drop the few ill-posed points
 res['flow_med'] = float(np.median(sp[good])); res['flow_p90'] = float(np.percentile(sp[good], 90))
@@ -76,7 +85,9 @@ L = {'kymo_vy_med': 'kymograph: feature vertical speed median (px/s @1080p)', 'k
      'kymo_right': 'kymograph: rightwards share (weighted)', 'spec_lo': 'temporal spectrum: share of change below 0.3 Hz',
      'spec_mid': 'temporal spectrum: share 0.3-1 Hz', 'spec_hi': 'temporal spectrum: share above 1 Hz', 'spec_centroid': 'temporal spectrum: centroid (Hz)',
      'flow_med': 'optical flow: speed median (px/s @1080p)', 'flow_p90': 'optical flow: speed p90', 'flow_vy_med': 'optical flow: |vertical| median',
-     'flow_vx_med': 'optical flow: |horizontal| median', 'flow_left': 'optical flow: speed median, left third', 'flow_right': 'optical flow: speed median, right third'}
+     'flow_vx_med': 'optical flow: |horizontal| median (unreliable where the band is straight edges)',
+     'flow_tex_share': 'optical flow: share of strong-edge points with texture in two directions',
+     'flow_tex_vx_med': 'optical flow at those points: |horizontal| median', 'flow_tex_vy_med': 'optical flow at those points: |vertical| median', 'flow_left': 'optical flow: speed median, left third', 'flow_right': 'optical flow: speed median, right third'}
 print('frames %d at %g fps' % (nT, fps))
 for k, lab in L.items(): print('%-58s %.3f' % (lab + ':', res[k]))
 if out: json.dump(res, open(out, 'w'), indent=1)
