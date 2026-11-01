@@ -398,7 +398,7 @@ function frameStats(ras) {
   return {
     fmax,
     cover: xsUsed.length / NC, cosMed: ras.cosMed,  // share of the columns the band is found in (it should span the frame)
-    centre: median(centre), centreMin: Math.min(...centre), centreMax: Math.max(...centre), topMin, botMax, tilt: cr - cl, arch,
+    centre: median(centre), centreMin: Math.min(...centre), centreMax: Math.max(...centre), topMin, botMax, tilt: cr - cl, arch, atilt: Math.abs(cr - cl), crange: Math.max(...centre) - Math.min(...centre),
     thick: median(thick), thickP10: pct(thick, 10), thickP90: pct(thick, 90), thickRatio: pct(thick, 95) / Math.max(pct(thick, 5), 1e-3),
     pinch8: 100 * thick.filter(v => v < 0.08).length / n, pinch5: 100 * thick.filter(v => v < 0.05).length / n,
     peaks12: mean(npk12), hist, peaks25: mean(npk25), peaks40: mean(npk40), thirds: [third(0, 1 / 3), third(1 / 3, 2 / 3), third(2 / 3, 1.01)],

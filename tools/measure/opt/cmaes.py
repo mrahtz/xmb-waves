@@ -13,18 +13,18 @@ PARAMS = [
     # spec 16: the nudges' strength is held where nudgecheck.js puts the free half's speed at 0.5-2 times the drive's peak.
     # spec 17: the camera, the framing (scene length and offset) and the push are fixed in the build so that geomcheck.js's
     # 4.4d checks hold; the bending springs are much stiffer (bendRatio 6-15); the bump and the bob are large
-    ('NET.noise', 'log', 1.6e-5, 8e-5, 2.734e-05),
-    ('NET.drivePhase1', 'lin', 0.36, 1.3, 1.139), ('delta', 'lin', 0.02, 0.9, 0.665),
-    ('NET.kStruct', 'log', 0.05, 1.5, 0.398), ('bendRatio', 'log', 6.0, 15.0, 8.0), ('NET.acrossK', 'log', 0.75, 1.33, 0.9862),
-    ('SCENE.wid', 'lin', 3.0, 8.0, 5.618), ('SCENE.height', 'log', 0.8, 4.0, 2.075),
-    ('LAT.rollAmp', 'log', 0.005, 0.12, 0.0272), ('LAT.rollW', 'log', 0.08, 1.2, 0.58), ('LAT.rollGrow', 'lin', 1.0, 5.0, 3.446),
-    ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.189), ('LAT.bumpAmp', 'log', 0.015, 0.08, 0.03), ('LAT.bobAmp', 'log', 0.015, 0.08, 0.03),
-    ('LAT.twistAmp', 'log', 0.003, 0.04, 0.01214), ('LAT.spread', 'log', 1.5, 15.0, 5.643),
+    ('NET.noise', 'log', 1.6e-5, 8e-5, 8e-5),
+    ('NET.drivePhase1', 'lin', 0.36, 1.3, 0.4472), ('delta', 'lin', 0.02, 0.9, 0.694),
+    ('NET.kStruct', 'log', 0.05, 1.5, 0.3119), ('bendRatio', 'log', 6.0, 15.0, 7.204), ('NET.acrossK', 'log', 0.75, 1.33, 0.8382),
+    ('SCENE.wid', 'lin', 3.0, 8.0, 4.682), ('SCENE.height', 'log', 0.8, 5.5, 3.8),
+    ('LAT.rollAmp', 'log', 0.005, 0.2, 0.06), ('LAT.rollW', 'log', 0.08, 0.6, 0.2), ('LAT.rollGrow', 'lin', 1.0, 5.0, 2.664),
+    ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.141), ('LAT.bumpAmp', 'log', 0.015, 0.25, 0.12), ('LAT.bobAmp', 'log', 0.015, 0.12, 0.02617),
+    ('LAT.twistAmp', 'log', 0.003, 0.1, 0.04), ('twistRatio', 'lin', 0.2, 0.98, 0.95), ('LAT.spread', 'log', 1.5, 15.0, 5.614),
     # spec 16/17 shading (day mood): sheen level, the Fresnel-like strength as a multiple of it (by day clearly the stronger),
     # the size-factor scale; the sheen's cut-off (start, and end as a multiple); the peak's place, zero region and tail
     ('base', 'log', 0.2, 4.0, 1.2), ('fresRatio', 'lin', 1.3, 3.0, 2.0), ('sizeK', 'log', 0.15, 2.0, 0.6),
-    ('cut0', 'log', 0.1, 1.0, 0.22), ('cutW', 'lin', 1.2, 4.0, 1.9), ('fresPeak', 'log', 0.03, 0.4, 0.0936),
-    ('fresZero', 'lin', 0.2, 0.9, 0.55), ('fresTail', 'log', 0.08, 1.0, 0.35),
+    ('cut0', 'log', 0.1, 1.0, 0.2179), ('cutW', 'lin', 1.2, 4.0, 2.749), ('fresPeak', 'log', 0.03, 0.4, 0.12),
+    ('fresZero', 'lin', 0.2, 0.9, 0.5961), ('fresTail', 'log', 0.08, 1.0, 0.1403),
 ]
 D = len(PARAMS)
 def to_z(vals):
@@ -43,13 +43,14 @@ MOOD_PARAMS = ('base', 'sizeK', 'cut0', 'fresPeak', 'fresZero', 'fresTail')
 def candidate(vals, cid):
     tune = {}; mood = {}
     for (n, k, lo, hi, x0), v in zip(PARAMS, vals):
-        if n in ('delta', 'bendRatio', 'cutW', 'fresRatio'): continue
+        if n in ('delta', 'bendRatio', 'cutW', 'fresRatio', 'twistRatio'): continue
         if n in MOOD_PARAMS: mood[n] = v
         else: tune[n] = v
     p1 = dict(zip([p[0] for p in PARAMS], vals))
     tune['NET.drivePhase2'] = p1['NET.drivePhase1'] + p1['delta']
     tune['NET.warmDecays'] = 3  # the evaluator settles each candidate for three decay times (the build's stored state for four)
     tune['NET.kBend'] = p1['NET.kStruct'] * p1['bendRatio']
+    tune['LAT.twistW'] = p1['LAT.rollW'] * p1['twistRatio']  # spec 17: the twist next fastest after the swell; bob and bump speeds fixed in the build (much slower)
     mood['cut1'] = p1['cut0'] * p1['cutW']; mood['fres'] = p1['base'] * p1['fresRatio']
     return {'id': cid, 'tune': tune, 'mood': mood, 'seeds': SEEDS, 'stillFrames': STILLS, 'motion': MOTION}
 def mkvar_args(vals):
@@ -64,17 +65,18 @@ def mkvar_args(vals):
 def fmt(v): return '%.4g' % v
 
 # ---- objective: reference targets (medians under these tools), scales (about the reference's frame spread), weights, fast->full bias
-OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value). Targets: the original's recordings in comparison/original
+OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value; re-measured on 8 spec-17 variants at 1024 x 320 samples, validate.py). Targets: the original's recordings in comparison/original
     # (51 stills from the 17 short clips; motion from the two 30 s clips), measured with these tools
-    ('thick', 0.16, 0.03, 1.0, 0.002), ('peaks12', 3.6, 0.6, 1.0, 0.18), ('face', 0.26, 0.06, 1.0, -0.01), ('foldface', 3.9, 1.0, 1.0, 0.41),
-    ('partcol', 0.59, 0.25, 2.0, 0.14), ('linepk', 1.46, 0.15, 1.0, -0.21), ('a40', 0.37, 0.08, 1.0, 0.014), ('dark', 0.30, 0.1, 2.0, 0.0),
-    ('bwidth', 20.3, 6.0, 1.5, 1.0), ('partings', 3, 2.0, 1.0, -0.7), ('a25', 0.54, 0.1, 0.5, 0.013),
-    ('widthLines', 6.5, 1.2, 0.5, 0.6), ('edge', 9.0, 3.0, 0.5, 0.37), ('peaks25', 2.5, 0.5, 0.5, 0.04), ('pinch8', 15, 10, 1.0, -0.4),
-    ('lines10', 3, 3, 0.25, 0.3), ('tilt', 0.06, 0.1, 1.0, 0.0), ('cosMed', 0.5, 0.1, 2.0, 0.0),  # spec 16: a typical bit of sheet seen about halfway between edge-on and face-on
+    ('thick', 0.16, 0.03, 1.0, 0.013), ('peaks12', 3.6, 0.6, 1.0, -0.137), ('face', 0.26, 0.06, 1.0, 0.037), ('foldface', 3.9, 1.0, 1.0, -4.5),
+    ('partcol', 0.59, 0.25, 2.0, -0.241), ('linepk', 1.46, 0.15, 1.0, 0.052), ('a40', 0.37, 0.08, 1.0, 0.02), ('dark', 0.30, 0.1, 2.0, -0.042),
+    ('bwidth', 20.3, 6.0, 1.5, 3.62), ('partings', 3, 2.0, 1.0, -0.83), ('a25', 0.54, 0.1, 0.5, 0.031),
+    ('widthLines', 6.5, 1.2, 0.5, 0.78), ('edge', 9.0, 3.0, 0.5, 1.25), ('peaks25', 2.5, 0.5, 0.5, -0.064), ('pinch8', 15, 10, 1.0, -7.1),
+    ('lines10', 3, 3, 0.25, -0.83), ('arch', 0.20, 0.05, 2.0, -0.005), ('atilt', 0.11, 0.06, 1.0, 0.0), ('crange', 0.37, 0.08, 1.5, 0.0),  # shape (51 stills): arch, |tilt|, centre range per frame
+    ('cosMed', 0.5, 0.1, 2.0, 0.0),  # spec 16: a typical bit of sheet seen about halfway between edge-on and face-on
     # motion from the two 30 s clips (15 October 12:00 and 21:30): swell shift +0.009 and +0.041 W/s, 1 s correlation 0.36 and 0.15,
     # adjacent strands 8.8 and 7.2 px/s, centre speed 0.020 H/s, partings' drift 34 and 44 px/s, rightwards 0.47 and 0.50
-    ('shift', 0.025, 0.025, 1.5, -0.007), ('adjdiff', 8.0, 2.0, 0.75, -0.7), ('corr1', 0.25, 0.12, 2.0, 0.06), ('outer', 0.74, 0.15, 2.0, -0.018), ('cspeed', 0.020, 0.005, 0.5, 0.0),
-    ('pspeed', 39.0, 12.0, 1.5, 0.0), ('pright', 0.49, 0.15, 1.0, 0.0),  # partings' drift along the band (px/s at 1920) and rightwards share
+    ('shift', 0.025, 0.025, 1.5, 0.004), ('adjdiff', 8.0, 2.0, 0.75, -0.27), ('corr1', 0.25, 0.12, 2.0, 0.128), ('outer', 0.74, 0.15, 2.0, -0.007), ('cspeed', 0.020, 0.005, 0.5, 0.001),
+    ('pspeed', 39.0, 12.0, 1.5, 7.2), ('pright', 0.49, 0.15, 1.0, 0.035),  # partings' drift along the band (px/s at 1920) and rightwards share
 ]
 def objective(r):
     terms = {}; s = 0.0; w = 0.0; pen = {}
@@ -126,7 +128,7 @@ class Pool:
 
 OUT = os.path.join(SP, 'opt'); os.makedirs(OUT, exist_ok=True)   # logs and state go to the work directory
 LOG = OUT + '/log.csv'; STATE = OUT + '/cma_state.json'; BEST = OUT + '/best.json'
-LOGKEYS = ['gen', 'id', 'objective', 'dist', 'penalty'] + [p[0] for p in PARAMS] + ['thick', 'peaks12', 'peaks25', 'face', 'foldface', 'partcol', 'linepk', 'a40', 'dark', 'widthLines', 'edge', 'pinch8', 'partings', 'lines10', 'outer', 'bwidth', 'a25', 'fmean', 'overlap', 'centre', 'shift', 'adjdiff', 'corr1', 'cspeed', 'pspeed', 'maxSpeed0', 'maxSpeed1', 'maxY', 'ms']
+LOGKEYS = ['gen', 'id', 'objective', 'dist', 'penalty'] + [p[0] for p in PARAMS] + ['thick', 'peaks12', 'peaks25', 'face', 'foldface', 'partcol', 'linepk', 'a40', 'dark', 'widthLines', 'edge', 'pinch8', 'partings', 'lines10', 'outer', 'bwidth', 'a25', 'fmean', 'overlap', 'centre', 'arch', 'atilt', 'crange', 'shift', 'adjdiff', 'corr1', 'cspeed', 'pspeed', 'maxSpeed0', 'maxSpeed1', 'maxY', 'ms']
 def log_rows(rows):
     new = not os.path.exists(LOG)
     with open(LOG, 'a', newline='') as f:
