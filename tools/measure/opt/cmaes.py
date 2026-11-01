@@ -5,7 +5,7 @@ import numpy as np
 OPT = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(os.path.dirname(OPT)))
 SP = os.environ.get('MEASURE_WORK', os.path.join(ROOT, 'tools', 'measure', 'work'))
 PAGE = os.environ.get('BASE_PAGE', os.path.join(ROOT, 'index.html'))   # the build whose code is used; its tunables are the defaults
-SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count': 150, 'step': 12, 'fps': 5}
+SEEDS = [11, 12, 13, 14, 15]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count': 150, 'step': 12, 'fps': 5}
 
 # ---- parameters: (name, kind, lo, hi, x0) ; kind 'log' or 'lin'. 'delta' is drivePhase2 - drivePhase1 (> 0: depth offset larger)
 PARAMS = [
@@ -73,14 +73,17 @@ OBJ = [  # key, target, scale, weight, bias (subtracted from the fast value; re-
     ('widthLines', 6.5, 1.2, 0.5, 0.78), ('edge', 9.0, 3.0, 0.5, 1.25), ('peaks25', 2.5, 0.5, 0.5, -0.064), ('pinch8', 15, 10, 1.0, -7.1),
     ('lines10', 3, 3, 0.25, -0.83), ('arch', 0.20, 0.05, 2.0, -0.005), ('atilt', 0.11, 0.06, 1.0, 0.0), ('crange', 0.37, 0.08, 1.5, 0.0),  # shape (51 stills): arch, |tilt|, centre range per frame
     ('cosMed', 0.5, 0.1, 2.0, 0.0),  # spec 16: a typical bit of sheet seen about halfway between edge-on and face-on
-    # motion from the two 30 s clips (15 October 12:00 and 21:30): swell shift +0.009 and +0.041 W/s, 1 s correlation 0.36 and 0.15,
-    # adjacent strands 8.8 and 7.2 px/s, centre speed 0.020 H/s, partings' drift 34 and 44 px/s, rightwards 0.47 and 0.50
-    ('shift', 0.025, 0.025, 1.5, 0.004), ('adjdiff', 8.0, 2.0, 0.75, -0.27), ('corr1', 0.25, 0.12, 2.0, 0.128), ('outer', 0.74, 0.15, 2.0, -0.007), ('cspeed', 0.020, 0.005, 0.5, 0.001),
-    ('pspeed', 39.0, 12.0, 1.5, 7.2), ('pright', 0.49, 0.15, 1.0, 0.035),  # partings' drift along the band (px/s at 1920) and rightwards share
+    # motion from the original's 10 s clips (16 of 17: four months x four times of day; clipsummary.py), medians over the clips:
+    # centre speed 0.019 H/s, swell shift 0.003 W/s (0-0.041; most clips barely move), 1 s correlation 0.15 (0-0.22),
+    # adjacent strands 7.45 px/s, partings' drift 35 px/s, rightwards 0.57; optical flow's horizontal part 12.8 px/s (11.6-14.1)
+    ('shift', 0.008, 0.012, 1.5, 0.004), ('adjdiff', 7.45, 2.0, 0.75, -0.27), ('corr1', 0.15, 0.08, 2.0, 0.128), ('outer', 0.74, 0.15, 2.0, -0.007), ('cspeed', 0.019, 0.004, 1.0, 0.001),
+    ('pspeed', 35.0, 12.0, 1.5, 7.2), ('pright', 0.57, 0.15, 1.0, 0.035),  # partings' drift along the band (px/s at 1920) and rightwards share
+    ('fvxf', 12.8, 4.0, 2.0, 0.0),  # optical flow, horizontal part (motion2.py); the fast evaluator's coarse raster reads it 2.2x high
 ]
 def objective(r):
     terms = {}; s = 0.0; w = 0.0; pen = {}
     if r.get('error'): return 50.0, {'error': r['error']}, {}
+    if r.get('fvx') is not None: r['fvxf'] = r['fvx'] / 2.2
     for k, t, sc, wt, b in OBJ:
         v = r.get(k)
         if v is None or (isinstance(v, float) and math.isnan(v)): pen['missing_' + k] = 2.0 * wt; continue
@@ -128,7 +131,7 @@ class Pool:
 
 OUT = os.path.join(SP, 'opt'); os.makedirs(OUT, exist_ok=True)   # logs and state go to the work directory
 LOG = OUT + '/log.csv'; STATE = OUT + '/cma_state.json'; BEST = OUT + '/best.json'
-LOGKEYS = ['gen', 'id', 'objective', 'dist', 'penalty'] + [p[0] for p in PARAMS] + ['thick', 'peaks12', 'peaks25', 'face', 'foldface', 'partcol', 'linepk', 'a40', 'dark', 'widthLines', 'edge', 'pinch8', 'partings', 'lines10', 'outer', 'bwidth', 'a25', 'fmean', 'overlap', 'centre', 'arch', 'atilt', 'crange', 'shift', 'adjdiff', 'corr1', 'cspeed', 'pspeed', 'maxSpeed0', 'maxSpeed1', 'maxY', 'ms']
+LOGKEYS = ['gen', 'id', 'objective', 'dist', 'penalty'] + [p[0] for p in PARAMS] + ['thick', 'peaks12', 'peaks25', 'face', 'foldface', 'partcol', 'linepk', 'a40', 'dark', 'widthLines', 'edge', 'pinch8', 'partings', 'lines10', 'outer', 'bwidth', 'a25', 'fmean', 'overlap', 'centre', 'arch', 'atilt', 'crange', 'shift', 'adjdiff', 'corr1', 'cspeed', 'pspeed', 'fvx', 'fmed', 'maxSpeed0', 'maxSpeed1', 'maxY', 'ms']
 def log_rows(rows):
     new = not os.path.exists(LOG)
     with open(LOG, 'a', newline='') as f:
