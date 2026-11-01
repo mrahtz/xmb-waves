@@ -63,7 +63,7 @@ function renderFrame(st, outTarget) {
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, netTex[1]); gl.uniform1i(pr.u.uNet1, 1);
     gl.uniform1f(pr.u.uAlpha, st.alpha); gl.uniformMatrix4fv(pr.u.uVP, false, cam.vp);
     const SA = 16 * WAVE.samplesAlong, SV = 16 * WAVE.samplesAcross;
-    gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV); gl.uniform2f(pr.u.uRes, ww, wh); gl.uniform1f(pr.u.uMinW, WAVE.minWidth);
+    gl.uniform1i(pr.u.uSA, SA); gl.uniform1i(pr.u.uSV, SV);
     gl.uniform3fv(pr.u.uCam, cam.pos); gl.uniform3fv(pr.u.uRight, cam.right); gl.uniform3fv(pr.u.uUp, cam.up); gl.uniform3fv(pr.u.uFwd, cam.fwd);
     gl.uniform2f(pr.u.uProj, cam.f * wh / ww, cam.f);
     // size factor scale: a face-on cell at rest, at the camera's distance, has size factor sizeK
@@ -71,8 +71,8 @@ function renderFrame(st, outTarget) {
     gl.uniform1f(pr.u.uSizeNorm, m.sizeK * CAMERA.dist / aRest);
     gl.uniform1f(pr.u.uBright, m.waveBright); gl.uniform1f(pr.u.uBase, m.base); gl.uniform1f(pr.u.uFres, m.fres);
     gl.uniform1f(pr.u.uCut0, WAVE.sheenCut0); gl.uniform1f(pr.u.uCut1, WAVE.sheenCut1);
-    gl.uniform1f(pr.u.uFresPeak, WAVE.fresPeak); gl.uniform1f(pr.u.uFresPow, WAVE.fresPow);
-    gl.uniform1f(pr.u.uFadeEnds, WAVE.fadeEnds); gl.uniform1f(pr.u.uFadeEdges, WAVE.fadeEdges);
+    gl.uniform1f(pr.u.uFresPeak, WAVE.fresPeak); gl.uniform1f(pr.u.uFresZero, WAVE.fresZero); gl.uniform1f(pr.u.uFresTail, WAVE.fresTail);
+    gl.uniform1f(pr.u.uFade, WAVE.fade);
     gl.bindVertexArray(emptyVao);
     gl.drawArrays(gl.TRIANGLES, 0, 6 * SA * SV);
     gl.disable(gl.BLEND);

@@ -111,7 +111,7 @@ group('Wave motion', [
   sim('NET.driveB', 'drive depth', 0, 0.2, 0.001), sim('NET.driveW2', 'drive rate 2', 0.05, 1.5, 0.01),
   sim('NET.drivePhase1', 'phase per row 1', -2, 2, 0.01),
   sim('NET.drivePhase2', 'phase per row 2', -2, 2, 0.01), sim('NET.driveEase', 'drive easing', 0.001, 0.2, 0.001),
-  sim('NET.envLow', 'envelope low', 0, 1, 0.01), sim('NET.envWidth', 'envelope width', 0.02, 0.5, 0.01),
+  sim('NET.envLow', 'envelope level', 0, 1, 0.01), sim('NET.envDip', 'envelope dip', 0, 0.5, 0.01), sim('NET.envWidth', 'envelope dip width', 0.02, 0.5, 0.01),
   mood('envCross', 'envelope crossover', 0, 1, 0.01),
   sim('LAT.spread', 'layout spread', 1, 15, 0.1),
   sim('LAT.rollAmp', 'swell amplitude', 0, 0.12, 0.001), sim('LAT.rollW', 'swell rate', 0, 1.5, 0.005),
@@ -126,9 +126,9 @@ group('Wave motion', [
 group('Wave look', [
   mood('waveBright', 'brightness', 0, 4, 0.01), mood('base', 'sheen level', 0, 2, 0.01), mood('fres', 'edge glow', 0, 4, 0.01),
   mood('sizeK', 'size factor scale', 0.1, 5, 0.01), field('WAVE', WAVE, 'fresPeak', 'edge glow position', 0.01, 1, 0.005),
-  field('WAVE', WAVE, 'fresPow', 'edge glow narrowness', 0.5, 10, 0.1),
-  field('WAVE', WAVE, 'fadeEnds', 'end fade', 0, 0.4, 0.005), field('WAVE', WAVE, 'fadeEdges', 'edge fade', 0, 0.3, 0.005),
-  field('WAVE', WAVE, 'minWidth', 'minimum cell width', 0.5, 3, 0.05),
+  field('WAVE', WAVE, 'fresZero', 'edge glow: zero below', 0, 0.95, 0.01), field('WAVE', WAVE, 'fresTail', 'edge glow: tail', 0.05, 2, 0.01),
+  field('WAVE', WAVE, 'sheenCut0', 'sheen cut-off start', 0.01, 3, 0.005), field('WAVE', WAVE, 'sheenCut1', 'sheen cut-off end', 0.02, 6, 0.005),
+  field('WAVE', WAVE, 'fade', 'edge and end fade', 0.005, 0.3, 0.005),
   field('WAVE', WAVE, 'samplesAlong', 'samples along', 4, 96, 1), field('WAVE', WAVE, 'samplesAcross', 'samples across', 1, 16, 1),
 ]);
 group('Camera', [

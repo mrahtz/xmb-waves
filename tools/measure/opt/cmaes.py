@@ -10,22 +10,21 @@ SEEDS = [11, 12, 13]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count'
 # ---- parameters: (name, kind, lo, hi, x0) ; kind 'log' or 'lin'. 'delta' is drivePhase2 - drivePhase1 (> 0: depth offset larger)
 PARAMS = [
     # spec 14: the drive's rates and travel and the damping are fixed in the build (not tuned); the nudges build the detail.
-    # spec 16: the nudges' strength is held where nudgecheck.js puts the free half's speed at 0.5-2 times the drive's peak
+    # spec 16: the nudges' strength is held where nudgecheck.js puts the free half's speed at 0.5-2 times the drive's peak.
+    # spec 17: the camera, the framing (scene length and offset) and the push are fixed in the build so that geomcheck.js's
+    # 4.4d checks hold; the bending springs are much stiffer (bendRatio 6-15); the bump and the bob are large
     ('NET.noise', 'log', 1.6e-5, 8e-5, 2.734e-05),
     ('NET.drivePhase1', 'lin', 0.36, 1.3, 1.139), ('delta', 'lin', 0.02, 0.9, 0.665),
-    # spec 9: across-springs comparable to the along ones (acrossK near 1), bending clearly stiffer (kBend = bendRatio x kStruct)
-    ('NET.kStruct', 'log', 0.05, 1.5, 0.398), ('bendRatio', 'log', 2.5, 12.0, 3.455), ('NET.acrossK', 'log', 0.75, 1.33, 0.9862),
-    ('NET.push', 'log', 0.0005, 0.03, 0.004559),
-    # spec 16: a moderate field of view, a closer camera, a flatter sheet, seen at a small elevation
-    ('SCENE.wid', 'lin', 3.0, 8.0, 5.618), ('SCENE.height', 'log', 0.8, 4.0, 2.075), ('camPitch', 'lin', 0.0, 15.0, 12.66),
-    ('fovY', 'lin', 45.0, 70.0, 64.4), ('camDist', 'log', 2.2, 6.0, 3.161),
-    # spec 11: the slow warp (rolling wave, sliding bump, bob, twist) and the uneven layout along the length
+    ('NET.kStruct', 'log', 0.05, 1.5, 0.398), ('bendRatio', 'log', 6.0, 15.0, 8.0), ('NET.acrossK', 'log', 0.75, 1.33, 0.9862),
+    ('SCENE.wid', 'lin', 3.0, 8.0, 5.618), ('SCENE.height', 'log', 0.8, 4.0, 2.075),
     ('LAT.rollAmp', 'log', 0.005, 0.12, 0.0272), ('LAT.rollW', 'log', 0.08, 1.2, 0.58), ('LAT.rollGrow', 'lin', 1.0, 5.0, 3.446),
-    ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.189), ('LAT.bumpAmp', 'log', 0.004, 0.06, 0.005516), ('LAT.twistAmp', 'log', 0.003, 0.04, 0.01214),
-    ('LAT.spread', 'log', 1.5, 15.0, 5.643), ('SCENE.len', 'lin', 6.0, 16.0, 12.15), ('SCENE.x0', 'lin', -2.0, 4.0, 0.7873),
-    # spec 16 shading (day mood): sheen level, Fresnel-like strength, size-factor scale; sheen cut-off; the peak's place and narrowness
-    ('base', 'log', 0.05, 3.0, 1.469), ('fres', 'log', 0.05, 5.0, 2.013), ('sizeK', 'log', 0.2, 5.0, 1.496),
-    ('cut0', 'log', 0.3, 3.0, 0.3348), ('cutW', 'lin', 1.2, 4.0, 1.87), ('fresPeak', 'log', 0.03, 0.6, 0.0936), ('fresPow', 'lin', 1.0, 8.0, 3.5),
+    ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.189), ('LAT.bumpAmp', 'log', 0.015, 0.08, 0.03), ('LAT.bobAmp', 'log', 0.015, 0.08, 0.03),
+    ('LAT.twistAmp', 'log', 0.003, 0.04, 0.01214), ('LAT.spread', 'log', 1.5, 15.0, 5.643),
+    # spec 16/17 shading (day mood): sheen level, the Fresnel-like strength as a multiple of it (by day clearly the stronger),
+    # the size-factor scale; the sheen's cut-off (start, and end as a multiple); the peak's place, zero region and tail
+    ('base', 'log', 0.2, 4.0, 1.2), ('fresRatio', 'lin', 1.3, 3.0, 2.0), ('sizeK', 'log', 0.15, 2.0, 0.6),
+    ('cut0', 'log', 0.1, 1.0, 0.22), ('cutW', 'lin', 1.2, 4.0, 1.9), ('fresPeak', 'log', 0.03, 0.4, 0.0936),
+    ('fresZero', 'lin', 0.2, 0.9, 0.55), ('fresTail', 'log', 0.08, 1.0, 0.35),
 ]
 D = len(PARAMS)
 def to_z(vals):
@@ -40,26 +39,26 @@ def from_z(z):
         t = min(max(z[i], 0.0), 1.0)
         vals.append(lo * (hi / lo) ** t if k == 'log' else lo + (hi - lo) * t)
     return vals
-MOOD_PARAMS = ('camPitch', 'fovY', 'camDist', 'base', 'fres', 'sizeK', 'cut0', 'fresPeak', 'fresPow')
+MOOD_PARAMS = ('base', 'sizeK', 'cut0', 'fresPeak', 'fresZero', 'fresTail')
 def candidate(vals, cid):
     tune = {}; mood = {}
     for (n, k, lo, hi, x0), v in zip(PARAMS, vals):
-        if n in ('delta', 'bendRatio', 'cutW'): continue
+        if n in ('delta', 'bendRatio', 'cutW', 'fresRatio'): continue
         if n in MOOD_PARAMS: mood[n] = v
         else: tune[n] = v
     p1 = dict(zip([p[0] for p in PARAMS], vals))
     tune['NET.drivePhase2'] = p1['NET.drivePhase1'] + p1['delta']
     tune['NET.warmDecays'] = 3  # the evaluator settles each candidate for three decay times (the build's stored state for four)
     tune['NET.kBend'] = p1['NET.kStruct'] * p1['bendRatio']
-    mood['cut1'] = p1['cut0'] * p1['cutW']
+    mood['cut1'] = p1['cut0'] * p1['cutW']; mood['fres'] = p1['base'] * p1['fresRatio']
     return {'id': cid, 'tune': tune, 'mood': mood, 'seeds': SEEDS, 'stillFrames': STILLS, 'motion': MOTION}
 def mkvar_args(vals):
     c = candidate(vals, 'x'); out = []
     for k, v in c['tune'].items():
         grp, key = k.split('.', 1); out.append('%s.%s=%s' % (grp.lower(), key, fmt(v)))
     m = c['mood']
-    for k in ('camPitch', 'base', 'fres', 'sizeK'): out.append('day.%s=%s' % (k, fmt(m[k])))
-    out += ['cam.fovY=' + fmt(m['fovY']), 'cam.dist=' + fmt(m['camDist']), 'wave.fresPeak=' + fmt(m['fresPeak']), 'wave.fresPow=' + fmt(m['fresPow'])]
+    for k in ('base', 'fres', 'sizeK'): out.append('day.%s=%s' % (k, fmt(m[k])))
+    out += ['wave.fresPeak=' + fmt(m['fresPeak']), 'wave.fresZero=' + fmt(m['fresZero']), 'wave.fresTail=' + fmt(m['fresTail'])]
     out += ['wave.sheenCut0=' + fmt(m['cut0']), 'wave.sheenCut1=' + fmt(m['cut1'])]
     return out
 def fmt(v): return '%.4g' % v

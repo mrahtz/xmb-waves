@@ -37,20 +37,20 @@ const MOOD_KEYS = [
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
-  night: { waveBright: 0.29, base: 1.469, fres: 2.013, sizeK: 1.496,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.50, camPitch: 8.66,
+  night: { waveBright: 0.29, base: 1.6, fres: 1.7, sizeK: 0.54,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
     black: 0.02, exposure: 1.5, white: 1.0, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
-  dawn: { waveBright: 0.5, base: 1.469, fres: 2.013, sizeK: 1.496,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 12.66,
+  dawn: { waveBright: 0.5, base: 1.8, fres: 1.6, sizeK: 0.6,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
     black: 0.02, exposure: 1.1, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 1.3,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
-  day: { waveBright: 0.15, base: 1.469, fres: 2.013, sizeK: 1.496,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.58, camPitch: 12.66,
+  day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
     black: 0.02, exposure: 1.0, white: 0.9, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.5, base: 1.469, fres: 2.013, sizeK: 1.496,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.55, camPitch: 12.66,
+  dusk: { waveBright: 0.5, base: 1.8, fres: 1.6, sizeK: 0.54,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
     black: 0.02, exposure: 1.25, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
@@ -130,10 +130,11 @@ function partsOf(d) {
 }
 
 // ---------------------------------------------------------------------------
-// Camera (original design): looks across the sheet from in front, yawed so the
-// sheet is seen obliquely and pitched down a little; the pitch follows the mood.
+// Camera (original design): looks across the sheet from in front, very nearly at right angles to its length (a slight
+// yaw puts the shaken left side nearer), from slightly below it, looking up (negative pitch); the pitch follows the mood
+// (flatter at night).
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 64.4, yaw: -20, dist: 3.161, target: [0.8, 0.30, 0.0], near: 0.1, far: 40 }; // far back with a narrow view, so near and far parts look alike
+const CAMERA = { fovY: 64.4, yaw: 6, dist: 3.161, target: [0.8, -0.1, 0.0], near: 0.1, far: 40 }; // a moderate field of view, close; the sheet seen from slightly below (spec 17)
 function cameraFor(pitchDeg, aspect) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
@@ -157,10 +158,10 @@ function cameraFor(pitchDeg, aspect) {
 // ---------------------------------------------------------------------------
 const WAVE = {
   samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
-  sheenCut0: 0.3348, sheenCut1: 0.6262,       // the sheen is cut off between these size factors (the fused thread profile)
-  fresPeak: 0.0936, fresPow: 3.5,         // the Fresnel-like peak: where it sits in cosine x size factor, and how narrow
-  fadeEnds: 0.10, fadeEdges: 0.04,      // fraction of the sheet over which it fades out
-  minWidth: 1.0,                        // minimum on-screen size of a cell, in wave-buffer pixels
+  sheenCut0: 0.22, sheenCut1: 0.42, // the sheen falls linearly between these size factors (the fused thread profile)
+  // the Fresnel-like peak: where it sits in cosine x size factor; zero below fresZero of that; the tail's length above it
+  fresPeak: 0.0936, fresZero: 0.55, fresTail: 0.35,
+  fade: 0.06,                           // fraction of the sheet over which it fades out, linearly, at the ends and edges
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
   tintL: [0.94, 0.94, 0.94], tintR: [1.0, 1.0, 1.0], // a neutral tint brightening slightly from left to right
 };

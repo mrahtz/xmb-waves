@@ -44,7 +44,8 @@ function loadPage(path) {
   const waveTxt = src.match(/const WAVE = \{[\s\S]*?\n\};/)[0];
   const tint = (name) => { const m = waveTxt.match(new RegExp(name + ': \\[([^\\]]*)\\]')); return m ? m[1].split(',').map(Number) : [1, 1, 1]; };
   const WAVE = { fadeEnds: num(waveTxt, 'fadeEnds', 0.1), fadeEdges: num(waveTxt, 'fadeEdges', 0.04), filterSpread: num(waveTxt, 'filterSpread', 5.5), tintL: tint('tintL'), tintR: tint('tintR'),
-    sheenCut: [num(waveTxt, 'sheenCut0', 1), num(waveTxt, 'sheenCut1', 2.5)], fresPeak: num(waveTxt, 'fresPeak', 0.15), fresPow: num(waveTxt, 'fresPow', 3) };
+    sheenCut: [num(waveTxt, 'sheenCut0', 1), num(waveTxt, 'sheenCut1', 2.5)], fresPeak: num(waveTxt, 'fresPeak', 0.15), fresPow: num(waveTxt, 'fresPow', 3),
+    fresZero: num(waveTxt, 'fresZero', -1), fresTail: num(waveTxt, 'fresTail', 0.35), fade: num(waveTxt, 'fade', -1) };
   return { XMBW_SIM, XMBW_SIM_FAST, cameraFor, cameraForOv, mood, WAVE, path, camYaw: num(camLine, 'yaw', -20), camDist: num(camLine, 'dist', 11) };
 }
 
@@ -98,7 +99,7 @@ class Raster {
   // W, H: the emulated frame size in px (statistics are in these px); NC: column bins; S, T: surface cells along / across
   constructor(o) {
     this.W = o.W; this.H = o.H; this.NC = o.NC; this.cw = o.W / o.NC; this.S = o.S; this.T = o.T;
-    this.fadeEnds = o.fadeEnds; this.fadeEdges = o.fadeEdges; this.spread = o.filterSpread;
+    this.fadeEnds = o.fadeEnds; this.fadeEdges = o.fadeEdges; this.spread = o.filterSpread; this.fadeLin = o.fade > 0 ? o.fade : 0;
     this.tintL = o.tintL; this.tintR = o.tintR; this.preBlur = o.preBlur || 0;
     const S = o.S, T = o.T;
     this.sIdx = new Int32Array(S); this.sB = new Float64Array(S * 4); this.sD = new Float64Array(S * 4); this.sFade = new Float64Array(S);
@@ -106,13 +107,13 @@ class Raster {
     for (let m = 0; m < S; m++) {
       const s = (m + 0.5) / S * 16, is = Math.min(Math.floor(s), 15); bsp(s - is, b, d);
       this.sIdx[m] = is; for (let a = 0; a < 4; a++) { this.sB[m * 4 + a] = b[a]; this.sD[m * 4 + a] = d[a]; }
-      const f = s / 16; this.sFade[m] = smoothstep(0, this.fadeEnds, f) * smoothstep(1, 1 - this.fadeEnds, f);
+      const f = s / 16; this.sFade[m] = this.fadeLin ? Math.min(1, Math.min(f, 1 - f) / this.fadeLin) : smoothstep(0, this.fadeEnds, f) * smoothstep(1, 1 - this.fadeEnds, f);
     }
     this.tIdx = new Int32Array(T); this.tB = new Float64Array(T * 4); this.tD = new Float64Array(T * 4); this.tFade = new Float64Array(T);
     for (let k = 0; k < T; k++) {
       const t = (k + 0.5) / T * 16, it = Math.min(Math.floor(t), 15); bsp(t - it, b, d);
       this.tIdx[k] = it; for (let a = 0; a < 4; a++) { this.tB[k * 4 + a] = b[a]; this.tD[k * 4 + a] = d[a]; }
-      const f = t / 16; this.tFade[k] = smoothstep(0, this.fadeEdges, f) * smoothstep(1, 1 - this.fadeEdges, f);
+      const f = t / 16; this.tFade[k] = this.fadeLin ? Math.min(1, Math.min(f, 1 - f) / this.fadeLin) : smoothstep(0, this.fadeEdges, f) * smoothstep(1, 1 - this.fadeEdges, f);
     }
     this.R = new Float64Array(T * 19 * 3); this.RT = new Float64Array(T * 19 * 3);
     this.img = new Float64Array(o.NC * o.H);
@@ -214,8 +215,16 @@ class Raster {
           const Nx = Sy * Tz - Sz * Ty, Ny = Sz * Tx - Sx * Tz, Nz = Sx * Ty - Sy * Tx;
           const dist = Math.sqrt(Qx * Qx + Qy * Qy + Qz * Qz) || 1e-4, along = Math.abs(Nx * Qx + Ny * Qy + Nz * Qz) / dist;
           const cq = along / (Math.sqrt(Nx * Nx + Ny * Ny + Nz * Nz) || 1e-12), Sf = along / dist * P16.norm;
-          const e = Math.min(Math.max((Sf - P16.c0) / (P16.c1 - P16.c0), 0), 1), x = cq * Sf / P16.peak;
-          I = bright * Sf * fade * (base * (1 - e * e * (3 - 2 * e)) + P16.fres * Math.pow(x * Math.exp(1 - x), P16.pow));
+          const x = cq * Sf / P16.peak;
+          if (P16.zero >= 0) { // spec 17: a sheen flat to c0, linear to nearly nothing at c1, then a slow fade; a Fresnel-like
+            // response zero below zero x the peak, a steep rise to it and a long thin tail above
+            const prof = Sf < P16.c0 ? 1 : Sf < P16.c1 ? 1 - 0.95 * (Sf - P16.c0) / (P16.c1 - P16.c0) : 0.05 * Math.exp(-(Sf - P16.c1) / P16.c1);
+            const r = Math.min(Math.max((x - P16.zero) / (1 - P16.zero), 0), 1);
+            I = bright * Sf * fade * (base * prof + P16.fres * (x < 1 ? r * r * (3 - 2 * r) : Math.exp(-(x - 1) / P16.tail)));
+          } else {
+            const e = Math.min(Math.max((Sf - P16.c0) / (P16.c1 - P16.c0), 0), 1);
+            I = bright * Sf * fade * (base * (1 - e * e * (3 - 2 * e)) + P16.fres * Math.pow(x * Math.exp(1 - x), P16.pow));
+          }
           cosH[Math.min(19, Math.floor(cq * 20))] += area;
         } else {
           const r = c / baseC;
@@ -550,7 +559,8 @@ function makeSim(page, seed, tune, moodOver, aspect, fast) {
     const asp = aspect || 16 / 9, fx = cam.f / asp, fy = cam.f, W = page.WAVE;
     const pick = (k, d) => (mood[k] != null ? mood[k] : d);
     mood.p16 = { fx, fy, r: cam.right, u: cam.up, w: cam.fwd, norm: mood.sizeK * pick('camDist', page.camDist) / (mood.areaRef * fx * fy),
-      c0: pick('cut0', W.sheenCut[0]), c1: pick('cut1', W.sheenCut[1]), peak: pick('fresPeak', W.fresPeak), pow: pick('fresPow', W.fresPow), fres: mood.fres };
+      c0: pick('cut0', W.sheenCut[0]), c1: pick('cut1', W.sheenCut[1]), peak: pick('fresPeak', W.fresPeak), pow: pick('fresPow', W.fresPow), fres: mood.fres,
+      zero: pick('fresZero', W.fresZero), tail: pick('fresTail', W.fresTail) };  // zero >= 0: spec-17 response and sheen cut-off
   }
   const sim = M.createSim(seed);
   sim.setMood({ envCross: mood.envCross, latScale: [mood.latX, mood.latY, mood.latZ], camFwd: cam.fwd });

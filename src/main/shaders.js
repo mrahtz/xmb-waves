@@ -56,26 +56,21 @@ void main(){
   o = vec4(mix(prev, c, uEase), 1.0);
 }`;
 
-// Wave: bicubic B-spline surface over the control net, shaded by view angle.
-// Every surface cell is drawn as its own small quad (six vertices), so its corners
-// are free to move. Where a cell would be thinner on screen than one pixel in some
-// direction (folds seen edge-on, the far end), its corners are pushed apart to one
-// pixel in that direction and its light is scaled by the true size: every cell then
-// covers whole pixels, overlapping cells add up to the right total, and nothing is
-// lost to pixel centres falling between slivers (no dotted or crawling lines).
+// Wave: bicubic B-spline surface over the control net, shaded per vertex in the projected space. Every surface cell is
+// drawn as its own small quad (six vertices). A cell thinner than a pixel is not widened (spec 17): it lights only the
+// supersamples it covers, and with the size factor its light is faint anyway.
 const VS_WAVE = `#version 300 es
 precision highp float;
 uniform highp sampler2D uNet0, uNet1; uniform float uAlpha;
-uniform mat4 uVP; uniform int uSA, uSV; uniform vec2 uRes; uniform float uMinW;
+uniform mat4 uVP; uniform int uSA, uSV;
 uniform vec3 uCam, uRight, uUp, uFwd; uniform vec2 uProj; uniform float uSizeNorm;
-out float vCos, vSize; out vec2 vST; out float vWidth;
+out float vCos, vSize; out vec2 vST;
 vec3 cp(ivec2 ij){ return mix(texelFetch(uNet0, ij, 0).xyz, texelFetch(uNet1, ij, 0).xyz, uAlpha); }
 void basis(float t, out vec4 b, out vec4 d){
   float t2 = t * t, t3 = t2 * t, u = 1.0 - t;
   b = vec4(u * u * u, 3.0 * t3 - 6.0 * t2 + 4.0, -3.0 * t3 + 3.0 * t2 + 3.0 * t + 1.0, t3) / 6.0;
   d = vec4(-u * u, 3.0 * t2 - 4.0 * t, -3.0 * t2 + 2.0 * t + 1.0, t2) * 0.5;
 }
-vec2 toPx(vec4 clip){ return clip.xy / max(clip.w, 1e-4) * 0.5 * uRes; }
 void main(){
   int cell = gl_VertexID / 6, v = gl_VertexID - cell * 6;
   int i = cell % uSA, row = cell / uSA;
@@ -101,43 +96,27 @@ void main(){
   vSize = along / dist * uSizeNorm;        // area times cosine, over the first power of the distance, per-mood scale
   vST = vec2(s, t) / ${NN - 3}.0;
   vec4 clip = uVP * vec4(P, 1.0);
-  // the cell's other corners, linearised from the derivatives
-  float dsv = (cs == 0 ? 1.0 : -1.0) * ${NN - 3}.0 / float(uSA), dtv = (ct == 0 ? 1.0 : -1.0) * ${NN - 3}.0 / float(uSV);
-  vec2 p = toPx(clip);
-  vec2 a = toPx(uVP * vec4(P + Ps * dsv, 1.0)) - p;   // towards the neighbour along the length
-  vec2 b = toPx(uVP * vec4(P + Pt * dtv, 1.0)) - p;   // towards the neighbour across
-  float la = length(a), lb = length(b);
-  vec2 ua = la > 1e-4 ? a / la : vec2(1.0, 0.0);
-  vec2 ub = lb > 1e-4 ? b / lb : vec2(-ua.y, ua.x);
-  float wt = abs(b.x * ua.y - b.y * ua.x);               // across width, perpendicular to the length
-  float ws = abs(a.x * ub.y - a.y * ub.x);               // along length, perpendicular to the width
-  vec2 nt = vec2(-ua.y, ua.x); nt *= (dot(nt, b) < 0.0) ? -1.0 : 1.0;
-  vec2 ns = vec2(-ub.y, ub.x); ns *= (dot(ns, a) < 0.0) ? -1.0 : 1.0;
-  if (wt < uMinW) p -= nt * (uMinW - wt) * 0.5;
-  if (ws < uMinW) p -= ns * (uMinW - ws) * 0.5;
-  vWidth = min(1.0, wt / uMinW) * min(1.0, ws / uMinW);
-  clip.xy = p / (0.5 * uRes) * clip.w;
   gl_Position = clip;
 }`;
 // Per fragment, from the per-vertex cosine c and size factor S (interpolated): the light is S times the edge fade times
-// the sum of two terms. The sheen is the base level times the (fused, so flat) thread profile, which is cut off where
-// S is large: bits of sheet that appear large on screen (near, face-on, big cells) carry no sheen. The Fresnel-like
-// term is a strength times one narrow peak indexed by the product c x S: nothing exactly edge-on, a steep rise to the
-// peak, nothing from moderate values up. It is the soft strip just inside every edge-on turn, nearer the turn where S
-// is large. The cell's true size also scales the light where it was widened (see the vertex shader).
+// the sum of two terms (spec 16 and 17). The sheen is the base level times the (fused, so flat) thread profile, flat until
+// well past the size factor of the Fresnel-like peak (uCut0), then falling linearly to nearly nothing (uCut1) and fading
+// out slowly after that. The Fresnel-like term is a strength times one narrow peak indexed by the product c x S: exactly
+// zero over the lower part of the range below the peak (up to uFresZero of the peak's position), a steep rise to the peak,
+// and a long thin tail above it (uFresTail). The edge fade is linear and covers the same fraction at the ends and edges.
 const FS_WAVE = `#version 300 es
 precision highp float;
-in float vCos, vSize; in vec2 vST; in float vWidth;
-uniform float uBright, uBase, uFres, uCut0, uCut1, uFresPeak, uFresPow, uFadeEnds, uFadeEdges;
+in float vCos, vSize; in vec2 vST;
+uniform float uBright, uBase, uFres, uCut0, uCut1, uFresPeak, uFresZero, uFresTail, uFade;
 out vec4 o;
 void main(){
   float S = max(vSize, 0.0), x = vCos * S / uFresPeak;
-  float sheen = uBase * (1.0 - smoothstep(uCut0, uCut1, S));
-  float fres = uFres * pow(x * exp(1.0 - x), uFresPow);
-  float t = vST.y;
-  float fade = smoothstep(0.0, uFadeEnds, vST.x) * smoothstep(1.0, 1.0 - uFadeEnds, vST.x)
-             * smoothstep(0.0, uFadeEdges, t) * smoothstep(1.0, 1.0 - uFadeEdges, t);
-  o = vec4(uBright * S * (sheen + fres) * fade * vWidth, 0.0, 0.0, 1.0);
+  float prof = S < uCut0 ? 1.0 : (S < uCut1 ? 1.0 - 0.95 * (S - uCut0) / (uCut1 - uCut0) : 0.05 * exp(-(S - uCut1) / uCut1));
+  float r = clamp((x - uFresZero) / (1.0 - uFresZero), 0.0, 1.0);
+  float fres = uFres * (x < 1.0 ? r * r * (3.0 - 2.0 * r) : exp(-(x - 1.0) / uFresTail));
+  vec2 e = min(vST, 1.0 - vST) / uFade;
+  float fade = clamp(e.x, 0.0, 1.0) * clamp(e.y, 0.0, 1.0);
+  o = vec4(uBright * S * (uBase * prof + fres) * fade, 0.0, 0.0, 1.0);
 }`;
 
 // B-spline filtered upscale of the small background image (four bilinear taps).
