@@ -158,9 +158,9 @@ function cameraFor(pitchDeg, aspect) {
 // ---------------------------------------------------------------------------
 const WAVE = {
   samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
-  sheenCut0: 0.22, sheenCut1: 0.42, // the sheen falls linearly between these size factors (the fused thread profile)
+  sheenCut0: 0.2179, sheenCut1: 0.599, // the sheen falls linearly between these size factors (the fused thread profile)
   // the Fresnel-like peak: where it sits in cosine x size factor; zero below fresZero of that; the tail's length above it
-  fresPeak: 0.0936, fresZero: 0.55, fresTail: 0.35,
+  fresPeak: 0.12, fresZero: 0.5961, fresTail: 0.1403,
   fade: 0.06,                           // fraction of the sheet over which it fades out, linearly, at the ends and edges
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
   tintL: [0.94, 0.94, 0.94], tintR: [1.0, 1.0, 1.0], // a neutral tint brightening slightly from left to right

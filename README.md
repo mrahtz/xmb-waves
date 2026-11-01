@@ -91,52 +91,55 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 
 ## How it works (short)
 
-- A 19 x 19 mass-spring net, shaken at the far end and gently pulled at the
-  free end, is simulated at 60 fixed steps per second in a Web Worker. Each
-  point of the shaken edge moves up and down by one slow oscillation and
-  towards and away by another, with the timing offset building up across the
-  width to about two cycles for the height and nearly four for the depth,
-  so the edge is itself wavy and, because the two offsets differ, the folds
-  it sends along the sheet cross at shallow angles; the springs are soft, so
-  the folds travel slowly.
-  Nothing pulls the net towards a rest shape: its form comes from the
-  springs, the damping, the steady push and the shaking alone. Tiny random
-  velocity kicks keep the motion alive and, because the across-the-width
-  springs have no linear stiffness at rest length, also set how many strands
-  the band shows (their size is tuned to the reference's three to four
-  brightness peaks per column). The net is passed
-  through a slow free-form deformation lattice, laid out unevenly so the free
-  end covers more of the scene (a swell rolling from the shaken end to the free
-  end and growing along it, which lifts the band strands together, plus a
-  sliding bump, a slow bob and a small twist) and used as the control net of a bicubic
-  B-spline surface evaluated on the GPU and seen through a slightly raised
-  (about 5 degrees), oblique perspective camera placed far back with a narrow
-  field of view, so the near and far parts of the band look alike.
-- The sheet is lit by the angle between its normal and the line of sight
-  with a flat-topped response: the nearly edge-on faces of the shallowly
-  seen sheet stay near full brightness, faces that turn towards the viewer
-  fade to a faint level, and where a layer turns exactly edge-on a weak soft
-  line is added. The band is therefore a broad, evenly lit ribbon whose folds
-  stand only moderately above the faces, as in the reference, and overlapping
-  layers add up. Every surface cell is drawn as its own small quad into a
-  supersampled single-channel buffer with additive blending; cells thinner
-  than a pixel are widened to a pixel and their light scaled by their true
-  size, so silhouettes never shimmer. The buffer is filtered down in the
-  final pass.
-- The background is a small image per month and per day/night, blended by
-  the day of the month and by the hour, upscaled with a B-spline filter and
-  eased from frame to frame. A bright-pass bloom pyramid of background plus
-  wave adds the glare.
-- About 2,000 sparkles are flung off the moving sheet by bursts and trail
-  walkers, keep the velocity they are flung with (about as fast as the band's
-  lines, slightly more of them rising than falling), spin, and are drawn as
-  billboards with depth of field: mostly neutral dots and short streaks, dim
-  flat discs near the camera and a few iridescent ones, plus a soft glint pass,
-  the same at every time of day. They are drawn
-  straight onto the output after the final pass (the dither is applied just
-  before them), which saves a full-resolution colour buffer.
+- A 19 x 19 mass-spring net, shaken at one end and gently pushed at the free
+  end, is simulated at 60 fixed steps per second in a Web Worker. Every row's
+  shaken point follows one shared slow path in height and depth (two
+  frequencies, 60 s and 40 s, with the phase drifting from row to row), so
+  that end is gathered and twists. The bending springs are much stiffer
+  than the stretching ones, and small random kicks keep the net moving and
+  set how many strands the band shows. A stored, settled start state means
+  the first frame already looks like a running one.
+- The net is passed through a free-form deformation lattice laid out
+  unevenly along the length: a swell rolling from the shaken end to the free
+  end and growing along it, a large bump sliding back and forth, a slow bob of
+  the whole sheet and a small twist across the width (the swell fastest, the
+  bump slowest). The deformed net is the control net of a bicubic B-spline
+  surface. The control points are projected first, so the surface and its
+  normals live in the projected space, as the spec asks. The camera sits
+  slightly below the sheet, which runs out past the left edge of the
+  picture.
+- Shading is computed per vertex from two terms, each scaled by a size factor
+  that falls with the first power of distance: a sheen that stays flat and
+  then fades where the size factor is large, and a Fresnel-like glow indexed
+  by the viewing cosine times the size factor (nothing below a threshold, a
+  smooth rise to a peak, then an exponential tail). A linear fade softens the
+  sheet's long edges. Every cell is drawn additively into a supersampled
+  single-channel buffer, then filtered down one output pixel wide.
+- The background is made per frame from a small day image and night image
+  per month, processed in hue, saturation and value. It is lit by a sun-like
+  spot on an arc and an opposite glow along the bottom, both following the
+  hour (the night image has its own clock). The day image is scaled by a
+  daylight factor, and dawn and dusk darken and deepen the top. The next
+  month's images rise in from the bottom towards the end of a month.
+- The composite of background and wave goes through each mood's exposure and
+  an extended Reinhard tone curve with a white point. The glare is a bloom
+  pyramid read from that composite through a colour-keeping bright-pass
+  (one weight per pixel from its brightest channel), with blue spread widest.
+- Sparkles are born uniformly over the surface's parameters, mostly in
+  bursts. They leave in a cone around the surface normal, with a held random
+  jitter, light gravity and friction. They ramp in and out linearly, spin,
+  and are sized in scene units with a partial turn towards the camera. They
+  are lit by a point light in front of the camera through an iridescent
+  colour map, with depth of field that grows a disc while keeping most of its
+  brightness, and a camera-facing glint that follows the highlight. They are
+  drawn straight onto the output after the final pass.
+- Four moods (night, dawn, day, dusk) each hold a full parameter set
+  (shading, camera tilt, exposure and tone curve, glare and sparkles) and
+  blend over a few hours.
 - Everything is tuned by comparing deterministic renders (`mode=score`) side
-  by side with public recordings of the original; see `docs/REFERENCES.md`.
+  by side with the original's recordings in `comparison/original/`, using the
+  measurement tools in `tools/measure/`. The log is
+  `docs/references/tuning-log.md`.
 
 ## Building and testing
 
