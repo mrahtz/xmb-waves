@@ -8,7 +8,7 @@ const O = Object.assign({ NC: 480, S: 1024, T: 320, mNC: 240, mS: 640, mT: 200, 
 const rasS = new fw.Raster({ W: 1920, H: 1080, NC: O.NC, S: O.S, T: O.T, fadeEnds: page.WAVE.fadeEnds, fadeEdges: page.WAVE.fadeEdges, fade: page.WAVE.fade, filterSpread: page.WAVE.filterSpread, tintL: page.WAVE.tintL, tintR: page.WAVE.tintR, preBlur: O.preBlur });
 const rasM = new fw.Raster({ W: 960, H: 540, NC: O.mNC, S: O.mS, T: O.mT, fadeEnds: page.WAVE.fadeEnds, fadeEdges: page.WAVE.fadeEdges, fade: page.WAVE.fade, filterSpread: page.WAVE.filterSpread, tintL: page.WAVE.tintL, tintR: page.WAVE.tintR, preBlur: O.preBlur });
 const STILL_KEYS = ['cover', 'cosMed', 'centre', 'thick', 'thickP10', 'thickP90', 'thickRatio', 'pinch8', 'pinch5', 'peaks12', 'peaks25', 'peaks40', 'face', 'foldface', 'avgface', 'overlap', 'widthLines', 'widthAll', 'bwidth', 'edge', 'partcol', 'partings', 'partLen', 'lines10', 'lines25', 'lineLen', 'outer', 'linepk', 'a40', 'a25', 'fmean', 'dark', 'fmax', 'tilt', 'arch', 'atilt', 'crange', 'topMin', 'botMax'];
-const MOTION_KEYS = ['cspeed', 'cspeedP90', 'drift5', 'shift', 'crossing', 'corr1', 'corr5', 'adjdiff', 'pkspeed', 'pspeed', 'pright', 'npart', 'lifeMed', 'lifeMax', 'nlife'];
+const MOTION_KEYS = ['kvx', 'kright', 'fmed', 'fp90', 'fvx', 'fvy', 'cspeed', 'cspeedP90', 'drift5', 'shift', 'crossing', 'corr1', 'corr5', 'adjdiff', 'pkspeed', 'pspeed', 'pright', 'npart', 'lifeMed', 'lifeMax', 'nlife'];
 function med(a) { return fw.median(a.filter(v => v != null && !Number.isNaN(v))); }
 function evaluate(c) {
   const t0 = Date.now();

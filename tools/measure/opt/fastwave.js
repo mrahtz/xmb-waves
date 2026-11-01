@@ -413,6 +413,38 @@ function frameStats(ras) {
   };
 }
 
+
+// ------------------------------------------------------------------ small 2-D image helpers for the motion2.py-like measures
+// images are Float64Array, row-major (h rows of w)
+function gblur2(a, w, h, sx, sy) {
+  const k = s => { const r = Math.max(1, Math.ceil(3 * s)), g = []; let t = 0; for (let i = -r; i <= r; i++) { const v = Math.exp(-i * i / (2 * s * s)); g.push(v); t += v; } return { r, g: g.map(v => v / t) }; };
+  const tmp = new Float64Array(w * h), out = new Float64Array(w * h);
+  if (sx > 0) { const { r, g } = k(sx); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let v = 0; for (let i = -r; i <= r; i++) { const xx = Math.min(w - 1, Math.max(0, x + i)); v += g[i + r] * a[y * w + xx]; } tmp[y * w + x] = v; } } else tmp.set(a);
+  if (sy > 0) { const { r, g } = k(sy); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let v = 0; for (let i = -r; i <= r; i++) { const yy = Math.min(h - 1, Math.max(0, y + i)); v += g[i + r] * tmp[yy * w + x]; } out[y * w + x] = v; } } else out.set(tmp);
+  return out;
+}
+function grad2(a, w, h) { // central differences: d/dx, d/dy
+  const gx = new Float64Array(w * h), gy = new Float64Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x;
+    gx[i] = 0.5 * (a[y * w + Math.min(w - 1, x + 1)] - a[y * w + Math.max(0, x - 1)]); gy[i] = 0.5 * (a[Math.min(h - 1, y + 1) * w + x] - a[Math.max(0, y - 1) * w + x]); }
+  return [gx, gy];
+}
+function wmedian(v, w) { if (!v.length) return NaN; const o = v.map((x, i) => i).sort((i, j) => v[i] - v[j]); let t = 0; for (const i of o) t += w[i]; let c = 0; for (const i of o) { c += w[i]; if (c >= 0.5 * t) return v[i]; } return v[o[o.length - 1]]; }
+// kymograph orientation (as motion2.py): K is space (rows, n) x time (cols, m); returns weighted samples of d(space)/d(time) per frame
+function orientSpeed(K, n, m, ts) {
+  const Ks = gblur2(K, m, n, 1, 1); const [gt, gs] = grad2(Ks, m, n);
+  const ss = new Float64Array(n * m), tt = new Float64Array(n * m), st = new Float64Array(n * m);
+  for (let i = 0; i < n * m; i++) { ss[i] = gs[i] * gs[i]; tt[i] = gt[i] * gt[i]; st[i] = gs[i] * gt[i]; }
+  const Jss = gblur2(ss, m, n, 2, 2), Jtt = gblur2(tt, m, n, 2, 2), Jst = gblur2(st, m, n, 2, 2);
+  const W = []; for (let i = 0; i < n * m; i++) W.push(Jss[i] + Jtt[i]);
+  const thr = pct(W, 70); const v = [], wt = [];
+  for (let i = 0; i < n * m; i++) {
+    const coh = Math.sqrt((Jss[i] - Jtt[i]) ** 2 + 4 * Jst[i] ** 2) / Math.max(W[i], 1e-9);
+    if (W[i] > thr && coh > 0.6 && Jss[i] > Jtt[i]) { v.push(-Jst[i] / Math.max(Jss[i], 1e-9) * ts); wt.push(W[i]); }
+  }
+  return [v, wt];
+}
+
 // ------------------------------------------------------------------ spec46m-like motion statistics on a sequence of rasters
 // frames: array of { B (blurred raster NC x H), NC, H, cw }; fps; W: px width the x-speeds are quoted at (1920); Hq: px height for y speeds (1080)
 function motionStats(frames, fps, ras) {
@@ -534,7 +566,38 @@ function motionStats(frames, fps, ras) {
   }
   for (const st of alive.values()) lifetimes.push((st.last - st.start + 1) / fps);
   for (const tr of tracks.values()) if (tr.length >= Math.round(0.5 * fps)) fspeed.push((tr[tr.length - 1][1] - tr[0][1]) / ((tr[tr.length - 1][0] - tr[0][0]) / fps) * sx);
+
+  // motion2.py-like measures. (a) x-t kymograph of the band's light summed down each column; (b) Lucas-Kanade flow on the
+  // raster resampled to square cells (4 rows per cell: 4 x 4 px at 960 x 540); speeds in px/s at 1920 / 1080
+  let kvx = NaN, kright = NaN, fmed = NaN, fp90 = NaN, fvx = NaN, fvy = NaN;
+  try {
+    const K = new Float64Array(NC * nF);
+    for (let i = 0; i < nF; i++) { const B = frames[i]; for (let x = 0; x < NC; x++) { let t = 0; for (let r = 0; r < H; r++) t += B[x * H + r]; K[x * nF + i] = t; } }
+    const Kd = gblur2(K, nF, NC, 3 * fps, 0); for (let i = 0; i < K.length; i++) K[i] -= Kd[i];
+    const [v, w] = orientSpeed(K, NC, nF, fps * sx);
+    kvx = wmedian(v.map(Math.abs), w); let rw = 0, tw = 0; for (let i = 0; i < v.length; i++) { tw += w[i]; if (v[i] > 0) rw += w[i]; } kright = rw / Math.max(tw, 1e-9);
+    const cr = 4, h2 = Math.floor(H / cr), w2 = NC, pxs = sx;  // cell size in px at 1920 (and 1080: same cells)
+    const sq = B => { const o = new Float64Array(w2 * h2); for (let y = 0; y < h2; y++) for (let x = 0; x < w2; x++) { let t = 0; for (let k = 0; k < cr; k++) t += B[x * H + y * cr + k]; o[y * w2 + x] = t / cr; } return o; };
+    const meanImg = new Float64Array(w2 * h2); const SQ = frames.map(sq); for (const q of SQ) for (let i = 0; i < q.length; i++) meanImg[i] += q[i] / nF;
+    const mb = gblur2(meanImg, w2, h2, 1, 1); let mmax = 0; for (const x of mb) if (x > mmax) mmax = x;
+    const sp = [], ux = [], uy = [];
+    for (let i = 0; i + 1 < nF; i++) {
+      const a = gblur2(SQ[i], w2, h2, 0.4, 0.4), b = gblur2(SQ[i + 1], w2, h2, 0.4, 0.4); const m = new Float64Array(a.length); const It = new Float64Array(a.length);
+      for (let j = 0; j < a.length; j++) { m[j] = 0.5 * (a[j] + b[j]); It[j] = b[j] - a[j]; }
+      const [Ix, Iy] = grad2(m, w2, h2);
+      const P = (f) => { const o = new Float64Array(a.length); for (let j = 0; j < a.length; j++) o[j] = f(j); return gblur2(o, w2, h2, 1.5, 1.5); };
+      const Sxx = P(j => Ix[j] * Ix[j]), Syy = P(j => Iy[j] * Iy[j]), Sxy = P(j => Ix[j] * Iy[j]), Sxt = P(j => Ix[j] * It[j]), Syt = P(j => Iy[j] * It[j]);
+      const lmin = [], idx = [];
+      for (let j = 0; j < a.length; j++) { if (mb[j] < 0.15 * mmax) continue; const det = Sxx[j] * Syy[j] - Sxy[j] ** 2, tr = Sxx[j] + Syy[j]; lmin.push(0.5 * (tr - Math.sqrt(Math.max(tr * tr - 4 * det, 0)))); idx.push(j); }
+      const lt = pct(lmin, 50);
+      for (let q = 0; q < idx.length; q++) { if (lmin[q] <= lt) continue; const j = idx[q]; const det = Sxx[j] * Syy[j] - Sxy[j] ** 2;
+        const u = (-Syy[j] * Sxt[j] + Sxy[j] * Syt[j]) / Math.max(det, 1e-12) * fps * pxs, vv = (Sxy[j] * Sxt[j] - Sxx[j] * Syt[j]) / Math.max(det, 1e-12) * fps * pxs;
+        const s2 = Math.hypot(u, vv); if (s2 < 400) { sp.push(s2); ux.push(Math.abs(u)); uy.push(Math.abs(vv)); } }
+    }
+    fmed = median(sp); fp90 = pct(sp, 90); fvx = median(ux); fvy = median(uy);
+  } catch (e) { if (process.env.FW_DEBUG) console.error("motion2 measures:", e.stack); }
   return {
+    kvx, kright, fmed, fp90, fvx, fvy,
     cspeed: median(dv), cspeedP90: pct(dv, 90), ch40: mx - mn, drift5: median(drift5),
     shift: median(shifts), shiftP10: pct(shifts, 10), shiftP90: pct(shifts, 90), crossing: 1 / Math.max(Math.abs(median(shifts)), 1e-3),
     corr1: mean(c1s), corr5: mean(c5s), adjdiff: median(diffs), pkspeed: median(speeds),
