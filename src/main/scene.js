@@ -175,14 +175,14 @@ let BG_EASE = 0.05; // how far the background gradient moves towards its new val
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
   // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
-  size: 0.010, blur: 0.8, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
+  size: 0.010, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
   turn: 0.3,                       // part of the way every disc is turned towards the camera (fully when close)
-  bright: 1.5, glintSize: 4.5, glintBright: 0.10,
+  bright: 0.55, glintSize: 4.5, glintBright: 0.10,
   // lighting (spec 16 and 17): one point light in the scene in front of the camera, diffuse kd and specular ks with exponent
   // shin, the highlight tinted by the iridescent map (saturation mapSat everywhere, exponent mapExp = 1 leaves it unchanged),
   // the sum through 1 - exp(-satGain x); opacity falls as a disc turns towards edge-on, with the power tiltPow of one minus
   // the cosine
-  light: [1.3, 0.7, -1.5], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.0, mapSat: 0.45, satGain: 1.5, tiltPow: 1.0,
+  light: [1.3, 0.7, -1.5], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.0, mapSat: 0.15, satGain: 1.5, tiltPow: 1.0,
 };
 let DITHER = 0.85; // output levels, peak
 
