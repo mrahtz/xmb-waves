@@ -6,7 +6,8 @@ from scipy.signal import find_peaks, peak_widths
 W,H=1920,1080
 def pct(a,q): return np.percentile(a,q) if len(a) else float('nan')
 def analyse(path):
-    L=np.asarray(Image.open(path).convert('L').resize((W,H),Image.LANCZOS),dtype=float)
+    im=path if isinstance(path,Image.Image) else Image.open(path)   # (battery.py passes PIL images)
+    L=np.asarray(im.convert('L').resize((W,H),Image.LANCZOS),dtype=float)
     L=gaussian_filter(L,[1.0,0])
     fmax=L.max()
     cols=range(0,W,2)

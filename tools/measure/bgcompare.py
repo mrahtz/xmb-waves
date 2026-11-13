@@ -5,7 +5,8 @@ import sys, os, glob, numpy as np
 from PIL import Image
 R = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'work', 'orig', 'raw')
 def regions(path):
-    a = np.asarray(Image.open(path).convert('RGB').resize((480, 270)), dtype=float); H, W = a.shape[:2]
+    im = path if isinstance(path, Image.Image) else Image.open(path)   # (battery.py passes PIL images)
+    a = np.asarray(im.convert('RGB').resize((480, 270)), dtype=float); H, W = a.shape[:2]
     rows = [(int(.04 * H), int(.22 * H)), (int(.80 * H), int(.96 * H))]; cols = [(int(.05 * W), int(.40 * W)), (int(.60 * W), int(.95 * W))]
     return np.array([[np.median(a[r0:r1, c0:c1].reshape(-1, 3), axis=0) for (c0, c1) in cols] for (r0, r1) in rows])
 if __name__ == '__main__':  # (palfit.py and battery.py import regions)

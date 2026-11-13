@@ -25,6 +25,8 @@ are fixed. A change to what it measures raises `BATTERY_VERSION` in `battery.py`
     python3 battery.py --commit main --lanes motion,look --out DIR
     python3 battery.py --commit worktree                # the working tree's src/, assembled as mkvar.py does
     python3 battery.py --clips '2026-10-15_1200'        # only clips whose id matches (ids are listed in clips.json)
+    python3 battery.py --seeds 1,2,3 --out DIR          # three seeds in one run: DIR/seed1/, DIR/seed2/, DIR/seed3/
+    MEASURE_CACHE=/path/to/shared/cache python3 battery.py --seeds 1,2,3   # a cache shared with other jobs
     python3 battery.py --help                           # every option
 
 Needs ffmpeg/ffprobe, Node.js with Playwright, and Python 3 with numpy, scipy, Pillow and OpenCV.
@@ -37,7 +39,14 @@ console date and time as `time`, its colour as `theme`, its seed (or `--seed`, d
 none) and its size. Simulation frame `60 * since_start_s + round(60 * t)` is used for each sample time `t`
 of the clip. `time` is held at the clip's first frame. The background changes too little within 30 s to
 matter, and in score mode a new `time` would restart the simulation. `battery_render.js` streams the frames
-to `battery_frames.py` as raw RGB.
+to `battery_frames.py` as raw RGB. The page hands each frame's bytes to the script by an HTTP POST to a server
+the script runs on 127.0.0.1, which takes about 0.03 s a frame. The older transfer, base64 through
+`page.evaluate`, took about 0.17 s a frame under load and gives the same bytes; `XMBW_TRANSFER=cdp` still
+selects it.
+
+**Several seeds.** `--seeds 1,2,3` measures the footage once and runs every seed's renders in the same pool of
+processes. Each seed's outputs go to `<out>/seed<N>/` and are byte-identical to those of a separate
+`--seed N` run (checked: see the timing below). `--seed N` alone writes to `<out>/` as before.
 
 **Frames measured** (`battery_frames.py`). Footage and renders go through identical frame handling. Sample
 times are `t = k/30` s from the first frame: footage frame `round(t * fps)`. Footage is decoded with ffmpeg
@@ -76,19 +85,57 @@ from those comparisons.
 - `timings.json`, `summary.txt`: the printed table and the time each part took. Parts are summed over
   processes, and the wall time is given where marked.
 
-**Parallelism and cache.** It runs up to `--browsers` (8) browsers and `--procs` (16) Python processes at
-once. Results are cached per clip and tool: `work/battery/footage/<clip>_<file signature>/` for footage and
-`work/battery/clean/<commit>/<condition>/` for renders. The stills are kept there for looking; the other
-frames are deleted unless `--keep-frames` is given. A second run on the same commit only collects the
-cached results. `--force` re-measures.
+**How it runs.** Each clip, footage or clean render, is measured by one process (`battery_frames.py measure`).
+The process decodes the clip with ffmpeg or renders it in a browser, and runs every tool on the frames as they
+arrive, without writing frame files. The tools are imported and their functions called on the same 8-bit arrays
+that their command lines read from PNG files. PNG is lossless, so the numbers are the same. Each tool's command
+line still works as before and gives the same output. Up to `--procs` (default 8) such processes run at once,
+and at most `--browsers` (8) of them render. Each process uses about one core, plus the decoder's or browser's
+share, so the default leaves half of a 16-core machine to other jobs. The numeric libraries run on one thread in
+these processes; their results do not depend on the thread count. Renders and the longest clips start first.
 
-**Timing** (the clean side's machine: a fast desktop GPU, 32 threads). A full run over the 19 recordings of
-November 2026 and their 19 clean renders took 20 minutes with `--procs 7`. Summed over processes that was
-8,200 s: `sparks.py` 2,950 s, rendering 1,785 s (about 0.17 s a frame on its own, almost all of it the
-transfer out of the browser), `bgremove.py` 1,420 s, `spec46m.py` 630 s, decoding 465 s, `motion2.py` 400 s,
-`thick.py` 285 s, the rest under 100 s each. The run is bound by the number of worker processes, so the
-default `--procs 16` should take about half as long. A second run of a commit that is already cached takes
-about 2 s.
+**Cache.** One folder per footage clip and per clean condition, holding one JSON per tool:
+
+    <cache>/<code key>/footage/<clip id>_<file hash>/
+    <cache>/<code key>/clean/<page hash>/<condition>/
+
+`<cache>` is `$MEASURE_CACHE` if set, otherwise `work/battery/` (in `MEASURE_WORK`). The outputs stay in
+`work/battery/out/` either way. The keys are what the numbers depend on:
+
+- the code key: `BATTERY_VERSION`, a hash of the measuring code (`battery_frames.py`, `battery_render.js`
+  and the tools it runs, with line endings normalised), and the Python, numpy, scipy, Pillow and OpenCV versions;
+- the file hash: the clip's contents;
+- the page hash: the page's contents. Commits with the same `index.html` share renders.
+
+A changed clip, page or measuring code is therefore never served from the cache, and old entries are simply
+no longer used. Every cached file is written under a temporary name and renamed, so another job reading at the
+same time sees the whole file or none. While a job measures an entry it holds `<entry>.lock`, which it
+refreshes every 20 s; a lock older than 3 minutes is taken as left by a dead job. Another job that needs the
+same entry waits for the results instead of measuring it again. Two jobs measuring the same clips at once
+into one cache were checked to measure each entry once and write identical outputs. The stills are kept in
+each entry for looking. `--keep-frames` also writes all the measured frames (and their background-removed
+versions) as PNG into `<entry>/frames/`. A second run on the same commit only collects the cached results.
+`--force` measures again and replaces the cached results.
+
+**Timing** (the clean side's machine: a fast desktop GPU, 32 threads; 19 recordings, 17 of 10 s and 2 of 30 s,
+and their 19 clean renders; `--procs 7 --browsers 7`). Parts are summed over processes:
+
+| | before (Nov 13, `c163b56`) | after |
+| --- | --- | --- |
+| cold, all lanes, one seed | 773 s | 364 s |
+| warm (all cached) | 0.4 s | 0.4 s |
+| one more seed (footage cached) | 419 s | 191 s (`--seeds 1,2,3` with seed 1 cached: 384 s for seeds 2 and 3) |
+| sparkles (`sparks.py --hp`), cold, summed | 2,160 s | 1,203 s |
+| rendering, summed | 862 s (the transfer out of the browser) | 36 s waiting for frames (rendering overlaps the measuring) |
+| background removal, summed | 832 s (with PNG reading and writing) | 249 s |
+| `spec46m` / `motion2` / `thick`, summed | 425 / 279 / 194 s | 287 / 240 / 131 s |
+| decoding, summed | 253 s | 4 s waiting for frames |
+
+The gains come from measuring in memory (no PNG files, no process per tool or per chunk of 40 frames), the
+faster render transfer, and identical-result changes in the tools. `sparks.py` takes one 3-channel median
+instead of three single-channel ones and an OpenCV maximum, and checks for edge contact before measuring a
+region's shape. `spec46m.py` and `thick.py` find the band's extent in all columns at once. `bgremove.py` works
+on blocks of rows. The run is CPU bound: sparkle detection is half of it, mostly the 15 px median.
 
 ## Measuring the reference
 

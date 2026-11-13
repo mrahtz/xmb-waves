@@ -2,8 +2,9 @@
 """The fixed measurement battery: the same measures on every footage clip and on the clean build at the same conditions.
 
 usage: python3 battery.py [--commit REV|worktree] [--lanes background,motion,look,sparkles] [--index INDEX.json]
-                             [--out DIR] [--clips REGEX] [--seed N] [--browsers 8] [--procs 16] [--cpu]
+                             [--out DIR] [--clips REGEX] [--seed N | --seeds N,N,..] [--browsers 8] [--procs 8] [--cpu]
                              [--no-clean-noise] [--footage-only] [--force] [--keep-frames]
+       MEASURE_CACHE=DIR python3 battery.py ...      (a cache shared with other jobs; see Caching)
 
 For every clip in the footage index not marked "heldout" (recordings, renders and noise clips), the clean build is rendered at
 the same condition through the deterministic score mode (spec section 9): the clip's console date and time as `time`, its
@@ -30,19 +31,39 @@ Output (--out, default work/battery/out/<commit>/): metrics.json, clips.json (ev
 bgpixel.json (the pixel comparison per clip, region and channel), noise.json (the spread of every measure over each noise
 set), timings.json, and summary.txt (the table that is also printed).
 
-Caching: per clip and tool, in work/battery/footage/<clip> and work/battery/clean/<commit>/<condition> (MEASURE_WORK moves
-work/). A commit's page is its committed index.html; `worktree` assembles the working tree's src/ (as mkvar.py does).
-Changing a measure means raising BATTERY_VERSION, which invalidates every cached result.
+Several seeds: --seeds 1,2,3 measures the footage once and renders and measures the clean build at every seed in one pool of
+processes; each seed's outputs go to <out>/seed<N>/ and are the same as those of a separate run with --seed N.
+
+How it runs: one process per clip (battery_frames.py measure) decodes the footage with ffmpeg or renders the page in headless
+Chromium (battery_render.js) and runs every tool on the frames as they arrive, in memory: the same functions of the same
+tools on the same 8-bit frames as the tools' command lines on PNG files, so the numbers are the same. Up to --procs (8) such
+processes run at once, at most --browsers (8) of them rendering; renders and long clips start first.
+
+Caching: one folder per footage clip and per clean condition, with one JSON per tool, under
+  <cache>/<code key>/footage/<clip id>_<file hash>/        and  <cache>/<code key>/clean/<page hash>/<condition>/
+<cache> is $MEASURE_CACHE if set (a folder outside the working copy can be shared by several jobs), else work/battery/
+(MEASURE_WORK moves work/). The code key is BATTERY_VERSION plus a hash of the measuring code (battery_frames.py,
+battery_render.js and the tools) and the Python and library versions; the file hash is of the clip's contents; the page hash
+of the page's contents (a commit's committed index.html; `worktree` assembles the working tree's src/ as mkvar.py does). A
+changed clip, page or measuring code is therefore never served from the cache. Every cached file is written under a
+temporary name and then renamed, so another job reading at the same time sees the whole file or none; while a job measures
+an entry it holds <entry>.lock (refreshed every 20 s; taken over when 3 minutes old), and other jobs wait for its results
+instead of measuring the same thing again. Changing what a measure means still calls for raising BATTERY_VERSION.
 """
-import os, re, sys, json, time, glob, shutil, hashlib, argparse, threading, subprocess, traceback
+import os, re, sys, json, time, socket, hashlib, argparse, threading, subprocess, traceback
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 BATTERY_VERSION = 1
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(HERE))
 WORK = os.environ.get('MEASURE_WORK', os.path.join(HERE, 'work')); BW = os.path.join(WORK, 'battery')
+CACHE = os.environ.get('MEASURE_CACHE') or BW   # the cache of measured clips; may be shared by several jobs
 PY = [sys.executable]  # (not -I: on some machines numpy is in the user site, which -I hides)
+sys.path.insert(0, HERE); import battery_frames as bf
+# the measuring processes: one thread each for the numeric libraries (they run many at once; the results do not depend on it)
+WORKER_ENV = dict(os.environ, OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1')
 LANES = ('background', 'motion', 'look', 'sparkles')
+DEFAULT_PROCS, DEFAULT_BROWSERS = 8, 8
 # which tools each lane needs, and which frames each tool needs
 TOOLS_FOR_LANE = {'background': ['bgregions', 'bgprep'], 'motion': ['spec46', 'spec46m', 'motion2', 'thick'],
                   'look': ['spec46', 'fill', 'cycle'], 'sparkles': ['sparks']}
@@ -129,28 +150,122 @@ PIXEL_MEASURES = ([dict(name='bgpixel.all.%s_%s' % (ch, st), lane='background', 
 
 # ---------------------------------------------------------------------------------------------------------------------------
 TIMES = {}; TLOCK = threading.Lock()
-def timed(part, dt):
-    with TLOCK: t = TIMES.setdefault(part, [0.0, 0]); t[0] += dt; t[1] += 1
+def timed(part, dt, n=1):
+    with TLOCK: t = TIMES.setdefault(part, [0.0, 0]); t[0] += dt; t[1] += n
 LOG = threading.Lock()
 def say(*a):
     with LOG: print(time.strftime('%H:%M:%S'), *a, flush=True)
 
+# ---- the cache: where, and its keys
+# Every cached file is written under a temporary name and renamed (battery_frames.write_atomic), so a reader in another job sees
+# a whole file or none. Entries are keyed by everything their numbers depend on: the code key (BATTERY_VERSION, the measuring
+# code's text and the library versions), the footage file's contents, the page's contents and the condition.
+MEASURING_CODE = ('battery_frames.py', 'battery_render.js', 'bgremove.py', 'spec46.py', 'fill.py', 'cycle.py', 'bgcompare.py',
+                  'spec46m.py', 'motion2.py', 'thick.py', 'sparks.py')
+def code_key():
+    import scipy, PIL, cv2
+    h = hashlib.sha1(('%d|%s|%s|%s|%s|%s' % (BATTERY_VERSION, sys.version.split()[0], np.__version__, scipy.__version__,
+                                              PIL.__version__, cv2.__version__)).encode())
+    for f in MEASURING_CODE:
+        h.update(f.encode() + b'\0' + open(os.path.join(HERE, f), 'rb').read().replace(b'\r\n', b'\n') + b'\0')
+    return 'v%d-%s' % (BATTERY_VERSION, h.hexdigest()[:10])
+
+def file_hash(path):
+    h = hashlib.sha1()
+    with open(path, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 22), b''): h.update(b)
+    return h.hexdigest()[:12]
+
+class Locks:
+    """Per-entry lock files shared between jobs: created exclusively, kept fresh by a heartbeat; a lock not refreshed for
+    STALE seconds belongs to a job that died and is taken over. Only saves duplicate work: the atomic writes keep the cache
+    whole without them."""
+    STALE = 180
+    def __init__(self):
+        self.held = set(); self.mu = threading.Lock()
+        threading.Thread(target=self._beat, daemon=True).start()
+    def _beat(self):
+        while True:
+            time.sleep(20)
+            with self.mu: held = list(self.held)
+            for p in held:
+                try: os.utime(p)
+                except OSError: pass
+    def acquire(self, p):
+        for _ in range(3):
+            try:
+                fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(fd, ('%s pid %d %s\n' % (socket.gethostname(), os.getpid(), time.strftime('%Y-%m-%d %H:%M:%S'))).encode()); os.close(fd)
+                with self.mu: self.held.add(p)
+                return True
+            except FileExistsError:
+                try:
+                    if time.time() - os.path.getmtime(p) < self.STALE: return False
+                    os.remove(p)   # stale: its job is gone
+                except OSError: pass
+        return False
+    def release(self, p):
+        with self.mu: self.held.discard(p)
+        try: os.remove(p)
+        except OSError: pass
+
 class Runner:
     def __init__(self, procs, browsers):
-        self.py = threading.BoundedSemaphore(procs); self.br = threading.BoundedSemaphore(browsers)
-    def run(self, part, cmd, log, browser=False):
+        self.py = threading.BoundedSemaphore(procs); self.br = threading.BoundedSemaphore(browsers); self.locks = Locks()
+
+    def run_worker(self, label, d, spec, need, browser):
         if browser: self.br.acquire()
         self.py.acquire()
         t0 = time.time()   # time running, not waiting for a slot
         try:
-            with open(log, 'a') as f:
+            sp = os.path.join(d, 'spec.json'); bf.json_atomic(dict(spec, tools=need), sp, indent=1)
+            tj = os.path.join(d, 'times.json')
+            if os.path.exists(tj): os.remove(tj)
+            with open(os.path.join(d, 'log.txt'), 'a') as f:
+                cmd = PY + [os.path.join(HERE, 'battery_frames.py'), 'measure', d, sp]
                 f.write('$ ' + ' '.join(cmd) + '\n'); f.flush()
-                r = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, cwd=HERE)
+                r = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, cwd=HERE, env=WORKER_ENV)
         finally:
             self.py.release()
             if browser: self.br.release()
-        timed(part, time.time() - t0)
-        if r.returncode: raise RuntimeError('%s failed (exit %d); see %s' % (part, r.returncode, log))
+        dt = time.time() - t0; timed('worker (summed)', dt)
+        if r.returncode: raise RuntimeError('measuring failed (exit %d); see %s' % (r.returncode, os.path.join(d, 'log.txt')))
+        try:
+            for k, v in json.load(open(tj))['parts'].items(): timed(k, v)
+        except (OSError, ValueError, KeyError): pass
+        return dt
+
+    def measure(self, label, d, spec, tools, force):
+        """Measure what is not cached yet of one clip (footage or clean render) into d, unless another job is doing it."""
+        os.makedirs(d, exist_ok=True); lock = d + '.lock'; t0 = time.time(); waited = False; done = set()
+        while True:
+            need = [t for t in tools if not os.path.exists(tool_json(d, t)) or (force and t not in done)]
+            if not need: break
+            if self.locks.acquire(lock):
+                try:
+                    need = [t for t in tools if not os.path.exists(tool_json(d, t)) or (force and t not in done)]
+                    if not need: break
+                    say('start', label, '(%s)' % ', '.join(need))
+                    dt = self.run_worker(label, d, spec, need, spec['source'] == 'clean'); done.update(need)
+                    say('done ', label, '%.0f s' % dt)
+                finally: self.locks.release(lock)
+                break
+            if not waited: say('wait ', label, '(being measured by another job: %s)' % lock); waited = True
+            time.sleep(2)
+        if waited: timed('waiting for other jobs (wall, summed)', time.time() - t0)
+
+def resolve_page(commit, cache):
+    if commit == 'worktree':
+        sys.path.insert(0, HERE); from buildsrc import read_sources, assemble
+        texts, order = read_sources(); page = assemble(texts, order).encode('utf-8')
+        h = 'worktree-' + hashlib.sha1(page).hexdigest()[:12]
+    else:
+        h = subprocess.run(['git', 'rev-parse', commit + '^{commit}'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+        page = subprocess.run(['git', 'show', h + ':index.html'], cwd=ROOT, capture_output=True, check=True).stdout
+    ph = hashlib.sha1(page).hexdigest()[:12]
+    d = os.path.join(cache, 'pages', ph); os.makedirs(d, exist_ok=True); p = os.path.join(d, 'index.html')
+    if not os.path.exists(p): bf.write_atomic(p, lambda f: f.write(page), 'wb')
+    return h, ph, p
 
 def clip_id(c):
     s = '%s_%s_%s_t%g_%gs_c%s_%s' % (c['kind'], c['date'], c['time'].replace(':', ''), c['since_start_s'], c['seconds'], c.get('colour', 0), c['size'])
@@ -169,83 +284,8 @@ def cond_key(d, cpu):
 def noise_group(c):  # noise clips vary seed and time since start; the condition is the rest
     return '%s_%s_c%s_%s' % (c['date'], c['time'].replace(':', ''), c.get('colour', 0), c['size'])
 
-def resolve_page(commit):
-    if commit == 'worktree':
-        sys.path.insert(0, HERE); from buildsrc import read_sources, assemble
-        texts, order = read_sources(); page = assemble(texts, order)
-        h = 'worktree-' + hashlib.sha1(page.encode('utf-8')).hexdigest()[:12]
-    else:
-        h = subprocess.run(['git', 'rev-parse', commit + '^{commit}'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
-        page = subprocess.run(['git', 'show', h + ':index.html'], cwd=ROOT, capture_output=True, check=True).stdout.decode('utf-8')
-    d = os.path.join(BW, 'pages', h); os.makedirs(d, exist_ok=True); p = os.path.join(d, 'index.html')
-    if not os.path.exists(p): open(p, 'w', encoding='utf-8', newline='').write(page)
-    return h, p
-
 # ---------------------------------------------------------------------------------------------------------------------------
-def tool_json(d, tool): return os.path.join(d, '%s.v%d.json' % (tool, BATTERY_VERSION))
-
-def chunks(lst, n): return [lst[i:i + n] for i in range(0, len(lst), n)]
-
-def measure_clip(R, label, d, spec, tools, keep, force):
-    """Frames from spec (footage or clean render) into d/frames, then every tool in tools; one JSON per tool in d."""
-    os.makedirs(d, exist_ok=True); log = os.path.join(d, 'log.txt')
-    need = [t for t in tools if force or not os.path.exists(tool_json(d, t))]
-    if not need: return
-    fr = os.path.join(d, 'frames'); kinds = sorted({FRAMES_FOR_TOOL[t] for t in need})
-    if os.path.exists(fr): shutil.rmtree(fr)
-    os.makedirs(fr)
-    spec = dict(spec, kinds=kinds); sp = os.path.join(d, 'spec.json'); json.dump(spec, open(sp, 'w'), indent=1)
-    t0 = time.time(); say('start', label, '(%s)' % ', '.join(need))
-    R.run('render' if spec['source'] == 'clean' else 'decode', PY + [os.path.join(HERE, 'battery_frames.py'), 'extract', fr, sp], log,
-          browser=spec['source'] == 'clean')
-    # background removal (bgremove.py), in chunks of 40 frames in parallel
-    jobs = []
-    for src, dst in (('stills', 'wstills'), ('motion', 'wmotion')):
-        files = sorted(glob.glob(os.path.join(fr, src, '*.png')))
-        if files and any(FRAMES_FOR_TOOL[t] == ('still' if src == 'stills' else 'motion') for t in need):
-            jobs += [(dst, c) for c in chunks(files, 40)]
-    with ThreadPoolExecutor(max(1, len(jobs))) as ex:
-        list(ex.map(lambda j: R.run('bgremove', PY + [os.path.join(HERE, 'bgremove.py'), os.path.join(fr, j[0])] + j[1], log), jobs))
-    stills = sorted(glob.glob(os.path.join(fr, 'stills', '*.png'))); wst = sorted(glob.glob(os.path.join(fr, 'wstills', '*.png')))
-    def one(t):
-        out = tool_json(d, t)
-        if t == 'spec46': R.run(t, PY + [os.path.join(HERE, 'spec46.py')] + wst + ['--json', out], log)
-        elif t == 'fill': R.run(t, PY + [os.path.join(HERE, 'fill.py'), 'S=' + ','.join(wst), '--json', out], log)
-        elif t == 'spec46m': R.run(t, PY + [os.path.join(HERE, 'spec46m.py'), os.path.join(fr, 'wmotion'), '10', '--json', out], log)
-        elif t == 'motion2': R.run(t, PY + [os.path.join(HERE, 'motion2.py'), os.path.join(fr, 'wmotion'), '10', '--json', out], log)
-        elif t == 'thick': R.run(t, PY + [os.path.join(HERE, 'thick.py'), os.path.join(fr, 'wmotion'), '--json', out], log)
-        elif t == 'sparks': R.run(t, PY + [os.path.join(HERE, 'sparks.py'), os.path.join(fr, 'spark'), '30', '--hp', '--json', out], log)
-        elif t == 'bgprep':
-            R.run(t, PY + [os.path.join(HERE, 'battery_frames.py'), 'bgprep', fr], log)
-            shutil.copy(os.path.join(fr, 'bgest.npz'), os.path.join(d, 'bgest.npz'))
-            json.dump({'npz': 'bgest.npz'}, open(out, 'w'))
-        elif t in ('cycle', 'bgregions'):
-            R.run(t, PY + [os.path.join(HERE, 'battery.py'), '--_still-measure', t, out] + stills, log)
-    with ThreadPoolExecutor(len(need)) as ex:
-        for f in [ex.submit(one, t) for t in need]: f.result()
-    # keep the stills (small, for looking) and drop the rest of the frames
-    if stills:
-        os.makedirs(os.path.join(d, 'stills'), exist_ok=True)
-        for s in stills: shutil.copy(s, os.path.join(d, 'stills', os.path.basename(s)))
-    if not keep: shutil.rmtree(fr, ignore_errors=True)
-    say('done ', label, '%.0f s' % (time.time() - t0))
-
-def still_measure(tool, out, files):
-    """cycle.py's band brightness, or bgcompare.py's regions, per still (run as a subprocess by measure_clip)."""
-    sys.path.insert(0, HERE)
-    if tool == 'cycle':
-        from cycle import stats
-        per = [dict(zip(('peak', 'mean'), map(float, stats(f)))) for f in files]
-    else:
-        from bgcompare import regions
-        per = []
-        for f in files:
-            a = regions(f); r = {}
-            for i, rn in enumerate(('top', 'bottom')):
-                for j, cn in enumerate(('left', 'right')):
-                    for k, ch in enumerate('RGB'): r['%s_%s_%s' % (rn, cn, ch)] = float(a[i, j, k])
-            per.append(r)
-    json.dump({'frames': files, 'per_frame': per}, open(out, 'w'), indent=1)
+def tool_json(d, tool): return os.path.join(d, '%s.json' % tool)
 
 def clip_values(d):
     """-> {measure name: value} for one measured clip directory (NaN where a tool is missing or gave none)."""
@@ -311,75 +351,15 @@ def fmt(x):
     return '%.0f' % x if a >= 100 else '%.1f' % x if a >= 10 else '%.3g' % x
 
 # ---------------------------------------------------------------------------------------------------------------------------
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0], formatter_class=argparse.RawDescriptionHelpFormatter,
-                                 epilog='\n\n'.join(__doc__.split('\n\n')[1:]))
-    ap.add_argument('--commit', default='HEAD', help="revision whose committed index.html is measured, or 'worktree' (default HEAD)")
-    ap.add_argument('--lanes', default=','.join(LANES), help='comma-separated subset of %s (default all)' % ','.join(LANES))
-    ap.add_argument('--index', default=r'C:\xmb-share\footage\INDEX.json', help='footage index (default %(default)s)')
-    ap.add_argument('--out', help='output directory (default work/battery/out/<commit>/)')
-    ap.add_argument('--clips', help='only clips whose id matches this regular expression (ids look like recording_2026-10-15_120000_t40_10s_c0_1920x1080)')
-    ap.add_argument('--seed', type=int, default=1, help='seed for the clean render where the clip has none (default 1)')
-    ap.add_argument('--browsers', type=int, default=8, help='headless browsers at once (default 8)')
-    ap.add_argument('--procs', type=int, default=16, help='Python processes at once (default 16)')
-    ap.add_argument('--cpu', action='store_true', help='render with SwiftShader instead of the GPU (cached separately)')
-    ap.add_argument('--no-clean-noise', action='store_true', help='do not render the clean build at the noise clips\' conditions')
-    ap.add_argument('--footage-only', action='store_true', help='measure the footage only')
-    ap.add_argument('--force', action='store_true', help='ignore cached results for the selected clips')
-    ap.add_argument('--keep-frames', action='store_true', help='keep the extracted frames (several hundred MB per clip)')
-    ap.add_argument('--_still-measure', nargs='+', help=argparse.SUPPRESS)
-    a = ap.parse_args()
-    if a._still_measure: return still_measure(a._still_measure[0], a._still_measure[1], a._still_measure[2:])
-    T0 = time.time()
-    lanes = [l.strip() for l in a.lanes.split(',') if l.strip()]
-    bad = [l for l in lanes if l not in LANES]
-    if bad: ap.error('unknown lane(s): %s' % ', '.join(bad))
-    tools = sorted({t for l in lanes for t in TOOLS_FOR_LANE[l]})
-    idx = json.load(open(a.index))['clips']
-    clips = [c for c in idx if not c.get('heldout')]
-    for c in clips: c['_id'] = clip_id(c)
-    seen = {}
-    for c in clips:  # unique ids
-        n = seen.get(c['_id'], 0); seen[c['_id']] = n + 1
-        if n: c['_id'] += '_%d' % n
-    if a.clips: clips = [c for c in clips if re.search(a.clips, c['_id'])]
-    if not clips: sys.exit('no clips selected')
-    t = time.time(); commit, page = (resolve_page(a.commit) if not a.footage_only else ('footage-only', None)); timed('setup', time.time() - t)
-    say('battery v%d: commit %s, lanes %s, %d clips (%d held out), tools %s' % (BATTERY_VERSION, commit, ','.join(lanes), len(clips),
-        sum(1 for c in idx if c.get('heldout')), ' '.join(tools)))
-    R = Runner(a.procs, a.browsers)
-    tasks = []  # (label, dir, spec)
-    conds = {}
-    for c in clips:
-        sig = hashlib.sha1(('%s|%s|%s' % (c['path'], os.path.getsize(c['path']), int(os.path.getmtime(c['path'])))).encode()).hexdigest()[:8]
-        c['_dir'] = os.path.join(BW, 'footage', c['_id'] + '_' + sig)
-        tasks.append(('footage ' + c['_id'], c['_dir'], {'source': 'footage', 'path': c['path'], 'seconds': c['seconds'], 'fps': c.get('fps')}))
-        if a.footage_only or (c['kind'] == 'noise' and a.no_clean_noise): c['_cdir'] = None; continue
-        cd = cond_of(c, a.seed); ck = cond_key(cd, a.cpu); c['_cdir'] = os.path.join(BW, 'clean', commit, ck)
-        if ck not in conds:
-            w, h = (int(x) for x in cd['size'].split('x'))
-            conds[ck] = (c['_cdir'], {'source': 'clean', 'page': page, 'cpu': a.cpu, 'since_start_s': cd['since_start_s'], 'seconds': cd['seconds'],
-                                      'fps': cd['fps'], 'opts': {'time': '%sT%s' % (cd['date'], cd['time']), 'theme': int(cd['colour']),
-                                                                 'seed': int(cd['seed']), 'w': w, 'h': h}})
-    tasks = [('clean ' + k, d, s) for k, (d, s) in conds.items()] + tasks   # renders first: they are the long pole
-    errors = []
-    def go(tk):
-        try: measure_clip(R, tk[0], tk[1], tk[2], tools, a.keep_frames, a.force)
-        except Exception as e:
-            errors.append((tk[0], str(e))); say('FAILED', tk[0], e); traceback.print_exc()
-    t = time.time()
-    with ThreadPoolExecutor(max(1, len(tasks))) as ex: list(ex.map(go, tasks))
-    timed('measure (wall)', time.time() - t)
-
-    # ---- collect
+def collect(clips, V, lanes, commit, out, cpu, errors):
+    """metrics.json, clips.json, bgpixel.json and noise.json for one seed (c['_cdir']: that seed's clean render); -> the table."""
     t = time.time()
     orig = [c for c in clips if c['kind'] != 'noise']; noise = [c for c in clips if c['kind'] == 'noise']
     groups = {noise_group(c) for c in orig}
     noise_m = [c for c in noise if noise_group(c) in groups] if orig else noise
-    V = {c['_id']: clip_values(c['_dir']) for c in clips}
     CV = {}
     for c in clips:
-        if c.get('_cdir') and os.path.isdir(c['_cdir']): CV[c['_cdir']] = clip_values(c['_cdir'])
+        if c.get('_cdir') and os.path.isdir(c['_cdir']) and c['_cdir'] not in CV: CV[c['_cdir']] = clip_values(c['_cdir'])
     names = [m['name'] for m in M if m['lane'] in lanes]
     measures = []
     clean_dirs = list(dict.fromkeys(c['_cdir'] for c in orig if c.get('_cdir')))
@@ -428,10 +408,10 @@ def main():
         noise_out[g] = e
     timed('collect', time.time() - t)
 
-    out = a.out or os.path.join(BW, 'out', commit); os.makedirs(out, exist_ok=True)
+    os.makedirs(out, exist_ok=True)
     metrics = {'commit': commit, 'lanes': lanes, 'measures': measures, 'visible_gaps': []}
     json.dump(metrics, open(os.path.join(out, 'metrics.json'), 'w'), indent=1)
-    json.dump({'battery_version': BATTERY_VERSION, 'commit': commit, 'renderer': 'swiftshader' if a.cpu else 'gpu (ANGLE d3d11)',
+    json.dump({'battery_version': BATTERY_VERSION, 'commit': commit, 'renderer': 'swiftshader' if cpu else 'gpu (ANGLE d3d11)',
                'clips': [{'id': c['_id'], 'kind': c['kind'], 'condition': {k: c.get(k) for k in ('date', 'time', 'since_start_s', 'seconds', 'size', 'colour', 'seed', 'fps')},
                           'path': c['path'], 'original': {n: V[c['_id']][n] for n in names},
                           'clean': {n: CV[c['_cdir']][n] for n in names} if c.get('_cdir') in CV else None,
@@ -439,8 +419,6 @@ def main():
               open(os.path.join(out, 'clips.json'), 'w'), indent=1)
     if 'background' in lanes: json.dump(bgpix, open(os.path.join(out, 'bgpixel.json'), 'w'), indent=1)
     json.dump(noise_out, open(os.path.join(out, 'noise.json'), 'w'), indent=1)
-    TIMES['total (wall)'] = [time.time() - T0, 1]
-    json.dump({k: {'seconds': round(v[0], 2), 'count': v[1]} for k, v in TIMES.items()}, open(os.path.join(out, 'timings.json'), 'w'), indent=1)
     # table
     L = ['battery v%d  commit %s  lanes %s  clips: %d original, %d noise; clean conditions %d%s' % (BATTERY_VERSION, commit, ','.join(lanes),
          len(orig), len(noise_m), len(clean_dirs), '' if not errors else '  ERRORS: %d' % len(errors)),
@@ -451,10 +429,98 @@ def main():
                  '%s-%s %d' % (fmt(nz['lo']), fmt(nz['hi']), nz['n']) if nz else '-', '%s [%s-%s] %d' % (fmt(c['median']), fmt(c['lo']), fmt(c['hi']), c['n']),
                  'yes' if e['within'] else 'NO'))
     L.append('within: %d of %d measures' % (sum(e['within'] for e in measures), len(measures)))
-    L.append('timings (s; each part summed over its processes (count), wall-clock where marked): ' + ', '.join('%s %.1f%s' % (k, v[0], '' if 'wall' in k else ' (x%d)' % v[1]) for k, v in TIMES.items()))
-    for lab, err in errors: L.append('ERROR %s: %s' % (lab, err))
-    open(os.path.join(out, 'summary.txt'), 'w').write('\n'.join(L) + '\n')
-    print('\n'.join(L)); print('wrote', out)
+    return L
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0], formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 epilog='\n\n'.join(__doc__.split('\n\n')[1:]))
+    ap.add_argument('--commit', default='HEAD', help="revision whose committed index.html is measured, or 'worktree' (default HEAD)")
+    ap.add_argument('--lanes', default=','.join(LANES), help='comma-separated subset of %s (default all)' % ','.join(LANES))
+    ap.add_argument('--index', default=r'C:\xmb-share\footage\INDEX.json', help='footage index (default %(default)s)')
+    ap.add_argument('--out', help='output directory (default work/battery/out/<commit>/; with --seeds, a folder seed<N>/ in it per seed)')
+    ap.add_argument('--clips', help='only clips whose id matches this regular expression (ids look like recording_2026-10-15_120000_t40_10s_c0_1920x1080)')
+    ap.add_argument('--seed', type=int, default=1, help='seed for the clean render where the clip has none (default 1)')
+    ap.add_argument('--seeds', help='several seeds in one run, comma-separated (for example 1,2,3): the footage is measured once, one pool '
+                    'of processes renders and measures every seed, and each seed gets in <out>/seed<N>/ exactly the outputs of a '
+                    'separate --seed N run')
+    ap.add_argument('--browsers', type=int, default=DEFAULT_BROWSERS, help='headless browsers at once (default %(default)s)')
+    ap.add_argument('--procs', type=int, default=DEFAULT_PROCS, help='measuring processes at once, one clip each (default %(default)s); '
+                    'each also runs a decoder (footage) or a browser (clean render)')
+    ap.add_argument('--cpu', action='store_true', help='render with SwiftShader instead of the GPU (cached separately)')
+    ap.add_argument('--no-clean-noise', action='store_true', help='do not render the clean build at the noise clips\' conditions')
+    ap.add_argument('--footage-only', action='store_true', help='measure the footage only')
+    ap.add_argument('--force', action='store_true', help='measure the selected clips again, replacing their cached results')
+    ap.add_argument('--keep-frames', action='store_true', help='also write the measured frames as PNG into <entry>/frames/ (several hundred MB per clip)')
+    a = ap.parse_args()
+    T0 = time.time()
+    lanes = [l.strip() for l in a.lanes.split(',') if l.strip()]
+    bad = [l for l in lanes if l not in LANES]
+    if bad: ap.error('unknown lane(s): %s' % ', '.join(bad))
+    seeds = [int(s) for s in a.seeds.split(',') if s.strip()] if a.seeds else [a.seed]
+    if not seeds or len(set(seeds)) != len(seeds): ap.error('--seeds: give each seed once')
+    tools = sorted({t for l in lanes for t in TOOLS_FOR_LANE[l]})
+    idx = json.load(open(a.index))['clips']
+    clips = [c for c in idx if not c.get('heldout')]
+    for c in clips: c['_id'] = clip_id(c)
+    seen = {}
+    for c in clips:  # unique ids
+        n = seen.get(c['_id'], 0); seen[c['_id']] = n + 1
+        if n: c['_id'] += '_%d' % n
+    if a.clips: clips = [c for c in clips if re.search(a.clips, c['_id'])]
+    if not clips: sys.exit('no clips selected')
+    t = time.time(); key = code_key(); KD = os.path.join(CACHE, key)
+    if a.footage_only: commit, pageh, page = 'footage-only', None, None
+    else: commit, pageh, page = resolve_page(a.commit, CACHE)
+    with ThreadPoolExecutor(8) as ex: fh = list(ex.map(lambda c: file_hash(c['path']), clips))
+    timed('setup (wall)', time.time() - t)
+    say('battery v%d: commit %s (page %s), lanes %s, %d clips (%d held out), seeds %s, tools %s' % (BATTERY_VERSION, commit, pageh, ','.join(lanes),
+        len(clips), sum(1 for c in idx if c.get('heldout')), ','.join(map(str, seeds)), ' '.join(tools)))
+    say('cache %s' % KD)
+    R = Runner(a.procs, a.browsers)
+    tasks = []  # (renders first, longest first, label, dir, spec)
+    conds = {}
+    for c, h in zip(clips, fh):
+        c['_dir'] = os.path.join(KD, 'footage', c['_id'] + '_' + h)
+        tasks.append((1, -float(c['seconds']), 'footage ' + c['_id'], c['_dir'], {'source': 'footage', 'path': c['path'], 'seconds': c['seconds'], 'fps': c.get('fps')}))
+        c['_cdirs'] = {}
+        if a.footage_only or (c['kind'] == 'noise' and a.no_clean_noise): continue
+        for s in seeds:
+            cd = cond_of(c, s); ck = cond_key(cd, a.cpu); c['_cdirs'][s] = os.path.join(KD, 'clean', pageh, ck)
+            if ck not in conds:
+                w, h_ = (int(x) for x in cd['size'].split('x'))
+                conds[ck] = (c['_cdirs'][s], {'source': 'clean', 'page': page, 'cpu': a.cpu, 'since_start_s': cd['since_start_s'], 'seconds': cd['seconds'],
+                                              'fps': cd['fps'], 'opts': {'time': '%sT%s' % (cd['date'], cd['time']), 'theme': int(cd['colour']),
+                                                                         'seed': int(cd['seed']), 'w': w, 'h': h_}})
+    for k, (d, s) in conds.items(): tasks.append((0, -float(s['seconds']), 'clean ' + k, d, s))
+    for tk in tasks: tk[4]['keep'] = a.keep_frames
+    tasks.sort(key=lambda tk: tk[:2])   # renders first, longest first: they are the long pole
+    errors = []
+    def go(tk):
+        try: R.measure(tk[2], tk[3], tk[4], tools, a.force)
+        except Exception as e:
+            errors.append((tk[2], str(e))); say('FAILED', tk[2], e); traceback.print_exc()
+    t = time.time()
+    with ThreadPoolExecutor(max(1, len(tasks))) as ex: list(ex.map(go, tasks))
+    timed('measure (wall)', time.time() - t)
+
+    t = time.time()
+    V = {c['_id']: clip_values(c['_dir']) for c in clips}
+    timed('collect', time.time() - t)
+    base_out = a.out or os.path.join(BW, 'out', commit)
+    outs = {}
+    for s in seeds:
+        for c in clips: c['_cdir'] = c['_cdirs'].get(s)
+        out = os.path.join(base_out, 'seed%d' % s) if a.seeds else base_out
+        outs[s] = (out, collect(clips, V, lanes, commit, out, a.cpu, errors))
+    TIMES['total (wall)'] = [time.time() - T0, 1]
+    tl = ('timings (s; parts summed over the measuring processes (count), wall-clock where marked): ' +
+          ', '.join('%s %.1f%s' % (k, v[0], '' if 'wall' in k else ' (x%d)' % v[1]) for k, v in TIMES.items()))
+    for s, (out, L) in outs.items():
+        L = L + [tl] + ['ERROR %s: %s' % e for e in errors]
+        json.dump({k: {'seconds': round(v[0], 2), 'count': v[1]} for k, v in TIMES.items()}, open(os.path.join(out, 'timings.json'), 'w'), indent=1)
+        open(os.path.join(out, 'summary.txt'), 'w').write('\n'.join(L) + '\n')
+        if len(seeds) > 1: print('\n==== seed %d' % s)
+        print('\n'.join(L)); print('wrote', out)
     if errors: sys.exit(1)
 
 if __name__ == '__main__':

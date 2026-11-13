@@ -3,7 +3,8 @@ import sys, os, numpy as np
 from PIL import Image
 from scipy.ndimage import gaussian_filter
 def stats(path):
-    g=gaussian_filter(np.asarray(Image.open(path).convert('L').resize((1920,1080),Image.LANCZOS),dtype=float),1.0)
+    im=path if isinstance(path,Image.Image) else Image.open(path)   # (battery.py passes PIL images)
+    g=gaussian_filter(np.asarray(im.convert('L').resize((1920,1080),Image.LANCZOS),dtype=float),1.0)
     pk=[];mn=[]
     for x in [300,500,700,900,1200,1500,1700]:
         col=g[:,x]; i=int(np.argmax(col[250:850]))+250; win=col[max(0,i-200):i+200]
