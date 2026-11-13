@@ -38,7 +38,7 @@ function XMBW_SIM() {
     // It scales the net's height and depth coordinates about one fixed axis along the length (height 0, depth envAxis: the
     // centre line of the shared driven path), a plain scaling of the shape the net has reached; no rest grid takes part.
     // It does not change the net's motion, so it is not part of the stored state's key
-    envLow: 0.6, envDip: 0.15, envWidth: 0.08, envAxis: 0.5,
+    envLow: 0.95, envDip: 0.15, envWidth: 0.08, envAxis: 0.5,
     warm: 6000,                     // warm-up steps before frame 0, at least. Without a stored state the lightly damped net
                                     // needs several decay times to settle into its running state from the flat start, so the
                                     // warm-up runs warmDecays of them (the first warmSettle steps with heavy damping)
@@ -51,18 +51,21 @@ function XMBW_SIM() {
   const LAT = { nu: 10, nv: 4, nw: 10,
     spread: 5.614,                    // uneven layout along the length: the cells at the free end are this many times longer than
                                     // at the shaken end (fixed), so the free end of the net covers far more of the scene
-    // The vertical displacement is the sum of four slow parts, computed directly from the clock (rates in rad/s):
+    // The vertical displacement is the sum of four slow parts, computed directly from the clock (rates in rad/s). The rates
+    // were fitted (spec 18) to the original's 1 s and 5 s picture correlation, the share of the band's motion at its quick
+    // and slow ends, the partings' lifetimes and the swell's crossing, measured the same way on the footage and on renders
+    // at 8 moments; periods: swell 16 s, twist 17 s, bob 52 s, bump 85 s (the swell's strength 77 s):
     // a wave rolling from the shaken end to the free end, growing along the length, whose strength swells and fades.
     // It is the swell: its crest crossing the screen is the band's slow left-to-right rise and fall
-    rollAmp: 0.06, rollGrow: 2.664, rollWaves: 1.141, rollW: 0.2, rollMod: 0.35, rollModW: 0.041,
+    rollAmp: 0.04, rollGrow: 2.664, rollWaves: 1.141, rollW: 0.4, rollMod: 0.35, rollModW: 0.082,
     // one soft hump sliding back and forth along the length (centre and travel as fractions of the length; part of
     // its travel lies beyond the shaken end)
-    bumpAmp: 0.12, bumpWidth: 0.25, bumpCentre: 0.25, bumpTravel: 0.5, bumpW: 0.037,
-    bobAmp: 0.02617, bobW: 0.06,     // the whole sheet rising and falling together, much more slowly than the swell
-    twistAmp: 0.04, twistW: 0.19,  // a gentle ripple, one cycle across the width, travelling across it
+    bumpAmp: 0.12, bumpWidth: 0.25, bumpCentre: 0.25, bumpTravel: 0.5, bumpW: 0.074,
+    bobAmp: 0.02617, bobW: 0.12,     // the whole sheet rising and falling together, much more slowly than the swell
+    twistAmp: 0.04, twistW: 0.38,  // a gentle ripple, one cycle across the width, travelling across it
     // the four parts' phases at clock 0 (spec 18: fixed, the same at every start, never drawn per run):
     // swell strength, bump, bob, swell, twist
-    ph: [0.0, 0.0, 0.0, 0.0, 0.0],
+    ph: [5.2859, 1.7721, 5.4577, 5.161, 4.2674],
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
   const SCENE = { len: 15, x0: 1.9, wid: 4.682, height: 3.8, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
