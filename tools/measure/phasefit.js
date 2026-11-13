@@ -106,7 +106,7 @@ if (mode === 'eval') {
     let c = 0;
     for (const r of rs) {
       const dc = (r.centre + bias.centre - r.tg.centre) / 0.02, dt = r.tg.tilt == null ? 0 : (r.tilt + bias.tilt - r.tg.tilt) / 0.05;
-      const ds = r.tg.speed == null ? 0 : (r.speed * (bias.speedScale || 1) - r.tg.speed) / 0.004;
+      const ds = r.tg.speed == null ? 0 : (r.speed * (bias.speedScale || 1) - r.tg.speed) / (bias.speedSigma || 0.004);
       c += (r.tg.w || 1) * (dc * dc + dt * dt + ds * ds);
     }
     return c;

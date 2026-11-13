@@ -53,20 +53,21 @@ function XMBW_SIM() {
                                     // at the shaken end (fixed), so the free end of the net covers far more of the scene
     // The vertical displacement is the sum of four slow parts, computed directly from the clock (rates in rad/s). The rates
     // were fitted (spec 18) to the original's 1 s and 5 s picture correlation, the share of the band's motion at its quick
-    // and slow ends, the partings' lifetimes and the swell's crossing, measured the same way on the footage and on renders
-    // at 8 moments; periods: swell 16 s, twist 17 s, bob 52 s, bump 85 s (the swell's strength 77 s):
+    // and slow ends, the partings' lifetimes, the swell's crossing and the tilt's period (22 s in the footage), measured the
+    // same way on the footage and on renders at 23 moments; periods: swell 21 s, twist 22 s, bob 70 s, bump 113 s (the
+    // swell's strength 102 s):
     // a wave rolling from the shaken end to the free end, growing along the length, whose strength swells and fades.
     // It is the swell: its crest crossing the screen is the band's slow left-to-right rise and fall
-    rollAmp: 0.04, rollGrow: 2.664, rollWaves: 1.141, rollW: 0.4, rollMod: 0.35, rollModW: 0.082,
+    rollAmp: 0.05, rollGrow: 2.664, rollWaves: 1.141, rollW: 0.3, rollMod: 0.35, rollModW: 0.0615,
     // one soft hump sliding back and forth along the length (centre and travel as fractions of the length; part of
     // its travel lies beyond the shaken end)
-    bumpAmp: 0.12, bumpWidth: 0.25, bumpCentre: 0.25, bumpTravel: 0.5, bumpW: 0.074,
-    bobAmp: 0.02617, bobW: 0.12,     // the whole sheet rising and falling together, much more slowly than the swell
-    twistAmp: 0.04, twistW: 0.38,  // a gentle ripple, one cycle across the width, travelling across it
+    bumpAmp: 0.12, bumpWidth: 0.25, bumpCentre: 0.25, bumpTravel: 0.5, bumpW: 0.0555,
+    bobAmp: 0.02617, bobW: 0.09,     // the whole sheet rising and falling together, much more slowly than the swell
+    twistAmp: 0.04, twistW: 0.29,  // a gentle ripple, one cycle across the width, travelling across it
     // the four parts' phases at clock 0 (spec 18: fixed, the same at every start, never drawn per run): swell strength, bump,
     // bob, swell, twist. Fitted with tools/measure/phasefit.js to the band's height, tilt and centre speed that the footage
     // shows 40 s and 240 s after the start
-    ph: [0.1736, 6.2224, 4.0216, 5.9535, 3.3853],
+    ph: [3.3562, 0.4816, 2.2871, 2.684, 3.8807],
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
   const SCENE = { len: 15, x0: 1.9, wid: 4.682, height: 3.8, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
