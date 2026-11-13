@@ -11,5 +11,5 @@ def src(*p): return open(os.path.join(root, 'src', *p), encoding='utf-8').read()
 order = [l.split('#')[0].strip() for l in src('main', 'ORDER').splitlines() if l.split('#')[0].strip()]
 main = "(function () {\n'use strict';\n" + ''.join(src('main', n) for n in order) + '})();\n'
 out = src('head.html') + src('sim.js') + '</script>\n<script>\n' + main + '</script>\n</body>\n</html>\n'
-open(os.path.join(root, 'index.html'), 'w', encoding='utf-8').write(out)
+open(os.path.join(root, 'index.html'), 'w', encoding='utf-8', newline='\n').write(out)
 print('wrote index.html (%d bytes)' % len(out))

@@ -18,7 +18,7 @@ for mo in (1, 4, 7, 10):
     ratio[mo] = (top ** step, bot ** step, nig ** step)
 mean = tuple(np.mean([ratio[m][i] for m in ratio], axis=0) for i in range(3))
 p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src', 'main', 'scene.js')
-s = open(p).read()
+s = open(p, encoding='utf-8').read()
 def scale(txt, key, f):
     m = re.search(key + r': \[([-0-9., ]+)\]', txt)
     if not m: return txt
@@ -36,5 +36,5 @@ for line in s.split('\n'):
             v = [min(1.0, float(x) * nig[i]) for i, x in enumerate(nm.group(1).split(','))]
             line = line.replace(nm.group(0), 'night: [[' + ', '.join('%.3f' % x for x in v) + ']', 1)
     out.append(line)
-open(p, 'w').write('\n'.join(out))
+open(p, 'w', encoding='utf-8', newline='\n').write('\n'.join(out))
 for mo in sorted(ratio): print('month %2d ratios top %s bottom %s night %s' % (mo, np.round(ratio[mo][0], 2), np.round(ratio[mo][1], 2), np.round(ratio[mo][2], 2)))
