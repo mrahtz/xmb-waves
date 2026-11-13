@@ -98,12 +98,18 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   that end is gathered and twists. The bending springs are much stiffer
   than the stretching ones, and small random kicks keep the net moving and
   set how many strands the band shows. A stored, settled start state means
-  the first frame already looks like a running one.
+  the first frame already looks like a running one, and every start is the
+  same: the clock, the warp's phases, the warm-up and the kicks' generator
+  are fixed, so the wave at a given time since the start does not depend on
+  the seed (only the sparkles do). An envelope along the length scales the
+  net's height and depth about one fixed axis, fullest at the shaken end.
 - The net is passed through a free-form deformation lattice laid out
-  unevenly along the length: a swell rolling from the shaken end to the free
-  end and growing along it, a large bump sliding back and forth, a slow bob of
-  the whole sheet and a small twist across the width (the swell fastest, the
-  bump slowest). The deformed net is the control net of a bicubic B-spline
+  unevenly along the length, with enough cells across the width for the
+  twist and held at the sheet's ends: a swell rolling from the shaken end to
+  the free end and growing along it (21 s), a large bump sliding back and
+  forth (113 s), a slow bob of the whole sheet (70 s) and a small twist
+  across the width (22 s). Their rates and phases are fitted to the
+  recordings. The deformed net is the control net of a bicubic B-spline
   surface. The control points are projected first, so the surface and its
   normals live in the projected space, as the spec asks. The camera sits
   slightly below the sheet, which runs out past the left edge of the
@@ -174,18 +180,24 @@ README).
 
 ## Status
 
-Built to spec version 17 and tuned against the original's recordings in
+Built to spec version 18 and tuned against the original's recordings in
 `comparison/original/`, measured with the same tools as my renders (see
-`docs/references/tuning-log.md`). Matched: the band's centre speed and
-height change over time, the sideways drift of the dark partings, the number
-of strands per column, the band's brightness at night, and the sparkles'
-count, brightness, look and motion at noon. The geometry checks of 4.4d
-(framing, depth, camera below the sheet) and 4.5 (where the sheet sits on the
-shading curves) pass in every mood. Still short of the original: the picture
-changes faster (0.08 correlation after one second against 0.15-0.36), the swell
-crosses a little quickly (20 s against 25-107 s), the band arches less and is
-thinner, its lines stand out more over the band, and the brightest sparkles
-are a little dim. The palettes are fitted to the recordings at four months
+`docs/references/tuning-log.md`). Like the original, every start is the same,
+so the band's place at a given time since the start is fixed: it matches the
+recordings' centre height 40 s and 240 s after the start, and over the 30 s
+recordings its mean height, range, tilt period (22 s) and share of slow
+motion. Also matched: the band's centre speed, the number of strands per
+column at noon, the sideways drift of the dark partings, the band's
+brightness at night, and the sparkles' count, brightness, look and motion at
+noon. The geometry checks of 4.4d (framing, depth, camera below the sheet)
+and 4.5 (where the sheet sits on the shading curves) pass in every mood.
+Still short of the original: at the same centre speed the picture changes
+more slowly (0.3-0.5 correlation after one second against 0.02-0.19, most at
+night, where the band's quick motion is also too weak), the band is thinner
+and simpler at night (2.8 peaks per column against 3.7), it rarely pinches,
+neighbouring strands move a little too differently, its lines stand out more
+over the band, and the brightest sparkles are a little dim. The bump and the
+bob could not be checked on long footage (none exists yet). The palettes are fitted to the recordings at four months
 (mean difference about 12.5 levels per channel).
 
 Not verifiable from the references available so far: the palettes for
