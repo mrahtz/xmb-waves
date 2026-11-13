@@ -1,4 +1,4 @@
-# usage: thick.py DIR -> per-frame band thickness (median over columns of the extent above 6 % of the column max) for a wave-only sequence; prints the distribution over frames
+# usage: thick.py DIR [--json OUT] -> per-frame band thickness (median over columns of the extent above 6 % of the column max) for a wave-only sequence; prints the distribution over frames
 import os, sys, numpy as np
 from PIL import Image
 from scipy.ndimage import gaussian_filter
@@ -13,3 +13,5 @@ for f in files:
     th.append(np.median(t) if t else np.nan); cen.append(np.median(c) if c else np.nan)
 th=np.array(th); cen=np.array(cen)
 print('%s: %d frames; thickness median per frame: median %.3f, min %.3f, max %.3f, share > 0.23 H: %.0f %%, share < 0.08 H: %.0f %%; centre %.2f-%.2f H'%(d,len(th),np.nanmedian(th),np.nanmin(th),np.nanmax(th),100*np.nanmean(th>0.23),100*np.nanmean(th<0.08),np.nanmin(cen),np.nanmax(cen)))
+if '--json' in sys.argv:
+    import json; json.dump({'thick':th.tolist(),'centre':cen.tolist()},open(sys.argv[sys.argv.index('--json')+1],'w'))

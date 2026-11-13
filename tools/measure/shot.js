@@ -1,5 +1,5 @@
 // usage: PAGE=page.html node shot.js '[["out.png", {render options}], ...]'  -> PNGs via window.XMBW.render (score mode);
-// PAGE defaults to the repository's index.html
+// PAGE defaults to the repository's index.html. XMBW_GPU=1 renders on the GPU (ANGLE on Direct3D 11) instead of SwiftShader.
 const { chromium } = require('playwright');
 const fs = require('fs'); const zlib = require('zlib');
 function png(w, h, rgba) {
@@ -12,7 +12,7 @@ function png(w, h, rgba) {
   return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 (async () => {
-  const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const b = await chromium.launch({ args: process.env.XMBW_GPU === '1' ? ['--use-angle=d3d11', '--ignore-gpu-blocklist'] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await b.newPage();
   p.on('console', m => console.log('console:', m.text())); p.on('pageerror', e => console.log('pageerror:', e.message));
   const jobs = JSON.parse(process.argv[2]);

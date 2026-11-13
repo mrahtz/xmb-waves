@@ -6,6 +6,8 @@
 //   node tools/render.js jobs.json          # a JSON list of [outPath, options] pairs, rendered in one browser
 //
 // Options are those of the URL in section 9 of docs/SPEC.md (time, theme, seed, frames, w, h, layers).
+// --gpu (or XMBW_GPU=1) renders on the GPU (ANGLE on Direct3D 11); the default is Chromium's own choice, which headless
+// is usually the SwiftShader software renderer.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), zlib = require('zlib');
 
@@ -20,13 +22,14 @@ function png(w, h, rgba) {
 }
 
 (async () => {
-  const args = process.argv.slice(2);
+  const gpu = process.argv.includes('--gpu') || process.env.XMBW_GPU === '1';
+  const args = process.argv.slice(2).filter(a => a !== '--gpu');
   let jobs;
   if (args.length === 1 && args[0].endsWith('.json')) jobs = JSON.parse(fs.readFileSync(args[0], 'utf8'));
   else if (args.length === 2) jobs = [[args[0], JSON.parse(args[1])]];
   else { console.error('usage: render.js out.png \'{json options}\'  |  render.js jobs.json'); process.exit(1); }
   const page = 'file://' + path.resolve(__dirname, '..', 'index.html') + '?mode=score';
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(gpu ? { args: ['--use-angle=d3d11', '--ignore-gpu-blocklist'] } : {});
   const p = await browser.newPage();
   p.on('pageerror', e => console.error('page error:', e.message));
   await p.goto(page);

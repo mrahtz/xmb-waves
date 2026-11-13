@@ -1,8 +1,10 @@
 # sparks.py: sparkle statistics of a frame sequence: detection, look classes, colour, and motion from tracks.
-# usage: python3 sparks.py DIR FPS [--hp] [--dedupe]
+# usage: python3 sparks.py DIR FPS [--hp] [--dedupe] [--json OUT]
 #   DIR holds the frames in order (png). Without --hp the frames are expected to show the sparkles alone on black
 #   (a 'sparkles' layer render); with --hp each frame is high-passed first (frame minus a 15 px median), for footage.
 #   --dedupe drops frames that repeat the previous one (clips re-timed to a higher frame rate), keeping true times.
+#   --json OUT also writes the numbers. The 15 px median of --hp uses OpenCV when it is installed (on a reflect-padded copy,
+#   so the result is identical to scipy's median_filter, about 100 times faster), scipy otherwise.
 # Per frame: local maxima above a threshold, each measured at half its peak (area, elongation, colour). Classes: streak
 # (elongation >= 2.2), disc (round, half-peak area >= 40 px, i.e. a large soft spot), dot (the rest). Motion: maxima linked
 # between consecutive frames by mutual nearest neighbour; tracks of 0.5 s or more give a velocity (straight-line fit),
@@ -13,17 +15,27 @@ from PIL import Image
 from scipy import ndimage as nd
 
 d = sys.argv[1]; fps = float(sys.argv[2]); hp = '--hp' in sys.argv; dedupe = '--dedupe' in sys.argv
+jout = sys.argv[sys.argv.index('--json') + 1] if '--json' in sys.argv else None; J = {}
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+def median15(a):
+    # 15 x 15 median per channel, edges reflected as scipy.ndimage.median_filter's default mode ('reflect': d c b a | a b c d)
+    if cv2 is None or a.dtype != np.uint8: return nd.median_filter(a.astype(np.float32), size=(15, 15, 1))
+    p = np.pad(a, ((7, 7), (7, 7), (0, 0)), mode='symmetric')
+    return np.stack([cv2.medianBlur(np.ascontiguousarray(p[..., c]), 15)[7:-7, 7:-7] for c in range(a.shape[2])], 2).astype(np.float32)
 files = sorted(glob.glob(os.path.join(d, '*.png')))
 THR = 6.0
 dets = []; looks = []; sums = []; tops = []; times = []; Hpx = None; prev = None
 for fi, f in enumerate(files):
-    a = np.asarray(Image.open(f).convert('RGB')).astype(np.float32)
+    a8 = np.asarray(Image.open(f).convert('RGB')); a = a8.astype(np.float32)
     if Hpx is None: Hpx = a.shape[0]
     if dedupe:
         if prev is not None and np.abs(a - prev).mean() < 0.4: continue
         prev = a
     times.append(fi / fps)
-    if hp: a = a - nd.median_filter(a, size=(15, 15, 1))
+    if hp: a = a - median15(a8)
     g = a.mean(2)
     mx = nd.maximum_filter(g, size=5)
     ys, xs = np.nonzero((g == mx) & (g > THR))
@@ -54,14 +66,20 @@ for fi, f in enumerate(files):
 sc = 1080.0 / Hpx
 n = np.array([len(x) for x in dets])
 print('%-58s %s' % ('frames, fps; distinct frames, their rate:', '%d, %g; %d, %.1f/s' % (len(files), fps, len(times), (len(times) - 1) / max(times[-1] - times[0], 1e-6))))
+J.update(n_med=np.median(n), n_p10=np.percentile(n, 10), n_p90=np.percentile(n, 90), rate=(len(times) - 1) / max(times[-1] - times[0], 1e-6))
 print('%-58s %s' % ('sparkles per frame: median, p10-p90:', '%d, %d-%d' % (np.median(n), np.percentile(n, 10), np.percentile(n, 90))))
+if looks: J.update(peak_med=np.median([q[2] for q in looks]), peak_p90=np.percentile([q[2] for q in looks], 90))
+J.update(top10=np.mean(tops), sum_med=np.median(sums))
 print('%-58s %s' % ('peak level: median, p90, brightest 10 per frame (mean):', '%.1f, %.1f, %.1f' % (np.median([q[2] for q in looks]), np.percentile([q[2] for q in looks], 90), np.mean(tops))))
 print('%-58s %s' % ('summed peak levels per frame (median):', '%.0f' % np.median(sums)))
 cl = [q[6] for q in looks]; N = max(len(cl), 1)
 print('%-58s %s' % ('classes: dot / streak / disc share:', '%.2f / %.2f / %.2f' % (cl.count('dot') / N, cl.count('streak') / N, cl.count('disc') / N)))
 br = [q for q in looks if q[2] >= 20]
+J.update(dot=cl.count('dot') / N, streak=cl.count('streak') / N, disc=cl.count('disc') / N, sat_n=len(br))
+if br: J.update(sat_med=np.median([q[5] for q in br]), sat_share=np.mean([q[5] > 0.35 for q in br]))
 print('%-58s %s' % ('colour saturation at the peak: median; share > 0.35 (peak >= 20):', '%.2f; %.2f (n=%d)' % (np.median([q[5] for q in br]) if br else float('nan'), np.mean([q[5] > 0.35 for q in br]) if br else float('nan'), len(br))))
 dsc = [q for q in looks if q[6] == 'disc']
+if dsc: J.update(disc_diam=2 * np.sqrt(np.median([q[3] for q in dsc]) / np.pi) * sc, disc_peak=np.median([q[2] for q in dsc]))
 if dsc: print('%-58s %s' % ('discs: half-peak diameter median (px@1080p), peak median:', '%.1f, %.1f' % (2 * np.sqrt(np.median([q[3] for q in dsc]) / np.pi) * sc, np.median([q[2] for q in dsc]))))
 
 # tracking
@@ -96,8 +114,12 @@ for tr in tracks:
 vel = np.array(vel).reshape(-1, 2)
 if len(vel):
     sp = np.hypot(vel[:, 0], vel[:, 1])
+    J.update(tracks=len(vel), up_share=np.mean(vel[:, 1] < 0), speed_med=np.median(sp), speed_p10=np.percentile(sp, 10), speed_p90=np.percentile(sp, 90), vy_med=np.median(np.abs(vel[:, 1])))
     print('%-58s %s' % ('tracks >= 0.5 s: count; moving up share (screen):', '%d; %.2f' % (len(vel), np.mean(vel[:, 1] < 0))))
     print('%-58s %s' % ('speed median, p10-p90 (px/s @1080p):', '%.1f, %.1f-%.1f' % (np.median(sp), np.percentile(sp, 10), np.percentile(sp, 90))))
     print('%-58s %s' % ('vertical speed |vy| median (px/s @1080p):', '%.1f' % np.median(np.abs(vel[:, 1]))))
 if acc:
+    J.update(acc_med=np.median(acc), acc_abs=np.median(dev), acc_n=len(acc))
     print('%-58s %s' % ('tracks >= 1.5 s: vertical acceleration median (+ = down), |a| median (px/s^2):', '%+.1f, %.1f (n=%d)' % (np.median(acc), np.median(dev), len(acc))))
+if jout:
+    import json; json.dump({k: float(v) for k, v in J.items()}, open(jout, 'w'), indent=1)

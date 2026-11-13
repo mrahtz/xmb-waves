@@ -1,7 +1,7 @@
-# usage: spec46.py frame.png [...]  -> statistics of spec 4.6 from wave-only frames at 1920x1080 (the wave's light alone, black background)
+# usage: spec46.py frame.png [...] [--json OUT]  -> statistics of spec 4.6 from wave-only frames at 1920x1080 (the wave's light alone, black background); --json also writes the numbers per frame
 import sys, numpy as np
 from PIL import Image
-from scipy.ndimage import gaussian_filter, label
+from scipy.ndimage import gaussian_filter, label, find_objects
 from scipy.signal import find_peaks, peak_widths
 W,H=1920,1080
 def pct(a,q): return np.percentile(a,q) if len(a) else float('nan')
@@ -46,8 +46,8 @@ def analyse(path):
         if top[x]>=0: hull[top[x]:bot[x]+1,x:x+2]=True
     colmax=L.max(axis=0); dark=hull&(L<0.08*np.maximum(colmax,1e-3)[None,:])
     lab,n=label(dark); lens=[]
-    for i in range(1,n+1):
-        ys,xs=np.where(lab==i); ln=(xs.max()-xs.min()+1)/W
+    for i,sl in enumerate(find_objects(lab),1):  # each component within its bounding box (same pixels, same order as np.where(lab==i))
+        ys,xs=np.where(lab[sl]==i); ys=ys+sl[0].start; xs=xs+sl[1].start; ln=(xs.max()-xs.min()+1)/W
         if ln>=0.05 and len(xs)>200: lens.append(ln)
     # thin bright lines: track narrow peaks along x
     segs=[]; active=[]  # active: [y, x_start, x_last, count_outer]
@@ -76,30 +76,51 @@ def analyse(path):
     long10=seglen>=0.10; long25=seglen>=0.25
     thirds=[npk12[(np.array(list(peakrows.keys()))<W/3)].mean() if len(npk12) else 0, 0, 0]
     xs=np.array(list(peakrows.keys()))
+    wd=np.array(widths); hist=[100*(npk12==k).mean() for k in range(1,7)]+[100*(npk12>=7).mean()]
+    tops=np.array([top[x] for x in cols if top[x]>=0])/H; bots=np.array([bot[x] for x in cols if top[x]>=0])/H
+    # numeric values (written by --json); the text table below is formatted from them
+    n={'centre_med':np.median(centre),'centre_min':centre.min(),'centre_max':centre.max(),'top_min':tops.min(),'bot_max':bots.max(),
+       'tilt':np.mean(centre[-20:])-np.mean(centre[:20]),'arch':np.max(np.abs(centre-np.linspace(np.mean(centre[:20]),np.mean(centre[-20:]),len(centre)))),
+       'thick_med':np.median(thick),'thick_p10':pct(thick,10),'thick_p90':pct(thick,90),'thick_ratio':pct(thick,95)/max(pct(thick,5),1e-3),
+       'pinch8':100*(thick<0.08).mean(),'pinch5':100*(thick<0.05).mean(),'peaks12':npk12.mean()}
+    for k,hv in zip(['1','2','3','4','5','6','7up'],hist): n['peaks12_share_'+k]=hv
+    n.update({'peaks25':np.mean(npk25),'peaks40':np.mean(npk40),'peaks_left':npk12[xs<W/3].mean(),'peaks_mid':npk12[(xs>=W/3)&(xs<2*W/3)].mean(),'peaks_right':npk12[xs>=2*W/3].mean(),
+       'face_med':np.median(face),'face_p10':pct(face,10),'face_p90':pct(face,90),'foldface_med':np.median(foldface),'foldface_p90':pct(foldface,90),'avgface_med':np.median(avgface),
+       'overlap_med':np.median(overlap),'width_lines':np.median(wd[wd<15]) if (wd<15).any() else float('nan'),'width_all':np.median(wd),'width_sheen':np.median(wd[wd>=15]) if (wd>=15).any() else float('nan'),
+       'bwidth':np.median(bwidths),'edge_med':np.median(edge),'edge_p10':pct(edge,10),'edge_p90':pct(edge,90),'partcol':np.mean(part),
+       'partings':len(lens),'partings_len_med':np.median(lens) if lens else float('nan'),'partings_len_max':max(lens) if lens else float('nan'),
+       'lines10':int(long10.sum()),'lines25':int(long25.sum()),'lines_len_med':np.median(seglen[long10]) if long10.any() else float('nan'),
+       'outer':np.mean(outer[long10]) if long10.any() else float('nan'),'linepk':np.median(linepk)})
     out={}
-    out['centre median / range']='%.2f / %.2f-%.2f H'%(np.median(centre),centre.min(),centre.max())
-    out['top edge min, bottom edge max']='%.2f, %.2f H'%((np.array([top[x] for x in cols if top[x]>=0])/H).min(),(np.array([bot[x] for x in cols if top[x]>=0])/H).max())
-    out['tilt (right - left centre), arch']='%+.2f H, %.2f H'%(np.mean(centre[-20:])-np.mean(centre[:20]), np.max(np.abs(centre-np.linspace(np.mean(centre[:20]),np.mean(centre[-20:]),len(centre)))))
-    out['thickness median / p10-p90']='%.3f / %.3f-%.3f H'%(np.median(thick),pct(thick,10),pct(thick,90))
-    out['thickest/thinnest, pinch <0.08H, <0.05H']='%.1f, %.0f %%, %.0f %%'%(pct(thick,95)/max(pct(thick,5),1e-3),100*(thick<0.08).mean(),100*(thick<0.05).mean())
-    hist=[100*(npk12==k).mean() for k in range(1,7)]+[100*(npk12>=7).mean()]
-    out['peaks/column at 12 %: mean, 1..6,7+ %']='%.1f, '%npk12.mean()+' / '.join('%.0f'%h for h in hist)
-    out['peaks/column at 25 % and 40 %']='%.1f, %.1f'%(np.mean(npk25),np.mean(npk40))
-    out['peaks by thirds (12 %)']='%.1f / %.1f / %.1f'%(npk12[xs<W/3].mean(),npk12[(xs>=W/3)&(xs<2*W/3)].mean(),npk12[xs>=2*W/3].mean())
-    out['face level (of column max) median / p10-p90']='%.2f / %.2f-%.2f'%(np.median(face),pct(face,10),pct(face,90))
-    out['brightest fold / face: median, p90; avg peak / face median']='%.1f, %.1f; %.1f'%(np.median(foldface),pct(foldface,90),np.median(avgface))
-    out['overlap ratio (brightest/faintest face) median']='%.2f'%np.median(overlap)
-    wd=np.array(widths); out['peak width at half prominence: lines (<15 px) median, all median, sheen (>=15) median']='%.1f, %.1f, %.1f px'%(np.median(wd[wd<15]) if (wd<15).any() else float('nan'),np.median(wd),np.median(wd[wd>=15]) if (wd>=15).any() else float('nan'))
-    out['brightest line width median']='%.1f px'%np.median(bwidths)
-    out['edge rise 10-90 % median / p10-p90']='%.1f / %.1f-%.1f px'%(np.median(edge),pct(edge,10),pct(edge,90))
-    out['dark partings per column (mean)']='%.2f'%np.mean(part)
-    out['partings >= 5 % W: count, length median / max']='%d, %.2f / %.2f W'%(len(lens),np.median(lens) if lens else float('nan'),max(lens) if lens else float('nan'))
-    out['thin lines >= 10 % W: count, >= 25 % W, length median']='%d, %d, %.2f W'%(long10.sum(),long25.sum(),np.median(seglen[long10]) if long10.any() else float('nan'))
-    out['share of line pixels in outer fifths']='%.2f'%(np.mean(outer[long10]) if long10.any() else float('nan'))
-    out['line peak / band median level: median']='%.2f'%np.median(linepk)
+    out['centre median / range']='%.2f / %.2f-%.2f H'%(n['centre_med'],n['centre_min'],n['centre_max'])
+    out['top edge min, bottom edge max']='%.2f, %.2f H'%(n['top_min'],n['bot_max'])
+    out['tilt (right - left centre), arch']='%+.2f H, %.2f H'%(n['tilt'],n['arch'])
+    out['thickness median / p10-p90']='%.3f / %.3f-%.3f H'%(n['thick_med'],n['thick_p10'],n['thick_p90'])
+    out['thickest/thinnest, pinch <0.08H, <0.05H']='%.1f, %.0f %%, %.0f %%'%(n['thick_ratio'],n['pinch8'],n['pinch5'])
+    out['peaks/column at 12 %: mean, 1..6,7+ %']='%.1f, '%n['peaks12']+' / '.join('%.0f'%h for h in hist)
+    out['peaks/column at 25 % and 40 %']='%.1f, %.1f'%(n['peaks25'],n['peaks40'])
+    out['peaks by thirds (12 %)']='%.1f / %.1f / %.1f'%(n['peaks_left'],n['peaks_mid'],n['peaks_right'])
+    out['face level (of column max) median / p10-p90']='%.2f / %.2f-%.2f'%(n['face_med'],n['face_p10'],n['face_p90'])
+    out['brightest fold / face: median, p90; avg peak / face median']='%.1f, %.1f; %.1f'%(n['foldface_med'],n['foldface_p90'],n['avgface_med'])
+    out['overlap ratio (brightest/faintest face) median']='%.2f'%n['overlap_med']
+    out['peak width at half prominence: lines (<15 px) median, all median, sheen (>=15) median']='%.1f, %.1f, %.1f px'%(n['width_lines'],n['width_all'],n['width_sheen'])
+    out['brightest line width median']='%.1f px'%n['bwidth']
+    out['edge rise 10-90 % median / p10-p90']='%.1f / %.1f-%.1f px'%(n['edge_med'],n['edge_p10'],n['edge_p90'])
+    out['dark partings per column (mean)']='%.2f'%n['partcol']
+    out['partings >= 5 % W: count, length median / max']='%d, %.2f / %.2f W'%(n['partings'],n['partings_len_med'],n['partings_len_max'])
+    out['thin lines >= 10 % W: count, >= 25 % W, length median']='%d, %d, %.2f W'%(n['lines10'],n['lines25'],n['lines_len_med'])
+    out['share of line pixels in outer fifths']='%.2f'%n['outer']
+    out['line peak / band median level: median']='%.2f'%n['linepk']
+    analyse.num={k:float(v) for k,v in n.items()}
     return out
 SPEC={'centre median / range':'0.57 / 0.45-0.70 H (point: 0.3-0.8)','top edge min, bottom edge max':'rarely above 0.30, rarely below 0.86 H','tilt (right - left centre), arch':'up to +-0.33 H, up to 0.2 H','thickness median / p10-p90':'0.15 / 0.07-0.23 H','thickest/thinnest, pinch <0.08H, <0.05H':'1.5-4, ~10 %, a few %','peaks/column at 12 %: mean, 1..6,7+ %':'3-4, 3 / 15 / 29 / 29 / 16 / 6 / 2','peaks/column at 25 % and 40 %':'2-3, 1-2','peaks by thirds (12 %)':'~3 / ~4 / ~4','face level (of column max) median / p10-p90':'0.20 / 0.12-0.30','brightest fold / face: median, p90; avg peak / face median':'5, 8 (up to 12); 3','overlap ratio (brightest/faintest face) median':'1.8 (1.2-3)','peak width at half prominence: lines (<15 px) median, all median, sheen (>=15) median':'lines 6 (4-9); sheen 19 (8-37) px','brightest line width median':'8 (5-11) px','edge rise 10-90 % median / p10-p90':'3.5 / 1.5-9 px','dark partings per column (mean)':'1-2','partings >= 5 % W: count, length median / max':'8-13, 0.03-0.14 / rarely > 0.33 W','thin lines >= 10 % W: count, >= 25 % W, length median':'10-17, 1-5, 0.12-0.28 W','share of line pixels in outer fifths':'> 0.5','line peak / band median level: median':'1.5 (1-2.5)'}
-results=[analyse(p) for p in sys.argv[1:]]
-for k in results[0]:
-    print('%-78s %s'%(k+':', ' | '.join(r[k] for r in results)))
-    print('%-78s spec: %s'%('',SPEC[k]))
+if __name__=='__main__':
+    args=sys.argv[1:]; jout=None
+    if '--json' in args: i=args.index('--json'); jout=args[i+1]; del args[i:i+2]
+    results=[]; nums=[]
+    for p in args: results.append(analyse(p)); nums.append(analyse.num)
+    for k in results[0]:
+        print('%-78s %s'%(k+':', ' | '.join(r[k] for r in results)))
+        print('%-78s spec: %s'%('',SPEC[k]))
+    if jout:
+        import json; json.dump({'frames':args,'per_frame':nums},open(jout,'w'),indent=1)

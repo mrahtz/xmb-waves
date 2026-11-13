@@ -1,9 +1,9 @@
-# usage: spec46m.py DIR fps  -> motion statistics of spec 4.6 from a wave-only sequence (any size; measured in screen fractions and px at 1920x1080)
+# usage: spec46m.py DIR fps [--json OUT]  -> motion statistics of spec 4.6 from a wave-only sequence (any size; measured in screen fractions and px at 1920x1080)
 import os, sys, numpy as np
 from PIL import Image
-from scipy.ndimage import gaussian_filter, label
+from scipy.ndimage import gaussian_filter, label, find_objects
 from scipy.signal import find_peaks
-d=sys.argv[1]; fps=float(sys.argv[2])
+d=sys.argv[1]; fps=float(sys.argv[2]); jout=sys.argv[sys.argv.index('--json')+1] if '--json' in sys.argv else None
 files=sorted(os.path.join(d,f) for f in os.listdir(d) if f.endswith('.png'))
 fr=[]
 for f in files:
@@ -68,8 +68,8 @@ def partings(L):
         if cm[x]<max(6,0.08*fmax): continue
         vis=np.where(L[:,x]>max(3,0.06*cm[x]))[0]; hull[vis.min():vis.max()+1,x]=True
     dark=hull&(L<0.08*np.maximum(cm,1e-3)[None,:]); lab,n=label(dark); out=[]
-    for i in range(1,n+1):
-        ys,xs=np.where(lab==i)
+    for i,sl in enumerate(find_objects(lab),1):  # each component within its bounding box (same pixels, same order as np.where(lab==i))
+        ys,xs=np.where(lab[sl]==i); ys=ys+sl[0].start; xs=xs+sl[1].start
         if (xs.max()-xs.min()+1)/w>=0.03 and len(xs)>40*(w/1920)**2*4: out.append((xs.mean(),ys.mean(),xs.min(),xs.max()))
     return out
 P=[partings(L) for L in fr]
@@ -104,3 +104,10 @@ print('%-62s %s'%('picture correlation after 1 s / 5 s:','%.2f / %.2f'%(c1,c5)),
 print('%-62s %s'%('adjacent peaks: vertical speed difference median over 0.3 s (px/s @1080p):','%.1f (peak speeds median %.1f)'%(np.median(diffs),np.median(speeds))),'   spec: ~5 (a fifth of the common motion)')
 print('%-62s %s'%('partings alive >= 0.5 s: speed along x median |v|, share rightwards (px/s @1920):','%.0f, %.2f (n=%d)'%(np.nanmedian(np.abs(fs)),np.nanmean(fs>0),len(fs))),'   spec: 10-40, slightly more often rightwards')
 print('%-62s %s'%('parting lifetimes: median / max (s):','%.1f / %.1f (n=%d)'%(np.median(lt),lt.max(),len(lt))),'   spec: 0.5-1 / 6-9')
+if jout:
+    import json
+    num={'cspeed':np.median(dv),'cspeed_p90':np.percentile(dv,90),'height_change40':ch40,'drift5':np.nanmedian(drift5),
+         'shift':np.median(shifts),'shift_p10':np.percentile(shifts,10),'shift_p90':np.percentile(shifts,90),'corr1':c1,'corr5':c5,
+         'adjdiff':np.median(diffs),'peakspeed':np.median(speeds),'pspeed':np.nanmedian(np.abs(fs)),'pright':np.nanmean(fs>0),'ptracks':len(fs),
+         'plife_med':np.median(lt),'plife_max':lt.max(),'plife_n':len(lt),'frames':len(fr),'fps':fps}
+    json.dump({k:float(v) for k,v in num.items()},open(jout,'w'),indent=1)
