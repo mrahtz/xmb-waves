@@ -528,6 +528,9 @@ function XMBW_SIM() {
       state() { return { n: N, key: netKey(), t: simTime, dt: driveT, pos: Array.from(pos, v => +v.toPrecision(6)), vel: Array.from(vel, v => +v.toPrecision(5)) }; },
       warmSteps: NET.warm,
       tune(values) { setTunables(values); rebuildSprings(); }, // live changes from the settings menu
+      // recompute the current step's warp and deformed net after a change of the warp's tunables (tools/measure/phasefit.js;
+      // the warp does not act back on the net, so the net's own state is untouched)
+      redeform() { lattice(); deform(netCur); },
       debug: { pos, vel, alive: () => S - nFree },
     };
   }
