@@ -63,9 +63,10 @@ function XMBW_SIM() {
     bumpAmp: 0.12, bumpWidth: 0.25, bumpCentre: 0.25, bumpTravel: 0.5, bumpW: 0.074,
     bobAmp: 0.02617, bobW: 0.12,     // the whole sheet rising and falling together, much more slowly than the swell
     twistAmp: 0.04, twistW: 0.38,  // a gentle ripple, one cycle across the width, travelling across it
-    // the four parts' phases at clock 0 (spec 18: fixed, the same at every start, never drawn per run):
-    // swell strength, bump, bob, swell, twist
-    ph: [5.2859, 1.7721, 5.4577, 5.161, 4.2674],
+    // the four parts' phases at clock 0 (spec 18: fixed, the same at every start, never drawn per run): swell strength, bump,
+    // bob, swell, twist. Fitted with tools/measure/phasefit.js to the band's height, tilt and centre speed that the footage
+    // shows 40 s and 240 s after the start
+    ph: [0.1736, 6.2224, 4.0216, 5.9535, 3.3853],
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
   const SCENE = { len: 15, x0: 1.9, wid: 4.682, height: 3.8, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
