@@ -31,7 +31,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const len = a => Math.hypot(a[0], a[1], a[2]), sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const ev = (s, t) => { const o = [0, 0, 0]; sim.surf(sim.netCur, s, t, o); return o.slice(); };
 const S = N - 3, n = 160, m = 32, h = 1e-3;
-const acc = { colD: [], colY: [], ally: [], left: [], free: [], outside: [], dl: [], dr: [], below: [], farLower: [], prod: [], cut: [], cos: [] };
+const acc = { farY: [], colD: [], colY: [], ally: [], left: [], free: [], outside: [], dl: [], dr: [], below: [], farLower: [], prod: [], cut: [], cos: [] };
 for (let f = 0; f < 5; f++) {
   for (let k = 0; k < 600; k++) sim.step();
   // framing: the along-length fraction (at mid-width) where the sheet first enters the screen; the free end's screen x
@@ -57,6 +57,9 @@ for (let f = 0; f < 5; f++) {
   }
   const pq = (a, q) => { const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(q * b.length))]; };
   for (const [d, y] of cols) acc.ally.push(...y);
+  for (const [d, y] of cols) if (d.length > 20) { // by distance: the farthest quarter's mean height on screen minus the nearest quarter's
+    const ix = d.map((v, i) => i).sort((a, b) => d[a] - d[b]), q4 = Math.max(1, ix.length >> 2), mY = a => a.reduce((p, i) => p + y[i], 0) / a.length;
+    acc.farY.push(mY(ix.slice(-q4)) - mY(ix.slice(0, q4))); }
   for (const [d, y] of cols) if (d.length > 20) { acc.colD.push(pq(d, 0.9) - pq(d, 0.1)); acc.colY.push(pq(y, 0.9) - pq(y, 0.1)); }
   acc.outside.push(1 - inF / all); acc.dl.push(L ? L[1] : NaN); acc.dr.push(R ? R[1] : NaN);
   acc.below.push(cam.pos[1] - ys / yc);
@@ -73,8 +76,8 @@ const med = a => { const b = a.slice().sort((x, y) => x - y); return b[b.length 
 console.log('4.4d depth across the band: distance spread down a column (p10-p90), median over columns %s (left-to-right change %s, ratio %s); height on screen of the visible sheet down a column %s',
   med(acc.colD).toFixed(2), Math.abs(avg(acc.dr) - avg(acc.dl)).toFixed(2), (med(acc.colD) / Math.abs(avg(acc.dr) - avg(acc.dl))).toFixed(2), med(acc.colY).toFixed(3));
 console.log('aim: the visible sheet height on screen (0 = top), p10 / median / p90 %s / %s / %s', ...[0.1, 0.5, 0.9].map(q => { const b = acc.ally.slice().sort((x, y) => x - y); return b[Math.floor(q * b.length)].toFixed(3); }));
-console.log('4.4d from below: camera height above the sheet mean %s (negative = below); far edge lower on screen than near edge by %s of the height (positive = lower)',
-  avg(acc.below).toFixed(3), avg(acc.farLower).toFixed(3));
+console.log('4.4d from below: camera height above the sheet mean %s (negative = below); far edge lower on screen than near edge by %s of the height (positive = lower; rows near the two long edges, which in a gathered net need not be the near and far side); by distance, down a column, the farthest quarter of the visible sheet lies %s of the height lower than the nearest quarter (median over columns)',
+  avg(acc.below).toFixed(3), avg(acc.farLower).toFixed(3), med(acc.farY).toFixed(3));
 console.log('4.5: cosine x size factor over the Fresnel-like peak: p25 / median / p75 %s / %s / %s; share with size factor beyond the sheen cut-off start %s',
   wq(acc.prod, 0.25).toFixed(2), wq(acc.prod, 0.5).toFixed(2), wq(acc.prod, 0.75).toFixed(2), avg(acc.cut).toFixed(2));
 console.log('viewing cosine p10 / p25 / median / p75 / p90 %s / %s / %s / %s / %s', ...[0.1, 0.25, 0.5, 0.75, 0.9].map(q => wq(acc.cos, q).toFixed(2)));
