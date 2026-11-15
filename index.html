@@ -690,15 +690,49 @@ let BG_EASE = 0.05; // how far the background gradient moves towards its new val
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
   // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
-  size: 0.010, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
-  turn: 0.3,                       // part of the way every disc is turned towards the camera (fully when close)
-  bright: 0.55, glintSize: 4.5, glintBright: 0.10,
-  // lighting (spec 16 and 17): one point light in the scene in front of the camera, diffuse kd and specular ks with exponent
-  // shin, the highlight tinted by the iridescent map (saturation mapSat everywhere, exponent mapExp = 1 leaves it unchanged),
-  // the sum through 1 - exp(-satGain x); opacity falls as a disc turns towards edge-on, with the power tiltPow of one minus
-  // the cosine
-  light: [1.3, 0.7, -1.5], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.0, mapSat: 0.15, satGain: 1.5, tiltPow: 1.0,
+  size: 0.0065, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
+  // turn towards the camera (spec 21): none for a disc whose apparent radius is below turn0 px (at 1080 lines), complete
+  // from turn1 px, so only the few near, large discs face the viewer and the rest pass through edge-on
+  turn0: 3.5, turn1: 8.0,
+  // in focus a crisp edge edge px wide (0: hard, spec 21's hard-edged discs); a disc below minPx px radius is drawn at that
+  // radius, dimmed by its area (0: never, so a disc smaller than a pixel shows only where it covers a pixel's centre)
+  edge: 0, minPx: 0.7,
+  bright: 1.088, glintSize: 4.5, glintBright: 0.10,
+  // lighting (spec 16, 17 and 21): one point light in the scene in front of the camera, diffuse kd and specular ks with
+  // exponent shin, the highlight tinted at full strength by the iridescent map (below; mapStr scales every lobe's strength,
+  // mapR their radii; exponent mapExp = 1 leaves it unchanged), the sum through 1 - exp(-satGain x); opacity falls as a disc
+  // turns towards edge-on, with the power tiltPow of one minus the cosine
+  light: [1.3, 0.7, -1.5], kd: 0.224, ks: 1.270, shin: 66, mapExp: 1.0, mapStr: 0.98, mapR: 1.0, satGain: 0.758, tiltPow: 1.0,
 };
+// The iridescent map's lobes (spec 21, original design): position in the map (the facing direction's right and up
+// components), radius, strength, and colour at full strength (its brightness included). Between them the map is near-neutral
+// white. The hues come in clusters: pinks and magentas, peach and gold, red-orange, a little violet-blue; no green or cyan.
+const SPARK_LOBES_DEF = [
+  // x,     y,     r,  strength  colour
+  [-0.92, -0.50, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.66, -0.50, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.40, -0.50, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.14, -0.50, 0.21, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.38, -0.50, 0.21, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [0.90, -0.50, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.27, -0.20, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [0.25, -0.20, 0.21, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.51, -0.20, 0.21, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [1.03, -0.20, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.92, 0.10, 0.21, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [-0.66, 0.10, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.40, 0.10, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.14, 0.10, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [0.12, 0.10, 0.21, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [0.90, 0.10, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.79, 0.40, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.27, 0.40, 0.21, 1.5, [1.00, 0.35, 0.65]], // pink
+  [-0.01, 0.40, 0.21, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [1.03, 0.40, 0.21, 1.5, [1.00, 0.30, 0.12]], // red-orange
+];
+const SPARK_LOBES = SPARK_LOBES_DEF.length;
+const SPARK_LOBE_POS = new Float32Array(SPARK_LOBES_DEF.flatMap(l => [l[0], l[1], l[2], l[3]]));
+const SPARK_LOBE_COL = new Float32Array(SPARK_LOBES_DEF.flatMap(l => l[4]));
 let DITHER = 0.85; // output levels, peak
 
 // ---------------------------------------------------------------------------
@@ -922,22 +956,30 @@ void main(){
   o = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 
-// Sparkles: flat round discs in 3D, turned by each sparkle's spin (towards the camera when close to it), with depth of
+// Sparkles: flat round discs in 3D, turned by each sparkle's spin (towards the camera when near and large), with depth of
 // field and an iridescent tint, drawn additively straight onto the output after the final pass.
 const VS_SPARK = `#version 300 es
 precision highp float;
 layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
 uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uSizeW, uBlur, uF;
-uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uBright, uDofDim, uTurn;
-uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uMapSat, uSatGain, uTiltPow;
-uniform float uGlint, uExt; uniform vec2 uRes;
+uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uBright, uDofDim, uTurn0, uTurn1;
+uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uMapStr, uMapR, uSatGain, uTiltPow;
+uniform vec4 uLobe[${SPARK_LOBES}]; uniform vec3 uLobeC[${SPARK_LOBES}];
+uniform float uGlint, uExt, uMinPx; uniform vec2 uRes;
 out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
-// iridescent colour map indexed by the facing direction's two screen-plane components (a lit-sphere lookup): the hue
-// turns with the direction's angle and its distance from the centre, at the same moderate saturation everywhere
+// iridescent colour map indexed by the facing direction's two screen-plane components (a lit-sphere lookup), spec 21: a
+// few strongly coloured patches (each a soft lobe with its own colour and brightness) lying in broad near-neutral, almost
+// white regions, with hues in clusters rather than round a wheel. Where one lobe dominates its colour is carried at full
+// strength.
 vec3 iriMap(vec2 q){
-  float h = atan(q.y, q.x) / 6.2831853 + 0.6 * min(length(q), 1.0);
-  return mix(vec3(1.0), 0.5 + 0.5 * cos(6.2831853 * (h + vec3(0.0, 0.33, 0.67))), uMapSat);
+  vec3 acc = vec3(0.0); float W = 0.0;
+  for (int k = 0; k < ${SPARK_LOBES}; k++) {
+    vec2 d = q - uLobe[k].xy; float r = uLobe[k].z * uMapR;
+    float w = uLobe[k].w * uMapStr * exp(-dot(d, d) / (r * r));
+    acc += w * uLobeC[k]; W += w;
+  }
+  return W > 1e-4 ? mix(vec3(1.0), acc / W, min(W, 1.0)) : vec3(1.0);
 }
 void main(){
   vec3 P = mix(aP0, aP1, uAlpha);
@@ -950,10 +992,12 @@ void main(){
   float I = uBright * aOp / (1.0 + uDofDim * out_);
   vec3 V = normalize(-d);
   vSoft = clamp(out_, 0.0, 1.0);
-  // the disc's plane: its own facing from the spin, turned a modest part of the way towards the camera at any distance and
-  // fully when close to it, so no disc is ever seen fully edge-on
+  // the disc's plane (spec 21): its own facing from the spin, turned towards the camera only in so far as it is near and
+  // looks large on screen: no turn below an apparent radius of uTurn0 px (at 1080 lines), a full turn from uTurn1 px. The
+  // many far, small discs keep their tumbling orientation and pass through edge-on.
+  float pxRef = Rw * uF * 540.0 / max(z, 0.05);
   vec3 N = aF * sign(dot(aF, V) + 1e-6);
-  N = normalize(mix(N, V, max(uTurn, clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0))));
+  N = normalize(mix(N, V, smoothstep(uTurn0, uTurn1, pxRef)));
   float c = dot(N, V);
   // lighting (spec 16 and 17): one point light in front of the camera; a two-sided diffuse term plus a sharp specular
   // highlight tinted by the iridescent map, through a soft saturating curve. No random brightness: the spread and the
@@ -974,9 +1018,9 @@ void main(){
     vC = 1.0 - exp(-uSatGain * (uKd * diff + uKs * spec * iri));
     vI = I * tilt * uGlint;
   }
-  // a disc smaller than a pixel keeps a one-pixel patch, dimmed by its area
+  // a disc whose radius is below uMinPx pixels is drawn at that radius, dimmed by its area (uMinPx = 0: never)
   float px = Rw * uF * uRes.y / (2.0 * max(z, 0.05));
-  if (px < 0.7) { R *= 0.7 / max(px, 1e-4); vI *= (px * px) / 0.49; }
+  if (px < uMinPx) { R *= uMinPx / max(px, 1e-4); vI *= (px * px) / (uMinPx * uMinPx); }
   vec4 clip = uVP * vec4(P + (Ub * corner.x + Vb * corner.y) * R, 1.0);
   if (z < 0.05) clip = vec4(2.0, 2.0, 2.0, 1.0);
   vQ = corner * uExt;
@@ -984,7 +1028,7 @@ void main(){
 }`;
 const FS_SPARK = `#version 300 es
 precision highp float;
-in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt;
+in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt, uEdge;
 out vec4 o;
 void main(){
   float r = length(vQ); // 1 at the disc's edge; the patch reaches uExt, so the disc is zero well inside it
@@ -992,9 +1036,10 @@ void main(){
   if (uExt > 1.5) { // glint pass: a soft round halo, zero before the patch's edge
     float q = r / uExt;
     k = 0.45 * exp(-q * q * 6.0) * smoothstep(1.0, 0.8, q);
-  } else { // a flat disc: a crisp, anti-aliased edge in focus, softening out of focus until it fills its patch
-    float e = max(fwidth(r) * 1.2, 0.04 + 0.6 * vSoft);
-    k = 1.0 - smoothstep(1.0 - e, 1.0 + 0.2 * vSoft, r);
+  } else { // a flat disc: in focus a crisp edge uEdge pixels wide (0: a hard edge, each pixel in or out), softening out of
+    // focus until it fills its patch
+    float e = max(fwidth(r) * uEdge, 0.6 * vSoft), e1 = max(0.5 * fwidth(r) * uEdge, 0.2 * vSoft);
+    k = e + e1 > 1e-5 ? 1.0 - smoothstep(1.0 - e, 1.0 + e1, r) : step(r, 1.0);
   }
   o = vec4(vC * vI * k, 1.0);
 }`;
@@ -1339,10 +1384,13 @@ function sparkUniforms(pr, m, cam, st) {
   gl.uniform1f(pr.u.uSizeW, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
   gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
   gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
-  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofDim, SPARKR.dofDim); gl.uniform1f(pr.u.uTurn, SPARKR.turn);
+  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofDim, SPARKR.dofDim);
+  gl.uniform1f(pr.u.uTurn0, SPARKR.turn0); gl.uniform1f(pr.u.uTurn1, SPARKR.turn1);
+  gl.uniform1f(pr.u.uMinPx, SPARKR.minPx); if (pr.u.uEdge) gl.uniform1f(pr.u.uEdge, SPARKR.edge);
   gl.uniform3fv(pr.u.uLight, SPARKR.light); gl.uniform3fv(pr.u.uRight, cam.right); gl.uniform3fv(pr.u.uUp, cam.up);
   gl.uniform1f(pr.u.uKd, SPARKR.kd); gl.uniform1f(pr.u.uKs, SPARKR.ks); gl.uniform1f(pr.u.uShin, SPARKR.shin);
-  gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uMapSat, SPARKR.mapSat); gl.uniform1f(pr.u.uSatGain, SPARKR.satGain);
+  gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uMapStr, SPARKR.mapStr); gl.uniform1f(pr.u.uMapR, SPARKR.mapR);
+  gl.uniform4fv(pr.u.uLobe, SPARK_LOBE_POS); gl.uniform3fv(pr.u.uLobeC, SPARK_LOBE_COL); gl.uniform1f(pr.u.uSatGain, SPARKR.satGain);
   gl.uniform1f(pr.u.uTiltPow, SPARKR.tiltPow); gl.uniform1f(pr.u.uF, cam.f);
   gl.uniform2f(pr.u.uRes, ow, oh);
 }
@@ -1507,7 +1555,7 @@ function render(opts) {
   return { width: o.w, height: o.h, data };
 }
 
-window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, moodAt, nightWeight, sceneParams } };
+window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, LOBES: SPARK_LOBES_DEF, moodAt, nightWeight, sceneParams } };
 if (SCORE) { canvas.style.display = 'none'; return; }
 
 // ---------------------------------------------------------------------------
@@ -1674,7 +1722,9 @@ group('Sparkles', [
   field('SPARKR', SPARKR, 'tiltPow', 'edge-on fade', 0.5, 10, 0.1),
   field('SPARKR', SPARKR, 'glintSize', 'glint size', 1, 10, 0.1),
   field('SPARKR', SPARKR, 'glintBright', 'glint brightness', 0, 0.5, 0.005),
-  field('SPARKR', SPARKR, 'turn', 'turn towards camera', 0, 1, 0.01), field('SPARKR', SPARKR, 'mapSat', 'colour map saturation', 0, 1, 0.01),
+  field('SPARKR', SPARKR, 'turn0', 'turn to camera from (px)', 0, 40, 0.1), field('SPARKR', SPARKR, 'turn1', 'turned fully at (px)', 0.1, 60, 0.1),
+  field('SPARKR', SPARKR, 'edge', 'edge width (px)', 0, 3, 0.05), field('SPARKR', SPARKR, 'minPx', 'smallest radius (px)', 0, 2, 0.05),
+  field('SPARKR', SPARKR, 'mapStr', 'colour map strength', 0, 4, 0.01), field('SPARKR', SPARKR, 'mapR', 'colour patch size', 0.1, 3, 0.01),
   sim('SPARK.burstP', 'burst chance', 0, 1, 0.01), sim('SPARK.burstN', 'burst size', 1, 40, 1),
   sim('SPARK.walkerP', 'walker chance', 0, 0.3, 0.005), sim('SPARK.walkStep', 'walker step', 0.005, 0.2, 0.005),
   sim('SPARK.cone', 'birth cone', 0, 1, 0.01), sim('SPARK.reverseP', 'reversed births', 0, 0.5, 0.01),

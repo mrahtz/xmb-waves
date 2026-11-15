@@ -52,6 +52,6 @@ function render(opts) {
   return { width: o.w, height: o.h, data };
 }
 
-window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, moodAt, nightWeight, sceneParams } };
+window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, LOBES: SPARK_LOBES_DEF, moodAt, nightWeight, sceneParams } };
 if (SCORE) { canvas.style.display = 'none'; return; }
 

@@ -207,22 +207,30 @@ void main(){
   o = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 
-// Sparkles: flat round discs in 3D, turned by each sparkle's spin (towards the camera when close to it), with depth of
+// Sparkles: flat round discs in 3D, turned by each sparkle's spin (towards the camera when near and large), with depth of
 // field and an iridescent tint, drawn additively straight onto the output after the final pass.
 const VS_SPARK = `#version 300 es
 precision highp float;
 layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
 uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uSizeW, uBlur, uF;
-uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uBright, uDofDim, uTurn;
-uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uMapSat, uSatGain, uTiltPow;
-uniform float uGlint, uExt; uniform vec2 uRes;
+uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uBright, uDofDim, uTurn0, uTurn1;
+uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uMapStr, uMapR, uSatGain, uTiltPow;
+uniform vec4 uLobe[${SPARK_LOBES}]; uniform vec3 uLobeC[${SPARK_LOBES}];
+uniform float uGlint, uExt, uMinPx; uniform vec2 uRes;
 out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
-// iridescent colour map indexed by the facing direction's two screen-plane components (a lit-sphere lookup): the hue
-// turns with the direction's angle and its distance from the centre, at the same moderate saturation everywhere
+// iridescent colour map indexed by the facing direction's two screen-plane components (a lit-sphere lookup), spec 21: a
+// few strongly coloured patches (each a soft lobe with its own colour and brightness) lying in broad near-neutral, almost
+// white regions, with hues in clusters rather than round a wheel. Where one lobe dominates its colour is carried at full
+// strength.
 vec3 iriMap(vec2 q){
-  float h = atan(q.y, q.x) / 6.2831853 + 0.6 * min(length(q), 1.0);
-  return mix(vec3(1.0), 0.5 + 0.5 * cos(6.2831853 * (h + vec3(0.0, 0.33, 0.67))), uMapSat);
+  vec3 acc = vec3(0.0); float W = 0.0;
+  for (int k = 0; k < ${SPARK_LOBES}; k++) {
+    vec2 d = q - uLobe[k].xy; float r = uLobe[k].z * uMapR;
+    float w = uLobe[k].w * uMapStr * exp(-dot(d, d) / (r * r));
+    acc += w * uLobeC[k]; W += w;
+  }
+  return W > 1e-4 ? mix(vec3(1.0), acc / W, min(W, 1.0)) : vec3(1.0);
 }
 void main(){
   vec3 P = mix(aP0, aP1, uAlpha);
@@ -235,10 +243,12 @@ void main(){
   float I = uBright * aOp / (1.0 + uDofDim * out_);
   vec3 V = normalize(-d);
   vSoft = clamp(out_, 0.0, 1.0);
-  // the disc's plane: its own facing from the spin, turned a modest part of the way towards the camera at any distance and
-  // fully when close to it, so no disc is ever seen fully edge-on
+  // the disc's plane (spec 21): its own facing from the spin, turned towards the camera only in so far as it is near and
+  // looks large on screen: no turn below an apparent radius of uTurn0 px (at 1080 lines), a full turn from uTurn1 px. The
+  // many far, small discs keep their tumbling orientation and pass through edge-on.
+  float pxRef = Rw * uF * 540.0 / max(z, 0.05);
   vec3 N = aF * sign(dot(aF, V) + 1e-6);
-  N = normalize(mix(N, V, max(uTurn, clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0))));
+  N = normalize(mix(N, V, smoothstep(uTurn0, uTurn1, pxRef)));
   float c = dot(N, V);
   // lighting (spec 16 and 17): one point light in front of the camera; a two-sided diffuse term plus a sharp specular
   // highlight tinted by the iridescent map, through a soft saturating curve. No random brightness: the spread and the
@@ -259,9 +269,9 @@ void main(){
     vC = 1.0 - exp(-uSatGain * (uKd * diff + uKs * spec * iri));
     vI = I * tilt * uGlint;
   }
-  // a disc smaller than a pixel keeps a one-pixel patch, dimmed by its area
+  // a disc whose radius is below uMinPx pixels is drawn at that radius, dimmed by its area (uMinPx = 0: never)
   float px = Rw * uF * uRes.y / (2.0 * max(z, 0.05));
-  if (px < 0.7) { R *= 0.7 / max(px, 1e-4); vI *= (px * px) / 0.49; }
+  if (px < uMinPx) { R *= uMinPx / max(px, 1e-4); vI *= (px * px) / (uMinPx * uMinPx); }
   vec4 clip = uVP * vec4(P + (Ub * corner.x + Vb * corner.y) * R, 1.0);
   if (z < 0.05) clip = vec4(2.0, 2.0, 2.0, 1.0);
   vQ = corner * uExt;
@@ -269,7 +279,7 @@ void main(){
 }`;
 const FS_SPARK = `#version 300 es
 precision highp float;
-in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt;
+in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt, uEdge;
 out vec4 o;
 void main(){
   float r = length(vQ); // 1 at the disc's edge; the patch reaches uExt, so the disc is zero well inside it
@@ -277,9 +287,10 @@ void main(){
   if (uExt > 1.5) { // glint pass: a soft round halo, zero before the patch's edge
     float q = r / uExt;
     k = 0.45 * exp(-q * q * 6.0) * smoothstep(1.0, 0.8, q);
-  } else { // a flat disc: a crisp, anti-aliased edge in focus, softening out of focus until it fills its patch
-    float e = max(fwidth(r) * 1.2, 0.04 + 0.6 * vSoft);
-    k = 1.0 - smoothstep(1.0 - e, 1.0 + 0.2 * vSoft, r);
+  } else { // a flat disc: in focus a crisp edge uEdge pixels wide (0: a hard edge, each pixel in or out), softening out of
+    // focus until it fills its patch
+    float e = max(fwidth(r) * uEdge, 0.6 * vSoft), e1 = max(0.5 * fwidth(r) * uEdge, 0.2 * vSoft);
+    k = e + e1 > 1e-5 ? 1.0 - smoothstep(1.0 - e, 1.0 + e1, r) : step(r, 1.0);
   }
   o = vec4(vC * vI * k, 1.0);
 }`;

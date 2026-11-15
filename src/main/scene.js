@@ -175,14 +175,48 @@ let BG_EASE = 0.05; // how far the background gradient moves towards its new val
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
   // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
-  size: 0.010, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
-  turn: 0.3,                       // part of the way every disc is turned towards the camera (fully when close)
-  bright: 0.55, glintSize: 4.5, glintBright: 0.10,
-  // lighting (spec 16 and 17): one point light in the scene in front of the camera, diffuse kd and specular ks with exponent
-  // shin, the highlight tinted by the iridescent map (saturation mapSat everywhere, exponent mapExp = 1 leaves it unchanged),
-  // the sum through 1 - exp(-satGain x); opacity falls as a disc turns towards edge-on, with the power tiltPow of one minus
-  // the cosine
-  light: [1.3, 0.7, -1.5], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.0, mapSat: 0.15, satGain: 1.5, tiltPow: 1.0,
+  size: 0.0065, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
+  // turn towards the camera (spec 21): none for a disc whose apparent radius is below turn0 px (at 1080 lines), complete
+  // from turn1 px, so only the few near, large discs face the viewer and the rest pass through edge-on
+  turn0: 3.5, turn1: 8.0,
+  // in focus a crisp edge edge px wide (0: hard, spec 21's hard-edged discs); a disc below minPx px radius is drawn at that
+  // radius, dimmed by its area (0: never, so a disc smaller than a pixel shows only where it covers a pixel's centre)
+  edge: 0, minPx: 0.7,
+  bright: 1.088, glintSize: 4.5, glintBright: 0.10,
+  // lighting (spec 16, 17 and 21): one point light in the scene in front of the camera, diffuse kd and specular ks with
+  // exponent shin, the highlight tinted at full strength by the iridescent map (below; mapStr scales every lobe's strength,
+  // mapR their radii; exponent mapExp = 1 leaves it unchanged), the sum through 1 - exp(-satGain x); opacity falls as a disc
+  // turns towards edge-on, with the power tiltPow of one minus the cosine
+  light: [1.3, 0.7, -1.5], kd: 0.224, ks: 1.270, shin: 66, mapExp: 1.0, mapStr: 0.98, mapR: 1.0, satGain: 0.758, tiltPow: 1.0,
 };
+// The iridescent map's lobes (spec 21, original design): position in the map (the facing direction's right and up
+// components), radius, strength, and colour at full strength (its brightness included). Between them the map is near-neutral
+// white. The hues come in clusters: pinks and magentas, peach and gold, red-orange, a little violet-blue; no green or cyan.
+const SPARK_LOBES_DEF = [
+  // x,     y,     r,  strength  colour
+  [-0.92, -0.50, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.66, -0.50, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.40, -0.50, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.14, -0.50, 0.21, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.38, -0.50, 0.21, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [0.90, -0.50, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.27, -0.20, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [0.25, -0.20, 0.21, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.51, -0.20, 0.21, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [1.03, -0.20, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.92, 0.10, 0.21, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [-0.66, 0.10, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.40, 0.10, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.14, 0.10, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
+  [0.12, 0.10, 0.21, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [0.90, 0.10, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.79, 0.40, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.27, 0.40, 0.21, 1.5, [1.00, 0.35, 0.65]], // pink
+  [-0.01, 0.40, 0.21, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [1.03, 0.40, 0.21, 1.5, [1.00, 0.30, 0.12]], // red-orange
+];
+const SPARK_LOBES = SPARK_LOBES_DEF.length;
+const SPARK_LOBE_POS = new Float32Array(SPARK_LOBES_DEF.flatMap(l => [l[0], l[1], l[2], l[3]]));
+const SPARK_LOBE_COL = new Float32Array(SPARK_LOBES_DEF.flatMap(l => l[4]));
 let DITHER = 0.85; // output levels, peak
 
