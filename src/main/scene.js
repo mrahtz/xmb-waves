@@ -134,9 +134,9 @@ function partsOf(d) {
 // separate choices. The placement is CAMERA's px, py, pz, raised or lowered per mood by camLift; it sets the angles the sheet is
 // seen at. The aim is one rotation of the view about the horizontal axis along the sheet's length (camPitch, degrees,
 // negative = looking up); it sets where the band falls on the screen. A turn about the vertical axis (yaw) is at most a
-// trace, and there is no roll. dist is only the reference distance of the size factor (4.5), not where the camera stands.
+// trace (2.5 degrees, which with the placement keeps the shaken left side slightly nearer), and there is no roll. dist is only the reference distance of the size factor (4.5), not where the camera stands.
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 64.4, px: 0.4728, py: -0.5399, pz: -3.1131, yaw: 6, dist: 3.161, near: 0.1, far: 40 };
+const CAMERA = { fovY: 64.4, px: 0.8, py: -0.5399, pz: -3.1131, yaw: 2.5, dist: 3.161, near: 0.1, far: 40 };
 function cameraFor(pitchDeg, aspect, lift) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
