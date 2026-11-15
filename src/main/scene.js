@@ -175,7 +175,7 @@ let BG_EASE = 0.05; // how far the background gradient moves towards its new val
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
   // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
-  size: 0.0062, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
+  size: 0.0062, blur: 1.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
   // turn towards the camera (spec 21): none for a disc whose apparent radius is below turn0 px (at 1080 lines), complete
   // from turn1 px, so only the few near, large discs face the viewer and the rest pass through edge-on
   turn0: 3.5, turn1: 8.0,
