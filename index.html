@@ -684,7 +684,9 @@ const WAVE = {
   fresPeak: 0.12, fresZero: 0.5961, fresTail: 0.1403,
   fade: 0.06,                           // fraction of the sheet over which it fades out, linearly, at the ends and edges
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
-  tintL: [0.94, 0.94, 0.94], tintR: [1.0, 1.0, 1.0], // a neutral tint brightening slightly from left to right
+  // a neutral tint brightening slightly from left to right (spec 20: measured, the band's brightest places left against right
+  // over 48 clips of the original, matched by my renders at the same conditions)
+  tintL: [0.82, 0.82, 0.82], tintR: [1.0, 1.0, 1.0],
 };
 // (these scalars are let, not const, only so the settings menu can change them live)
 // background lighting (spec 17, original design): base level away from the lights, the spot's and the bottom glow's
