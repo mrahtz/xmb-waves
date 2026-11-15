@@ -28,7 +28,7 @@ let scoreSim = null; // { key, sim, frames }
 function render(opts) {
   const o = resolveOpts(opts);
   const scene = sceneParams(o.timeParts, o.theme);
-  const cam = cameraFor(scene.mood.camPitch, o.w / o.h);
+  const cam = cameraFor(scene.mood.camPitch, o.w / o.h, scene.mood.camLift);
   const key = [o.seed, o.theme, o.timeParts.join(','), o.w / o.h].join('|');
   if (!scoreSim || scoreSim.key !== key || scoreSim.frames > o.frames) {
     const sim = SIMM.createSim(o.seed);

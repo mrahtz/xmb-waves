@@ -32,25 +32,25 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 // ---------------------------------------------------------------------------
 const MOOD_KEYS = [
   'waveBright', 'base', 'fres', 'sizeK',
-  'latX', 'latY', 'latZ', 'envCross', 'camPitch',
+  'latX', 'latY', 'latZ', 'envCross', 'camPitch', 'camLift',
   'black', 'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3, camLift: 0.2745,
     black: 0.02, exposure: 1.5, white: 1.0, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8, camLift: 0,
     black: 0.02, exposure: 1.1, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 1.3,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8, camLift: 0,
     black: 0.02, exposure: 1.0, white: 0.9, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8, camLift: 0,
     black: 0.02, exposure: 1.25, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
@@ -130,17 +130,19 @@ function partsOf(d) {
 }
 
 // ---------------------------------------------------------------------------
-// Camera (original design): looks across the sheet from in front, very nearly at right angles to its length (a slight
-// yaw puts the shaken left side nearer), from slightly below it, looking up (negative pitch); the pitch follows the mood
-// (flatter at night).
+// Camera (original design; spec 22): where the camera stands (its placement) and where it points (its aim) are two
+// separate choices. The placement is CAMERA's px, py, pz, raised or lowered per mood by camLift; it sets the angles the sheet is
+// seen at. The aim is one rotation of the view about the horizontal axis along the sheet's length (camPitch, degrees,
+// negative = looking up); it sets where the band falls on the screen. A turn about the vertical axis (yaw) is at most a
+// trace, and there is no roll. dist is only the reference distance of the size factor (4.5), not where the camera stands.
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 64.4, yaw: 6, dist: 3.161, target: [0.8, -0.1, 0.0], near: 0.1, far: 40 }; // a moderate field of view, close; the sheet seen from slightly below (spec 17)
-function cameraFor(pitchDeg, aspect) {
+const CAMERA = { fovY: 64.4, px: 0.4728, py: -0.5399, pz: -3.1131, yaw: 6, dist: 3.161, near: 0.1, far: 40 };
+function cameraFor(pitchDeg, aspect, lift) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
   const right = [Math.cos(yw), 0, -Math.sin(yw)];
   const up = [fwd[1] * right[2] - fwd[2] * right[1], fwd[2] * right[0] - fwd[0] * right[2], fwd[0] * right[1] - fwd[1] * right[0]];
-  const pos = CAMERA.target.map((t, i) => t - CAMERA.dist * fwd[i]);
+  const pos = [CAMERA.px, CAMERA.py + (lift || 0), CAMERA.pz];
   const f = 1 / Math.tan(CAMERA.fovY * d2r / 2), n = CAMERA.near, fa = CAMERA.far;
   // view: rows right, up, -fwd (right-handed clip convention); column-major for GL
   const tx = -(right[0] * pos[0] + right[1] * pos[1] + right[2] * pos[2]);

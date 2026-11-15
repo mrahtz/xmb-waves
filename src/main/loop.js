@@ -12,7 +12,7 @@ function tick(now) {
   applyLayout(lay);
   ensureTargets(lay.renderW, lay.renderH, lay.outW, lay.outH, lay.ss);
   const scene = currentScene(now);
-  const cam = cameraFor(scene.mood.camPitch, lay.renderW / lay.renderH);
+  const cam = cameraFor(scene.mood.camPitch, lay.renderW / lay.renderH, scene.mood.camLift);
   const ms = JSON.stringify(simMoodParams(scene.mood, cam), (k, v) => typeof v === 'number' ? +v.toFixed(3) : v);
   if (ms !== lastMoodSent) { worker.postMessage({ type: 'mood', mood: JSON.parse(ms) }); lastMoodSent = ms; }
   if (tunePending) { worker.postMessage({ type: 'tune', values: simTuneMap() }); tunePending = false; }
