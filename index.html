@@ -548,25 +548,31 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 const MOOD_KEYS = [
   'waveBright', 'base', 'fres', 'sizeK',
   'latX', 'latY', 'latZ', 'envCross', 'camPitch',
-  'black', 'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
+  'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
+// The composite's black offset (spec 4.5, version 20): the same in every mood (the moods set only the gain and the white
+// point). Fitted on the original's night footage: how far down a night frame the top stays flat at the darkest level.
+let TONE_BLACK = 0.02;
+// Glare (spec 5, version 20): each mood's bright-pass threshold is fixed, in the composite's output units after its curve.
+// Fitted with the glare layer switched on and off: the most halo at dusk, less by day (faint), least at dawn; at night the
+// threshold sits well above anything in the picture, so the night has none whatever the strength.
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
-    black: 0.02, exposure: 1.5, white: 1.0, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
+    exposure: 1.5, white: 1.0, glareThr: 1.2, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
-    black: 0.02, exposure: 1.1, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 1.3,
+    exposure: 1.1, white: 1.0, glareThr: 0.78, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
-    black: 0.02, exposure: 1.0, white: 0.9, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.0, white: 0.9, glareThr: 0.76, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
-    black: 0.02, exposure: 1.25, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.25, white: 1.0, glareThr: 0.92, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
@@ -877,9 +883,10 @@ void main(){
   if (uBgOn == 1) c += bicubicBg(vUv);
   if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);
   c = toneMap(c);
-  // keep the colour: one weight from the brightest channel, a soft knee (zero up to the threshold, rising above it)
+  // keep the colour: one weight from the brightest channel, a soft knee (zero up to the threshold, rising above it). The
+  // threshold is the mood's own, fixed (spec 20); the knee's width is fixed too, so any threshold works, also above 1.
   float m = max(c.r, max(c.g, c.b)), e = max(m - uThr, 0.0);
-  o = vec4(c * (e * e / (e + 0.1 * (1.0 - uThr))) / max(m, 1e-4), 1.0);
+  o = vec4(c * (e * e / (e + 0.03)) / max(m, 1e-4), 1.0);
 }`;
 const FS_DOWN = `#version 300 es
 precision highp float;
@@ -1115,10 +1122,8 @@ function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(
 function bindTarget(t) { gl.bindFramebuffer(gl.FRAMEBUFFER, t ? t.fb : null); }
 
 // Background images: day and night for each month, stacked in one texture.
-let bgImageData = null;
 function makeBackgroundImages() {
   const tiles = 24, data = new Float32Array(BG_W * BG_H * tiles * 4);
-  bgImageData = data;
   const put = (tile, x, y, c) => { const o = ((tile * BG_H + y) * BG_W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 1; };
   PALETTES.forEach((P, m) => {
     for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
@@ -1140,25 +1145,6 @@ function makeBackgroundImages() {
   return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
 }
 const bgImages = makeBackgroundImages();
-// Peak luminance of the background for this frame's blend (the glare keeps only
-// what exceeds the background itself, so a bright palette never blooms into a haze).
-function bgPeak(sc) {
-  let peak = 0; const n = BG_W * BG_H;
-  const a = sc.monA * 2 * n * 4, b = sc.monB * 2 * n * 4, na = a + n * 4, nb = b + n * 4;
-  const f = Math.min(Math.max(((sc.monC - 0.5) / sc.monW + 1) / 2, 0), 1), k = sc.night * BGL.nightMix; // the month mix mid-screen
-  for (let i = 0; i < n * 4; i += 4) {
-    let l = 0;
-    for (let c = 0; c < 3; c++) {
-      const w = [0.299, 0.587, 0.114][c];
-      const day = bgImageData[a + i + c] + (bgImageData[b + i + c] - bgImageData[a + i + c]) * f;
-      const night = bgImageData[na + i + c] + (bgImageData[nb + i + c] - bgImageData[na + i + c]) * f;
-      l += w * (day * sc.daylight * (BGL.base + BGL.spot + BGL.glow) * (1 - k) + night * (BGL.nightBase + BGL.spot) * k);
-    }
-    if (l > peak) peak = l;
-  }
-  return peak;
-}
-
 // Control nets: two float textures (previous and current step).
 const netTex = [0, 1].map(() => makeTex(NN, NN, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST, null));
 const netUpload = new Float32Array(NN * NN * 4);
@@ -1215,9 +1201,8 @@ function setBgAndWave(pr, bgT, bgOn, waveOn, dstW, dstH) {
   gl.uniform1i(pr.u.uWTaps, taps); gl.uniform2f(pr.u.uWTexel, 1 / dstW, 1 / dstH); gl.uniform1f(pr.u.uWSpread, WAVE.filterSpread);
   gl.uniform3fv(pr.u.uTintL, WAVE.tintL); gl.uniform3fv(pr.u.uTintR, WAVE.tintR);
 }
-// the composite's per-mood exposure and tone curve (spec 17)
-function setTone(pr, m) { gl.uniform1f(pr.u.uBlack, m.black); gl.uniform1f(pr.u.uGain, m.exposure); gl.uniform1f(pr.u.uWhite, m.white); }
-function toneJS(c, m) { c = Math.max(c - m.black, 0) * m.exposure; return c * (1 + c / (m.white * m.white)) / (1 + c); }
+// the composite's exposure and tone curve (spec 17 and 20): one black offset for every mood, the gain and white point per mood
+function setTone(pr, m) { gl.uniform1f(pr.u.uBlack, TONE_BLACK); gl.uniform1f(pr.u.uGain, m.exposure); gl.uniform1f(pr.u.uWhite, m.white); }
 
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
 // The settings menu may add: view {x, y} (where the picture sits in the output
@@ -1287,7 +1272,7 @@ function renderFrame(st, outTarget) {
   let glareT = null, glareK = 0;
   if (L.glare && (L.bg || L.wave)) {
     if (T) T.begin('glare');
-    glareT = buildGlare(m, bgT, L.bg, L.wave, L.bg ? bgPeak(sc) : 0); glareK = RT.glareScale;
+    glareT = buildGlare(m, bgT, L.bg, L.wave); glareK = RT.glareScale;
     if (T) T.end();
   }
   if (stopAfter < 4) return;
@@ -1347,14 +1332,15 @@ function sparkUniforms(pr, m, cam, st) {
   gl.uniform2f(pr.u.uRes, ow, oh);
 }
 
-function buildGlare(m, bgT, bgOn, waveOn, peak) {
+function buildGlare(m, bgT, bgOn, waveOn) {
   const lv = RT.levels;
   // bright-pass at a small size (the pyramid's first level is far below the screen's resolution)
   let pr = PR.bright; gl.useProgram(pr.p);
   bindTarget(lv[0].a); gl.viewport(0, 0, lv[0].w, lv[0].h);
   setBgAndWave(pr, bgT, bgOn, waveOn, lv[0].w, lv[0].h);
   setTone(pr, m);
-  gl.uniform1f(pr.u.uThr, Math.max(m.glareThr, Math.min(0.97, toneJS(peak, m) + 0.06)));
+  // the threshold is the mood's own (spec 20): never recomputed from the frame's content
+  gl.uniform1f(pr.u.uThr, m.glareThr);
   gl.activeTexture(gl.TEXTURE0);
   quad();
   // mip pyramid
@@ -1659,7 +1645,7 @@ group('Background', [
   live('DITHER', 'dither amplitude', () => DITHER, v => { DITHER = v; }, 0, 3, 0.05),
 ]);
 group('Glare', [
-  mood('black', 'black offset', 0, 0.3, 0.005), mood('exposure', 'exposure (gain)', 0.2, 4, 0.01), mood('white', 'white point', 0.5, 4, 0.01),
+  live('TONE_BLACK', 'black offset (all moods)', () => TONE_BLACK, v => { TONE_BLACK = v; }, 0, 0.3, 0.005), mood('exposure', 'exposure (gain)', 0.2, 4, 0.01), mood('white', 'white point', 0.5, 4, 0.01),
   mood('glareThr', 'glare threshold', 0, 1, 0.01), mood('glareSigma', 'blur radius', 0.3, 4, 0.05), mood('glareRatio', 'level ratio', 0.1, 1.0, 0.01),
   mood('glareStrength', 'strength', 0, 3, 0.01),
 ]);

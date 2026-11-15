@@ -147,7 +147,7 @@ group('Background', [
   live('DITHER', 'dither amplitude', () => DITHER, v => { DITHER = v; }, 0, 3, 0.05),
 ]);
 group('Glare', [
-  mood('black', 'black offset', 0, 0.3, 0.005), mood('exposure', 'exposure (gain)', 0.2, 4, 0.01), mood('white', 'white point', 0.5, 4, 0.01),
+  live('TONE_BLACK', 'black offset (all moods)', () => TONE_BLACK, v => { TONE_BLACK = v; }, 0, 0.3, 0.005), mood('exposure', 'exposure (gain)', 0.2, 4, 0.01), mood('white', 'white point', 0.5, 4, 0.01),
   mood('glareThr', 'glare threshold', 0, 1, 0.01), mood('glareSigma', 'blur radius', 0.3, 4, 0.05), mood('glareRatio', 'level ratio', 0.1, 1.0, 0.01),
   mood('glareStrength', 'strength', 0, 3, 0.01),
 ]);
