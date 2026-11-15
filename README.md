@@ -185,25 +185,27 @@ README).
 
 ## Status
 
-Built to spec version 18 and tuned against the original's recordings in
-`comparison/original/`, measured with the same tools as my renders (see
-`docs/references/tuning-log.md`). Like the original, every start is the same,
-so the band's place at a given time since the start is fixed: it matches the
-recordings' centre height 40 s and 240 s after the start, and over the 30 s
-recordings its mean height, range, tilt period (22 s) and share of slow
-motion. Also matched: the band's centre speed, the number of strands per
-column at noon, the sideways drift of the dark partings, the band's
-brightness at night, and the sparkles' count, brightness, look and motion at
-noon. The geometry checks of 4.4d (framing, depth, camera below the sheet)
-and 4.5 (where the sheet sits on the shading curves) pass in every mood.
-Still short of the original: at the same centre speed the picture changes
-more slowly (0.3-0.5 correlation after one second against 0.02-0.19, most at
-night, where the band's quick motion is also too weak), the band is thinner
-and simpler at night (2.8 peaks per column against 3.7), it rarely pinches,
-neighbouring strands move a little too differently, its lines stand out more
-over the band, and the brightest sparkles are a little dim. The bump and the
-bob could not be checked on long footage (none exists yet). The palettes are fitted to the recordings at four months
-(mean difference about 12.5 levels per channel).
+Built to spec version 22 and tuned against the original's footage (19
+recordings, 19 faithful renders and 48 noise clips from 40 s to 30 minutes
+after the start), measured with the fixed battery (see
+`docs/references/tuning-log.md`). The sheet is gathered at the shaken end and
+folds gently over itself instead of rolling into a tube, and its width recedes
+in depth (down a screen column the distance to it changes about three times as
+much as from left to right). The camera's placement and aim are separate
+settings, with only a trace of turn. Matched within the original's range over
+three seeds: strands per column (3.45, original 3.71), the band's brightness
+over the background (35; 41), its thickness, the sheen's width (29 px; 24),
+the picture's correlation after one second (0.26; 0.15) and the band's
+temporal spectrum; the band keeps its thickness and strands over 30 minutes,
+as the original does. Like the original, every start is the same. Still short
+of the original: less of the band is filled with light (19 % above 40 % of its
+peak against 34 %), its lines are thinner (4.6 px against 6.6), fewer strands
+are bright (1.4 above 40 % against 2.0), the picture five seconds on is too
+anti-correlated, the sparkles fly up faster (they take the sheet's livelier
+motion), and the band's slow height over half an hour does not yet follow the
+original's (the warp's phases were fitted to 40 s and 240 s only). The
+palettes are fitted to the recordings at four months (mean difference about
+12.5 levels per channel).
 
 Not verifiable from the references available so far: the palettes for
 January, March, June, July and December (and theme 1, silver), the look in
