@@ -204,3 +204,27 @@ reference statistics.
 `cmaes.py` starts from the current build's values (`BASE_PAGE`, default `index.html`). Its targets are the
 reference statistics measured with these tools. See `cmaes.py` for the parameter bounds and the spec's
 constraints it enforces.
+
+## Background fit (`bgfit/`)
+
+The background's settings and palettes (spec section 3) are fitted to the footage's backgrounds with real GPU renders.
+
+    MEASURE_CACHE=DIR python3 battery.py --lanes background --footage-only   # the footage's bgest.npz files
+    python3 bgfit/prep.py DIR          # targets in work/bgfit/: per condition the mean of the recording's and the render's
+                                       # background estimate at 240 x 135, and where neither shows the wave
+    python3 bgfit/fit.py index.html OUT.json [GENS] [WORKERS] [--start OUT0.json] [--sigma 0.03] [--seed N] [--explain 1]
+    python3 bgfit/unseen.py OUT.json FINAL.json   # the months the footage never shows: the fitted months' mean change
+    python3 bgfit/applyfit.py FINAL.json           # writes BGL, BGW, NIGHT_IMG and PALETTES into src/main/scene.js
+    python3 bgfit/view.py index.html sheet.png     # footage beside the build's background, per condition
+    python3 bgfit/curve.py index.html [OUT.json|-] [DATE]   # the picture over the day: brightness, top/bottom, saturation
+
+`bgworker.js` keeps one headless Chromium on the GPU per worker. Each candidate sets the settings through
+`XMBW._internals.bg`, remakes the images and renders the background only (score mode, `layers=bg`: the composite's
+exposure and tone curve included, no simulation) at every condition. Its score is the mean absolute difference in
+levels over the pixels where neither clip shows the wave. `fit.py` is a CMA-ES over the settings and the eight months
+seen in the footage (January, February, April, May, July, August, October and November; the 15th of a month shows it
+mixed with the next). Its objective adds soft penalties for what the spec asks and the footage cannot show: N8's
+brightness over the day (darkest about 02:00 and darker than at midnight, steep rise 03:00-06:00, fading 19:00-22:00),
+the night images at their floor near dusk and dawn and clear of it at midnight, and each month kept in its colour
+family (spec 7: January silver, near neutral; the others within 20 degrees of hue of their starting colours, and
+within a factor 1.5 in value). One generation (24 candidates, 19 conditions each) takes about 0.2 s with six workers.

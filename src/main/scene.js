@@ -12,18 +12,18 @@ const TAU = Math.PI * 2;
 // Colours are display values (sRGB-encoded) in 0..1.
 // ---------------------------------------------------------------------------
 const PALETTES = [
-  /* 1 silver      */ { top: [0.485, 0.490, 0.479], bottom: [0.654, 0.632, 0.640], glow: [0.130, 0.125, 0.112], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.193, 0.168, 0.249], 0.35] },
-  /* 2 yellow      */ { top: [0.629, 0.599, 0.250], mid: [0.478, 0.421, 0.143], bottom: [0.716, 0.688, 0.387], glow: [0.113, 0.103, 0.056], glowPos: [0.30, 0.0], glowSize: 0.55, tilt: -0.10, night: [[0.115, 0.157, 0.028], 0.55] },
-  /* 3 light green */ { top: [0.427, 0.557, 0.159], bottom: [0.646, 0.830, 0.447], glow: [0.157, 0.186, 0.090], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.059, 0.157, 0.014], 0.35] },
-  /* 4 pink        */ { top: [0.511, 0.260, 0.338], mid: [0.601, 0.307, 0.406], bottom: [0.865, 0.453, 0.607], glow: [0.157, 0.077, 0.113], glowPos: [0.12, 0.25], glowSize: 0.55, tilt: -0.22, night: [[0.200, 0.042, 0.143], 0.35] },
-  /* 5 green       */ { top: [0.067, 0.434, 0.136], mid: [0.057, 0.488, 0.143], bottom: [0.093, 0.593, 0.209], glow: [0.067, 0.145, 0.068], glowPos: [0.35, 0.0], glowSize: 0.55, tilt: 0.04, night: [[0.017, 0.196, 0.021], 0.35] },
-  /* 6 lavender    */ { top: [0.472, 0.351, 0.704], bottom: [0.716, 0.652, 1.000], glow: [0.157, 0.124, 0.205], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.082, 0.079, 0.137], 0.35] },
-  /* 7 teal        */ { top: [0.097, 0.433, 0.446], bottom: [0.181, 0.591, 0.473], glow: [0.129, 0.173, 0.171], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.000, 0.132, 0.045], 0.35] },
-  /* 8 blue        */ { top: [0.270, 0.516, 0.635], bottom: [0.115, 0.237, 0.626], glow: [0.090, 0.103, 0.113], glowPos: [0.30, 0.0], glowSize: 0.55, tilt: 0.28, night: [[0.033, 0.059, 0.233], 0.15] },
-  /* 9 purple      */ { top: [0.247, 0.155, 0.409], bottom: [0.693, 0.451, 0.983], glow: [0.225, 0.165, 0.295], glowPos: [0.50, 0.0], glowSize: 0.42, tilt: 0.04, night: [[0.059, 0.068, 0.247], 0.15] },
-  /*10 gold        */ { top: [0.430, 0.376, 0.130], bottom: [0.535, 0.425, 0.088], glow: [0.179, 0.187, 0.172], glowPos: [0.45, 0.0], glowSize: 0.45, tilt: -0.04, night: [[0.219, 0.104, 0.000], 0.35] },
-  /*11 brown       */ { top: [0.494, 0.330, 0.136], bottom: [0.462, 0.284, 0.118], glow: [0.292, 0.258, 0.227], glowPos: [0.30, 0.0], glowSize: 0.40, tilt: -0.10, night: [[0.099, 0.068, 0.017], 0.35] },
-  /*12 red         */ { top: [0.585, 0.082, 0.090], bottom: [0.807, 0.261, 0.298], glow: [0.180, 0.082, 0.079], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.166, 0.023, 0.014], 0.35] },
+  /* 1 silver      */ { top: [0.549, 0.492, 0.487], mid: [0.580, 0.565, 0.555], bottom: [0.596, 0.591, 0.528], glow: [0.150, 0.205, 0.065], glowPos: [0.917, 0.385], glowSize: 0.539, tilt: 0.006, night: [[0.351, 0.294, 0.293], 0.350] },
+  /* 2 yellow      */ { top: [0.666, 0.688, 0.176], mid: [0.609, 0.413, 0.000], bottom: [0.836, 0.752, 0.316], glow: [0.229, 0.298, 0.079], glowPos: [0.148, 0.000], glowSize: 0.513, tilt: -0.040, night: [[0.242, 0.273, 0.172], 0.550] },
+  /* 3 light green */ { top: [0.417, 0.593, 0.053], bottom: [0.576, 0.795, 0.339], glow: [0.157, 0.186, 0.090], glowPos: [0.550, 0.100], glowSize: 0.550, tilt: 0.060, night: [[0.103, 0.229, 0.044], 0.350] },
+  /* 4 pink        */ { top: [0.562, 0.229, 0.321], mid: [0.550, 0.077, 0.298], bottom: [0.816, 0.287, 0.555], glow: [0.068, 0.000, 0.000], glowPos: [0.095, 0.307], glowSize: 0.578, tilt: -0.016, night: [[0.359, 0.160, 0.254], 0.350] },
+  /* 5 green       */ { top: [0.032, 0.307, 0.011], mid: [0.122, 0.586, 0.150], bottom: [0.026, 0.498, 0.032], glow: [0.000, 0.260, 0.046], glowPos: [0.751, 0.152], glowSize: 0.757, tilt: 0.400, night: [[0.026, 0.213, 0.058], 0.350] },
+  /* 6 lavender    */ { top: [0.435, 0.271, 0.750], bottom: [0.619, 0.543, 0.957], glow: [0.157, 0.124, 0.205], glowPos: [0.550, 0.100], glowSize: 0.550, tilt: 0.060, night: [[0.129, 0.125, 0.200], 0.350] },
+  /* 7 teal        */ { top: [0.005, 0.510, 0.544], mid: [0.000, 0.403, 0.497], bottom: [0.000, 0.407, 0.391], glow: [0.000, 0.322, 0.224], glowPos: [0.906, 0.600], glowSize: 0.562, tilt: 0.343, night: [[0.000, 0.207, 0.199], 0.350] },
+  /* 8 blue        */ { top: [0.088, 0.568, 0.656], mid: [0.000, 0.335, 0.518], bottom: [0.000, 0.274, 0.553], glow: [0.067, 0.281, 0.417], glowPos: [0.117, 0.098], glowSize: 0.507, tilt: 0.400, night: [[0.000, 0.145, 0.204], 0.150] },
+  /* 9 purple      */ { top: [0.216, 0.091, 0.436], bottom: [0.596, 0.308, 0.941], glow: [0.225, 0.165, 0.295], glowPos: [0.500, 0], glowSize: 0.420, tilt: 0.040, night: [[0.118, 0.129, 0.361], 0.150] },
+  /*10 gold        */ { top: [0.555, 0.472, 0.001], mid: [0.576, 0.445, 0.002], bottom: [0.770, 0.505, 0.009], glow: [0.081, 0.032, 0.055], glowPos: [0.732, 0.187], glowSize: 0.437, tilt: 0.113, night: [[0.380, 0.234, 0.000], 0.350] },
+  /*11 brown       */ { top: [0.526, 0.343, 0.079], mid: [0.564, 0.339, 0.073], bottom: [0.442, 0.315, 0.092], glow: [0.146, 0.161, 0.000], glowPos: [0.110, 0.121], glowSize: 0.446, tilt: -0.147, night: [[0.180, 0.084, 0.000], 0.350] },
+  /*12 red         */ { top: [0.623, 0.000, 0.010], bottom: [0.773, 0.122, 0.167], glow: [0.180, 0.082, 0.079], glowPos: [0.550, 0.100], glowSize: 0.550, tilt: 0.060, night: [[0.243, 0.058, 0.046], 0.350] },
 ];
 const BG_W = 32, BG_H = 18; // size of each generated background image
 
@@ -81,7 +81,7 @@ function nightWeight(hour) {
 // (0 at the warp's midday, +-pi at its midnight) drives the day image's two lights, its daylight factor and its shaping down
 // the frame. BGW: warp strength, the hour the warp centres on, the daylight factor's floor and exponent, and the warped
 // angles between which the shaping down the frame switches on (nothing below a0, full from a1).
-const BGW = { warp: 0.6, noon: 12.0, dayFloor: 0.0, dayPow: 2.0, a0: 1.5, a1: 2.1, envPow: 1.0 };
+const BGW = { warp: 0.853, noon: 11.958, dayFloor: 0.032, dayPow: 0.973, a0: 1.408, a1: 2.086, envPow: 2.950 };
 function wrapPi(a) { return a - TAU * Math.floor((a + Math.PI) / TAU); }
 function dayAngle(hour) {
   const p = wrapPi(((hour - BGW.noon) / 24) * TAU);
@@ -174,10 +174,10 @@ const WAVE = {
 // their level away from the lights; nightFloor: the floor under the lit, enveloped level.
 // the night images: dark above top (in image heights from the top), rising with exponent pow to the bottom, brighter by side
 // towards the palette's side, glow times the palette's night colour
-const NIGHT_IMG = { top: 0.3, pow: 1.4, side: 0.25, glow: 3.0 };
-const BGL = { base: 0.7, spot: 0.8, ovalX: 0.8, ovalY: 0.65, spotW: 0.55, spotH: 0.45,
-  glow: 0.7, bandX: 0.3, bandW: 0.45, bandY: -0.05, bandH: 0.35, pale: 0.4, midSat: 0.3,
-  topDark: 1.4, topSat: 2.0, topPow: 1.0, nightMix: 0.6, nightBase: 0.6, nightFloor: 0.45 };
+const NIGHT_IMG = { top: 0.232, pow: 0.910, side: 0.000, glow: 3.000 };
+const BGL = { base: 0.647, spot: 0.797, ovalX: 0.845, ovalY: 0.686, spotW: 0.425, spotH: 0.321,
+  glow: 0.756, bandX: 0.415, bandW: 0.641, bandY: 0.000, bandH: 0.302, pale: 0.300, midSat: 0.300,
+  topDark: 1.646, topSat: 6.194, topPow: 0.756, nightMix: 0.327, nightBase: 0.501, nightFloor: 0.338 };
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
