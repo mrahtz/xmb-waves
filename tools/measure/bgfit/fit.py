@@ -74,6 +74,9 @@ def spec_pen(cv, b):
     pen += 20 * max(0, a(3.0) / noon - 0.45) + 20 * max(0, 0.75 - a(6.0) / noon)   # steep rise 03:00-06:00
     pen += 20 * max(0, 0.6 - a(19.0) / noon) + 20 * max(0, a(22.0) / noon - 0.3)   # fades 19:00-22:00
     for h in (19.0, 4.5): pen += 30 * max(0, A[h]['env'] - b['BGL']['nightFloor'])  # at its floor near dusk and dawn
+    # the night glow's brighter side: on one side early in the night (the right, as the footage at 21:30 shows), on the
+    # other by morning
+    pen += 30 * max(0, 0.03 - A[22.0]['asym']) + 30 * max(0, A[2.0]['asym'] + 0.03) + 30 * max(0, A[3.0]['asym'] + 0.03)
     pen += 30 * max(0, 1.5 * b['BGL']['nightFloor'] - A[0.0]['env'] * 1.0)              # clear of it in the middle of the night
     return pen
 

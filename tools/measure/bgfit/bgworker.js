@@ -19,16 +19,16 @@ const D = require('path').join(__dirname, '..', 'work', 'bgfit'), meta = JSON.pa
       for (let k = 0; k < 48; k++) {
         const h = k / 2, hh = Math.floor(h), mm = Math.round((h - hh) * 60);
         const sc = I.sceneParams([2026, +date.slice(5, 7), +date.slice(8, 10), hh, mm, 0], 0);
-        let all = 0, top = 0, bot = 0, satLow = 0, satMax = 0, n = 0, nt = 0, nb = 0;
+        let all = 0, top = 0, bot = 0, satLow = 0, satMax = 0, n = 0, nt = 0, nb = 0, bl = 0, br = 0;
         for (let j = 0; j <= 8; j++) for (let i = 0; i <= 8; i++) {
           const c = I.bg.colorAt(sc, i / 8, j / 8), l = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
           const mx = Math.max(...c), sat = mx > 0.02 ? (mx - Math.min(...c)) / mx : 0;
           all += l; n++;
           if (j >= 7) { top += l; nt++; }
-          if (j <= 1) { bot += l; nb++; satLow += sat; }
+          if (j <= 1) { bot += l; nb++; satLow += sat; if (i <= 2) bl += l; if (i >= 6) br += l; }
           if (mx > 0.05 && sat > satMax) satMax = sat;
         }
-        out.push({ h, all: all / n, top: top / nt, bot: bot / nb, satLow: satLow / nb, satMax, night: sc.night, day: sc.daylight, top_: sc.top, env: sc.nightEnv });
+        out.push({ h, asym: (br - bl) / (br + bl + 1e-6), all: all / n, top: top / nt, bot: bot / nb, satLow: satLow / nb, satMax, night: sc.night, day: sc.daylight, top_: sc.top, env: sc.nightEnv });
       }
       return out;
     };
