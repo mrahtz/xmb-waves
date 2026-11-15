@@ -73,11 +73,11 @@ function XMBW_SIM() {
     ph: [3.3562, 0.4816, 2.2871, 2.684, 3.8807],
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 15, x0: 1.9, wid: 6.5, height: 4.4, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 15, x0: 1.9, wid: 7, height: 4.1, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
   // wid, height (spec 22): the scales of the net's gathered width and of its height into the scene. The net is bunched across
   // its width (one shared driven path), so at wid 4.7 the visible surface spanned less depth down a screen column than from left
-  // to right: a strip. At 6.5 the depth across the band is many times the change along the screen and the far width shows;
-  // the height (4.4) brings the open sheet's folds, strands and light per column back to the footage's
+  // to right: a strip. At 7 the depth across the band is many times the change along the screen and the far width shows;
+  // the height (4.1) brings the open sheet's strands (3.4 per column) and its light back into the footage's range
 
   const SPARK = {
     pool: 2000,

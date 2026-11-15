@@ -94,8 +94,9 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 - A 19 x 19 mass-spring net, shaken at one end and gently pushed at the free
   end, is simulated at 60 fixed steps per second in a Web Worker. Every row's
   shaken point follows one shared slow path in height and depth (two
-  frequencies, 60 s and 40 s, with the phase drifting from row to row), so
-  that end is gathered and twists. The bending springs are much stiffer
+  frequencies, 60 s and 40 s, with the phase drifting from row to row, a
+  little faster in depth than in height), so that end is gathered and twists
+  and the sheet folds gently over itself rather than rolling up into a tube. The bending springs are much stiffer
   than the stretching ones, and small random kicks keep the net moving and
   set how many strands the band shows. A stored, settled start state means
   the first frame already looks like a running one, and every start is the
@@ -103,6 +104,9 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   are fixed, so the wave at a given time since the start does not depend on
   the seed (only the sparkles do). An envelope along the length scales the
   net's height and depth about one fixed axis, fullest at the shaken end.
+  The gathered width is spread over enough depth in the scene that, down a
+  column of the screen, the distance to the sheet changes several times more
+  than it does from left to right.
 - The net is passed through a free-form deformation lattice laid out
   unevenly along the length, with enough cells across the width for the
   twist and held at the sheet's ends: a swell rolling from the shaken end to
@@ -111,9 +115,10 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   across the width (22 s). Their rates and phases are fitted to the
   recordings. The deformed net is the control net of a bicubic B-spline
   surface. The control points are projected first, so the surface and its
-  normals live in the projected space, as the spec asks. The camera sits
-  slightly below the sheet, which runs out past the left edge of the
-  picture.
+  normals live in the projected space, as the spec asks. The camera's
+  placement (below the sheet, which runs out past the left edge of the
+  picture; raised at night) and its aim (one pitch about the axis along the
+  sheet's length, with only a trace of turn) are separate settings.
 - Shading is computed per vertex from two terms, each scaled by a size factor
   that falls with the first power of distance: a sheen that stays flat and
   then fades where the size factor is large, and a Fresnel-like glow indexed
