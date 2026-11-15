@@ -170,8 +170,9 @@ const WAVE = {
   fade: 0.06,                           // fraction of the sheet over which it fades out, linearly, at the ends and edges
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
   // a neutral tint brightening slightly from left to right (spec 20: measured, the band's brightest places left against right
-  // over 48 clips of the original, matched by my renders at the same conditions)
-  tintL: [0.82, 0.82, 0.82], tintR: [1.0, 1.0, 1.0],
+  // over 48 clips of the original, matched by my renders at the same conditions): left 0.82 of right, with the mean over
+  // the screen kept at the earlier tint's (0.97) so the band's overall level is unchanged
+  tintL: [0.875, 0.875, 0.875], tintR: [1.067, 1.067, 1.067],
 };
 // (these scalars are let, not const, only so the settings menu can change them live)
 // background lighting (spec 17, original design): base level away from the lights, the spot's and the bottom glow's
