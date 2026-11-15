@@ -148,15 +148,15 @@ function XMBW_SIM() {
     burstP: 0.6, burstN: 12,
     walkers: 1, walkerP: 0.02, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 0.6, reverseP: 0.12,                      // cone: half-angle (rad) of the birth cone, deviation spread evenly up to it
-    speedK: 0.29, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
+    speedK: 0.25, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
     rampIn: 0.04, rampOut: 0.07,                    // short linear ramps of the life (fraction), the fade-in the quicker
     // jitter (spec 17): each sparkle's push, one value per axis, is held for long stretches (redrawn jitterRedraw times per
     // second on average), a small steady acceleration differing from sparkle to sparkle; gravity and friction are weak
-    jitter: 0.004, jitterRedraw: 0.3, gravity: 0.0002, friction: 0.03,  // per second units
+    jitter: 0.0055, jitterRedraw: 0.3, gravity: 0.0002, friction: 0.03,  // per second units
     // spin (spec 17): the same schedule over every sparkle's life: angular velocity per axis = spinA x
     // sin(2 pi x spinCycles[axis] x life fraction + spinPhase[axis])
-    spinA: 2.2, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
+    spinA: 4.0, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
     box: [[-10, 10], [-6, 6], [-3.5, 9]],          // the bounding box: its faces lie outside the view
     boxFade: 0.8,                                   // sparkles fade out over this distance from the box's faces
   };
@@ -690,45 +690,45 @@ let BG_EASE = 0.05; // how far the background gradient moves towards its new val
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
   // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
-  size: 0.0065, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
+  size: 0.0062, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
   // turn towards the camera (spec 21): none for a disc whose apparent radius is below turn0 px (at 1080 lines), complete
   // from turn1 px, so only the few near, large discs face the viewer and the rest pass through edge-on
   turn0: 3.5, turn1: 8.0,
   // in focus a crisp edge edge px wide (0: hard, spec 21's hard-edged discs); a disc below minPx px radius is drawn at that
   // radius, dimmed by its area (0: never, so a disc smaller than a pixel shows only where it covers a pixel's centre)
   edge: 0, minPx: 0.7,
-  bright: 1.088, glintSize: 4.5, glintBright: 0.10,
+  bright: 1.035, glintSize: 4.5, glintBright: 0.10,
   // lighting (spec 16, 17 and 21): one point light in the scene in front of the camera, diffuse kd and specular ks with
   // exponent shin, the highlight tinted at full strength by the iridescent map (below; mapStr scales every lobe's strength,
   // mapR their radii; exponent mapExp = 1 leaves it unchanged), the sum through 1 - exp(-satGain x); opacity falls as a disc
   // turns towards edge-on, with the power tiltPow of one minus the cosine
-  light: [1.3, 0.7, -1.5], kd: 0.224, ks: 1.270, shin: 66, mapExp: 1.0, mapStr: 0.98, mapR: 1.0, satGain: 0.758, tiltPow: 1.0,
+  light: [1.3, 0.7, -1.5], kd: 0.204, ks: 1.509, shin: 30, mapExp: 1.0, mapStr: 1.20, mapR: 1.0, satGain: 0.629, tiltPow: 4.0,
 };
 // The iridescent map's lobes (spec 21, original design): position in the map (the facing direction's right and up
 // components), radius, strength, and colour at full strength (its brightness included). Between them the map is near-neutral
 // white. The hues come in clusters: pinks and magentas, peach and gold, red-orange, a little violet-blue; no green or cyan.
 const SPARK_LOBES_DEF = [
   // x,     y,     r,  strength  colour
-  [-0.92, -0.50, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
-  [-0.66, -0.50, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
-  [-0.40, -0.50, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
-  [-0.14, -0.50, 0.21, 1.5, [1.00, 0.62, 0.35]], // peach
-  [0.38, -0.50, 0.21, 1.5, [1.00, 0.30, 0.12]], // red-orange
-  [0.90, -0.50, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
-  [-0.27, -0.20, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
-  [0.25, -0.20, 0.21, 1.5, [1.00, 0.62, 0.35]], // peach
-  [0.51, -0.20, 0.21, 1.5, [0.90, 0.25, 0.95]], // magenta
-  [1.03, -0.20, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
-  [-0.92, 0.10, 0.21, 1.5, [0.90, 0.25, 0.95]], // magenta
-  [-0.66, 0.10, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
-  [-0.40, 0.10, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
-  [-0.14, 0.10, 0.21, 1.5, [1.00, 0.72, 0.22]], // gold
-  [0.12, 0.10, 0.21, 1.5, [0.90, 0.25, 0.95]], // magenta
-  [0.90, 0.10, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
-  [-0.79, 0.40, 0.21, 1.5, [0.55, 0.45, 1.00]], // violet-blue
-  [-0.27, 0.40, 0.21, 1.5, [1.00, 0.35, 0.65]], // pink
-  [-0.01, 0.40, 0.21, 1.5, [1.00, 0.30, 0.12]], // red-orange
-  [1.03, 0.40, 0.21, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [-0.92, -0.50, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [-0.66, -0.50, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.14, -0.50, 0.154, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [0.12, -0.50, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.90, -0.50, 0.154, 1.5, [1.00, 0.35, 0.65]], // pink
+  [-0.53, -0.20, 0.154, 1.5, [1.00, 0.35, 0.65]], // pink
+  [-0.01, -0.20, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.25, -0.20, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [0.77, -0.20, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.92, 0.10, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.66, 0.10, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.14, 0.10, 0.154, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [0.12, 0.10, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.38, 0.10, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [0.90, 0.10, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.53, 0.40, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.01, 0.40, 0.154, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [0.25, 0.40, 0.154, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [0.77, 0.40, 0.154, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [1.03, 0.40, 0.154, 1.5, [1.00, 0.35, 0.65]], // pink
 ];
 const SPARK_LOBES = SPARK_LOBES_DEF.length;
 const SPARK_LOBE_POS = new Float32Array(SPARK_LOBES_DEF.flatMap(l => [l[0], l[1], l[2], l[3]]));

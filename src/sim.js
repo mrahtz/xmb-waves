@@ -65,15 +65,15 @@ function XMBW_SIM() {
     burstP: 0.6, burstN: 12,
     walkers: 1, walkerP: 0.02, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 0.6, reverseP: 0.12,                      // cone: half-angle (rad) of the birth cone, deviation spread evenly up to it
-    speedK: 0.29, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
+    speedK: 0.25, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
     rampIn: 0.04, rampOut: 0.07,                    // short linear ramps of the life (fraction), the fade-in the quicker
     // jitter (spec 17): each sparkle's push, one value per axis, is held for long stretches (redrawn jitterRedraw times per
     // second on average), a small steady acceleration differing from sparkle to sparkle; gravity and friction are weak
-    jitter: 0.004, jitterRedraw: 0.3, gravity: 0.0002, friction: 0.03,  // per second units
+    jitter: 0.0055, jitterRedraw: 0.3, gravity: 0.0002, friction: 0.03,  // per second units
     // spin (spec 17): the same schedule over every sparkle's life: angular velocity per axis = spinA x
     // sin(2 pi x spinCycles[axis] x life fraction + spinPhase[axis])
-    spinA: 2.2, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
+    spinA: 4.0, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
     box: [[-10, 10], [-6, 6], [-3.5, 9]],          // the bounding box: its faces lie outside the view
     boxFade: 0.8,                                   // sparkles fade out over this distance from the box's faces
   };
