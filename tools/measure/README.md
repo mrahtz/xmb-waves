@@ -175,6 +175,9 @@ camera, the wave settings and literal replacements. `apply.py` takes the same ke
 | `cmp46.py` | Tabulates several statistics files side by side (median and range per measure). |
 | `battery.py`, `battery_frames.py`, `battery_render.js` | The fixed battery (above): footage and clean renders at the same conditions, every measure, `metrics.json`. |
 | `bgremove.py` | Removes the background from reference frames and clip frames. |
+| `blackfoot.py` | Night frames (spec 4.5, version 20): how far down the frame the top stays flat at the darkest level, on the temporal median of a clip's frames, as a fraction of the height. |
+| `ramp.py` | The band's brightest places in the left third against the right third, background removed (spec 4.5, version 20: the wave tint's ramp); compare right / left over many clips. |
+| `glareab.js` | The glare measured by rendering each frame with the glare layer on and off in one page (spec 5, version 20): total, maximum and area of the difference, also for the background alone; takes in-page overrides of the mood values. |
 | `buildsrc.py`, `mkvar.py`, `apply.py` | Read the sources, change tunables, write a variant page or apply the change to `src/`. |
 | `shot.js`, `seq.js` | Deterministic renders through the page's score mode: single frames, or sequences. `XMBW_GPU=1` renders on the GPU (ANGLE on Direct3D 11; also `tools/render.js --gpu`); the default stays SwiftShader for `shot.js` and Chromium's own choice for `seq.js` and `render.js`. |
 | `wvar.sh`, `mvar.sh`, `tseq.sh`, `cycle.sh` | Render a variant and measure it, as above. |

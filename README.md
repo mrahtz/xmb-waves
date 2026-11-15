@@ -174,7 +174,7 @@ README).
 
 ## Status
 
-Built to spec version 17 and tuned against the original's recordings in
+Built to spec version 20 and tuned against the original's recordings in
 `comparison/original/`, measured with the same tools as my renders (see
 `docs/references/tuning-log.md`). Matched: the band's centre speed and
 height change over time, the sideways drift of the dark partings, the number
@@ -185,7 +185,11 @@ shading curves) pass in every mood. Still short of the original: the picture
 changes faster (0.08 correlation after one second against 0.15-0.36), the swell
 crosses a little quickly (20 s against 25-107 s), the band arches less and is
 thinner, its lines stand out more over the band, and the brightest sparkles
-are a little dim. The palettes are fitted to the recordings at four months
+are a little dim. The night picture's black top reaches as far down as the original's
+(0.336 H against 0.332 H), and the band's brightest places compare left to right as the original's do.
+By day the band's light at the glare's coarse resolution is about a third short of the original's and the
+day and dusk backgrounds are brighter, so the daytime glare is faint and some months' backgrounds glare by
+themselves (see the tuning log). The palettes are fitted to the recordings at four months
 (mean difference about 12.5 levels per channel).
 
 Not verifiable from the references available so far: the palettes for
