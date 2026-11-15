@@ -61,27 +61,59 @@ function makeBackgroundImages() {
       const tilt = 1 + P.tilt * (u - 0.5);
       put(m * 2, x, y, [0, 1, 2].map(i => (base[i] + P.glow[i] * glow) * tilt));
       // night (spec 17): black at the top, a clear dim glow in the month's colour over the lower part
-      const low = Math.pow(Math.min(Math.max((v - 0.3) / 0.7, 0), 1), 1.4), side = 1 + 0.25 * Math.cos(TAU * (u - P.night[1]));
-      put(m * 2 + 1, x, y, [0, 1, 2].map(i => P.night[0][i] * NIGHT_GLOW * low * side));
+      const low = Math.pow(Math.min(Math.max((v - NIGHT_IMG.top) / (1 - NIGHT_IMG.top), 0), 1), NIGHT_IMG.pow), side = 1 + NIGHT_IMG.side * Math.cos(TAU * (u - P.night[1]));
+      put(m * 2 + 1, x, y, [0, 1, 2].map(i => P.night[0][i] * NIGHT_IMG.glow * low * side));
     }
   });
   return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
 }
-const bgImages = makeBackgroundImages();
-// Peak luminance of the background for this frame's blend (the glare keeps only
-// what exceeds the background itself, so a bright palette never blooms into a haze).
+let bgImages = makeBackgroundImages();
+// (the settings and tuning tools change PALETTES in place and remake the images)
+function remakeBackgroundImages() { gl.deleteTexture(bgImages); bgImages = makeBackgroundImages(); }
+// The background's colour at (u, v) (v = 0 at the bottom) for this frame's scene, as the background shader computes it
+// (before the upscale and the composite), read from the images with bilinear filtering.
+function rgb2hsvJS(r, g, b) {
+  const mx = Math.max(r, g, b), d = mx - Math.min(r, g, b); let h = 0;
+  if (d > 0) h = mx === r ? ((g - b) / d) / 6 : mx === g ? ((b - r) / d + 2) / 6 : ((r - g) / d + 4) / 6;
+  return [h < 0 ? h + 1 : h, d / (mx + 1e-10), mx];
+}
+function hsv2rgbJS(h, s, v) {
+  return [0, 2 / 3, 1 / 3].map(k => { const p = Math.min(Math.max(Math.abs(((h + 1 + k) % 1) * 6 - 3) - 1, 0), 1); return v * (1 + (p - 1) * s); });
+}
+function bgImageAt(tile, u, v) {
+  const x = Math.min(Math.max(u * BG_W - 0.5, 0), BG_W - 1), y = Math.min(Math.max((1 - v) * BG_H - 0.5, 0), BG_H - 1);
+  const x0 = Math.min(Math.floor(x), BG_W - 2), y0 = Math.min(Math.floor(y), BG_H - 2), fx = x - x0, fy = y - y0, o = [0, 0, 0];
+  for (const [dx, dy, w] of [[0, 0, (1 - fx) * (1 - fy)], [1, 0, fx * (1 - fy)], [0, 1, (1 - fx) * fy], [1, 1, fx * fy]]) {
+    const i = ((tile * BG_H + y0 + dy) * BG_W + x0 + dx) * 4;
+    for (let c = 0; c < 3; c++) o[c] += w * bgImageData[i + c];
+  }
+  return o;
+}
+function bgLightsJS(u, v, a) {
+  const sx = (u - 0.5 - BGL.ovalX * Math.sin(a)) / BGL.spotW, sy = (v - 1 + BGL.ovalY * (1 - Math.cos(a))) / BGL.spotH;
+  const gx = (u - 0.5 + BGL.bandX * Math.sin(a)) / BGL.bandW, gy = (v - BGL.bandY) / BGL.bandH;
+  return 1 - (1 - BGL.spot * Math.exp(-sx * sx - sy * sy)) * (1 - BGL.glow * Math.exp(-gx * gx - gy * gy));
+}
+function bgColorAt(sc, u, v) {
+  const f = ease(((sc.monC - v) / sc.monW + 1) / 2), L = bgLightsJS(u, v, sc.aday), g = sc.top * Math.pow(v, BGL.topPow);
+  const proc = (c) => {
+    const h = rgb2hsvJS(c[0], c[1], c[2]);
+    const val = h[2] * sc.daylight * (BGL.base + (1 - BGL.base) * L) * Math.max(0, 1 - BGL.topDark * g);
+    const sat = Math.min(1, h[1] * (1 - BGL.pale * L) * (1 - BGL.midSat * sc.mid) * (1 + BGL.topSat * g));
+    return hsv2rgbJS(h[0], sat, val);
+  };
+  const da = proc(bgImageAt(sc.monA * 2, u, v)), db = proc(bgImageAt(sc.monB * 2, u, v));
+  const na = bgImageAt(sc.monA * 2 + 1, u, v), nb = bgImageAt(sc.monB * 2 + 1, u, v);
+  const nl = Math.max(BGL.nightFloor, sc.nightEnv * (BGL.nightBase + (1 - BGL.nightBase) * bgLightsJS(u, v, sc.anight)));
+  const k = sc.night * BGL.nightMix;
+  return [0, 1, 2].map(c => (da[c] + (db[c] - da[c]) * f) * (1 - k) + (na[c] + (nb[c] - na[c]) * f) * nl * k);
+}
+// Peak luminance of the background for this frame (the glare keeps only what exceeds the background itself, so a bright
+// palette never blooms into a haze), over a grid of points.
 function bgPeak(sc) {
-  let peak = 0; const n = BG_W * BG_H;
-  const a = sc.monA * 2 * n * 4, b = sc.monB * 2 * n * 4, na = a + n * 4, nb = b + n * 4;
-  const f = Math.min(Math.max(((sc.monC - 0.5) / sc.monW + 1) / 2, 0), 1), k = sc.night * BGL.nightMix; // the month mix mid-screen
-  for (let i = 0; i < n * 4; i += 4) {
-    let l = 0;
-    for (let c = 0; c < 3; c++) {
-      const w = [0.299, 0.587, 0.114][c];
-      const day = bgImageData[a + i + c] + (bgImageData[b + i + c] - bgImageData[a + i + c]) * f;
-      const night = bgImageData[na + i + c] + (bgImageData[nb + i + c] - bgImageData[na + i + c]) * f;
-      l += w * (day * sc.daylight * (BGL.base + BGL.spot + BGL.glow) * (1 - k) + night * (BGL.nightBase + BGL.spot) * k);
-    }
+  let peak = 0;
+  for (let j = 0; j <= 12; j++) for (let i = 0; i <= 16; i++) {
+    const c = bgColorAt(sc, i / 16, j / 12), l = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
     if (l > peak) peak = l;
   }
   return peak;

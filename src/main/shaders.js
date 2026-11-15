@@ -2,17 +2,31 @@ const VS_QUAD = `#version 300 es
 out vec2 vUv;
 void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2); vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
 
-// Background gradient for this frame, into a small target (spec 17). The month's day and night images are processed in
-// hue, saturation and value: the value is scaled by the lighting (a sun-like spot on an arc across the upper part and an
-// opposite glow along the bottom, driven by the warped hour; the night image by its own noon-to-noon clock), lit areas
-// become slightly paler, dawn and dusk darken the top and deepen its colour, and the middle of the month is a little less
-// saturated. Next month's images rise from the bottom of the screen. The day image carries its own daylight factor, and
-// even at full night weight the picture is a mix of the night image and the (dark) day image.
+// Background gradient for this frame, into a small target (spec 19). Day images: each month's image on its own is
+// converted to hue, saturation and value; the value is scaled by the daylight factor, by the two lights (a sun-like spot
+// whose centre goes round an oval larger than the frame, and a band along the bottom edge whose centre is the spot's
+// mirrored, both driven by one angle of the warped hour) and by the clock's shaping down the frame (late evening and small
+// hours: the top blacked out, the colour deepened towards the top); lit areas are paler and the middle of the month less
+// saturated. The two months' processed images are then mixed (next month's rising from the bottom). Night images: mixed
+// for the month, then scaled in brightness only, lit by the same two lights on an unwarped clock, under a time envelope
+// and above a floor. Even at full night weight the picture is a mix of the night image and the day image.
+const GLSL_BGLIGHT = `
+uniform vec4 uOval;   // spot: centre x amplitude, centre y amplitude (its centre is on the top edge at angle 0), radii x, y
+uniform vec4 uBand;   // bottom glow: centre x amplitude, half-width, centre height (at or below the bottom edge), half-height
+uniform vec2 uLStr;   // strengths of the spot and the bottom glow (0..1: a light lifts its area towards the image's own value)
+// the two soft lights for angle a (0: the spot's centre on the top edge, mid-width), combined so the sum never exceeds 1
+float lights(vec2 uv, float a){
+  vec2 s = vec2(0.5 + uOval.x * sin(a), 1.0 - uOval.y * (1.0 - cos(a)));
+  vec2 ds = (uv - s) / uOval.zw;
+  float gx = (uv.x - (0.5 - uBand.x * sin(a))) / uBand.y, gy = (uv.y - uBand.z) / uBand.w;
+  return 1.0 - (1.0 - uLStr.x * exp(-dot(ds, ds))) * (1.0 - uLStr.y * exp(-gx * gx - gy * gy));
+}`;
 const FS_BGGEN = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
-uniform sampler2D uImg, uPrev; uniform float uTiles, uA, uB, uMc, uMw, uNight, uNightMix, uDaylight, uWday, uWnight;
-uniform float uEase, uSpot, uGlow, uLightBase, uNightBase, uPale, uDusk, uDuskDark, uDuskSat, uMidSat;
+uniform sampler2D uImg, uPrev; uniform float uTiles, uA, uB, uMc, uMw, uNight, uNightMix, uDaylight, uEase;
+uniform float uAday, uAnight, uBase, uPale, uMidSat, uTop, uTopDark, uTopSat, uTopPow, uNightBase, uNightEnv, uNightFloor;
+${GLSL_BGLIGHT}
 vec3 img(float idx, vec2 uv){
   vec2 q = vec2(uv.x, (idx + clamp(uv.y, 0.5 / ${BG_H}.0, 1.0 - 0.5 / ${BG_H}.0)) / uTiles);
   return texture(uImg, q).rgb;
@@ -25,21 +39,11 @@ vec3 rgb2hsv(vec3 c){
   return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
 }
 vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
-// the two soft lights of a clock w (0..1): a spot on an arc across the upper part (low at the left at 0, high at the top
-// centre at 0.5, low at the right at 1) and a glow along the bottom edge moving the other way
-float lights(vec2 uv, float w, out float spot){
-  vec2 s = vec2(mix(-0.05, 1.05, w), 0.55 + 0.42 * sin(3.14159265 * clamp(w, 0.0, 1.0)));
-  vec2 ds = (uv - s) / vec2(0.45, 0.38); spot = exp(-dot(ds, ds));
-  float gx = (uv.x - mix(1.05, -0.05, w)) / 0.5;
-  return uSpot * spot + uGlow * exp(-gx * gx) * exp(-uv.y / 0.22);
-}
-vec3 process(vec3 c, vec2 uv, float base, float w, float gain){
-  vec3 h = rgb2hsv(c); float spot; float L = lights(uv, w, spot);
-  h.z *= (base + L) * gain;
-  h.y *= 1.0 - uPale * L;                                   // lit areas slightly paler
-  float top = smoothstep(0.45, 1.0, uv.y) * uDusk;          // dawn and dusk: the top darker and deeper in colour
-  h.z *= 1.0 - uDuskDark * top; h.y = min(1.0, h.y * (1.0 + uDuskSat * top));
-  h.y *= 1.0 - uMidSat;                                     // mid-month: a little less saturated
+// one month's day image, processed on its own (L: the lights here; g: the clock's shaping at this height)
+vec3 processDay(vec3 c, float L, float g){
+  vec3 h = rgb2hsv(c);
+  h.z *= uDaylight * (uBase + (1.0 - uBase) * L) * max(0.0, 1.0 - uTopDark * g);
+  h.y = min(1.0, h.y * (1.0 - uPale * L) * (1.0 - uMidSat) * (1.0 + uTopSat * g));
   return hsv2rgb(h);
 }
 void main(){
@@ -47,10 +51,10 @@ void main(){
   vec2 iu = vec2(uv.x, 1.0 - uv.y); // image rows are stored top first
   // next month's images rise from the bottom: a soft S-shaped step down the screen, centre uMc, half-width uMw
   float f = smoothstep(-1.0, 1.0, (uMc - uv.y) / uMw);
-  vec3 day = mix(img(uA * 2.0, iu), img(uB * 2.0, iu), f);
-  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f);
-  day = process(day, uv, uLightBase, uWday, uDaylight);
-  night = process(night, uv, uNightBase, uWnight, 1.0);
+  float L = lights(uv, uAday), g = uTop * pow(uv.y, uTopPow);
+  vec3 day = mix(processDay(img(uA * 2.0, iu), L, g), processDay(img(uB * 2.0, iu), L, g), f);
+  float Ln = lights(uv, uAnight);
+  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f) * max(uNightFloor, uNightEnv * (uNightBase + (1.0 - uNightBase) * Ln));
   vec3 c = mix(day, night, uNight * uNightMix);
   vec3 prev = texture(uPrev, vUv).rgb;
   o = vec4(mix(prev, c, uEase), 1.0);

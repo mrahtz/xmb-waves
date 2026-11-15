@@ -77,29 +77,27 @@ function nightWeight(hour) {
   if (h < 20.5) return ease((h - 18.5) / 2);
   return 1;
 }
-// The day image's daylight factor (N8): darkest about 02:00, steep rise 03:00-06:00, gentle to mid-afternoon, fading
-// 19:00-22:00. Eased between these keys (hour, level).
-const DAYLIGHT = [[0, 0.10], [2, 0.03], [3, 0.06], [6, 0.82], [15, 1.0], [19, 1.0], [22, 0.14], [24, 0.10]];
-function daylight(hour) {
-  const h = ((hour % 24) + 24) % 24;
-  for (let i = 1; i < DAYLIGHT.length; i++) if (h <= DAYLIGHT[i][0]) {
-    const [h0, a] = DAYLIGHT[i - 1], [h1, b] = DAYLIGHT[i]; return a + (b - a) * ease((h - h0) / (h1 - h0));
-  }
-  return DAYLIGHT[0][1];
+// Background clock (spec 19). The warped hour advances slowly around midday and quickly around midnight; one angle of it
+// (0 at the warp's midday, +-pi at its midnight) drives the day image's two lights, its daylight factor and its shaping down
+// the frame. BGW: warp strength, the hour the warp centres on, the daylight factor's floor and exponent, and the warped
+// angles between which the shaping down the frame switches on (nothing below a0, full from a1).
+const BGW = { warp: 0.6, noon: 12.0, dayFloor: 0.0, dayPow: 2.0, a0: 1.5, a1: 2.1, envPow: 1.0 };
+function wrapPi(a) { return a - TAU * Math.floor((a + Math.PI) / TAU); }
+function dayAngle(hour) {
+  const p = wrapPi(((hour - BGW.noon) / 24) * TAU);
+  return p - BGW.warp * Math.sin(p);
 }
-// Warped hour: advances slowly around midday and quickly around midnight; returns 0..1 over the day.
-function warpedDay(hour) {
-  const p = ((hour - 12) / 24) * TAU; // -pi..pi, 0 at noon
-  return 0.5 + (p - 0.6 * Math.sin(p)) / TAU;
-}
-// The night image's clock, noon to noon: its light rises at the left in the evening, is high in the middle at midnight
-// and sets at the right towards morning.
-function warpedNight(hour) { return warpedDay(hour + 12); }
-// Dawn and dusk: 1 around 06:30 and 18:00, 0 around midday and midnight.
-function duskTerm(hour) {
-  const h = ((hour % 24) + 24) % 24, b = (c) => Math.exp(-Math.pow(Math.min(Math.abs(h - c), 24 - Math.abs(h - c)) / 1.6, 2));
-  return Math.max(b(6.5), b(18));
-}
+// The day image's daylight factor: from the warped angle alone, lowest (close to nothing) at midnight, rising without
+// turning back to its top at midday. The picture's minimum after midnight comes from the mix with the night image.
+function daylightOf(a) { return BGW.dayFloor + (1 - BGW.dayFloor) * Math.pow(0.5 + 0.5 * Math.cos(a), BGW.dayPow); }
+// Strength of the clock's shaping of the day image down the frame: nothing from early morning until late evening, full
+// through the late evening and the small hours.
+function topShape(a) { return ease((Math.abs(a) - BGW.a0) / (BGW.a1 - BGW.a0)); }
+// The night images' clock: not warped, one steady turn a day counted from midday (0 at midnight, -pi/2 at 18:00 with the
+// light at the left edge, +pi/2 at 06:00 at the right edge, +-pi at midday below the picture).
+function nightAngle(hour) { return wrapPi(((hour - 12) / 24) * TAU - Math.PI); }
+// The night images' time envelope: highest in the middle of the night, lowest at dusk and dawn (and by day).
+function nightEnvelope(a) { return Math.pow(0.5 + 0.5 * Math.cos(a), BGW.envPow); }
 // Next month's images rising from the bottom (N7): the centre of the S-shaped step (in screen heights, 0 = bottom) and its
 // half-width for the month's progress p (whole days): nothing before about the 6th, about half and half over the whole
 // screen in the middle (a very broad step), next month's complete at the bottom by about the 22nd and the top by the 26th.
@@ -112,13 +110,14 @@ function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
 function sceneParams(tp, theme) {
   const [y, mon, day, hh, mm, ss] = tp;
   const hour = hh + mm / 60 + ss / 3600;
-  if (theme >= 1 && theme <= 12) {
-    return { monA: theme - 1, monB: theme % 12, monC: -5, monW: 0.15, mid: 0, night: 0, daylight: 1, wday: warpedDay(12),
-      wnight: warpedNight(12), dusk: 0, mood: { ...MOODS.day } };
+  if (theme >= 1 && theme <= 12) { // month n's palette at midday at the start of month n, day mood
+    const a = dayAngle(BGW.noon);
+    return { monA: theme - 1, monB: theme % 12, monC: -5, monW: 0.15, mid: 0, night: 0, aday: a, daylight: daylightOf(a),
+      top: topShape(a), anight: nightAngle(12), nightEnv: 0, mood: { ...MOODS.day } };
   }
-  const p = (day - 1) / daysInMonth(y, mon), [monC, monW] = monthStep(p);
+  const p = (day - 1) / daysInMonth(y, mon), [monC, monW] = monthStep(p), a = dayAngle(hour), an = nightAngle(hour);
   return { monA: mon - 1, monB: mon % 12, monC, monW, mid: Math.exp(-Math.pow((p - 0.5) / 0.15, 2)), night: nightWeight(hour),
-    daylight: daylight(hour), wday: warpedDay(hour), wnight: warpedNight(hour), dusk: duskTerm(hour), mood: moodAt(hour) };
+    aday: a, daylight: daylightOf(a), top: topShape(a), anight: an, nightEnv: nightEnvelope(an), mood: moodAt(hour) };
 }
 function parseTime(s) {
   const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2})(?::(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?)?)?/.exec(s || '');
@@ -166,11 +165,19 @@ const WAVE = {
   tintL: [0.94, 0.94, 0.94], tintR: [1.0, 1.0, 1.0], // a neutral tint brightening slightly from left to right
 };
 // (these scalars are let, not const, only so the settings menu can change them live)
-// background lighting (spec 17, original design): base level away from the lights, the spot's and the bottom glow's
-// added light, the night image's base, how much paler lit areas get, how far dawn and dusk darken and saturate the top,
-// the mid-month saturation drop, and the night image's share of the mix at full night weight
-const NIGHT_GLOW = 3.0; // the night images' glow, relative to the palette's night colour
-const BGL = { base: 0.8, spot: 0.35, glow: 0.25, nightBase: 0.6, pale: 0.25, duskDark: 0.35, duskSat: 0.35, midSat: 0.10, nightMix: 0.6 };
+// background (spec 19, original design). Day images: base: value away from both lights (a light lifts its area towards
+// the image's own value, never past it); spot: its strength, oval (centre x amplitude, centre y amplitude: the centre is on
+// the top edge at midday and 1 - 2 ovalY below the bottom at midnight) and radii; band: the bottom glow's strength, centre x
+// amplitude (mirrored from the spot), half-width, centre height and half-height; pale: how much paler lit areas get;
+// midSat: the mid-month saturation drop; topDark, topSat, topPow: the clock's shaping down the frame (value reduced, and
+// saturation raised, by strength x height^topPow). Night images: nightMix: their share at full night weight; nightBase:
+// their level away from the lights; nightFloor: the floor under the lit, enveloped level.
+// the night images: dark above top (in image heights from the top), rising with exponent pow to the bottom, brighter by side
+// towards the palette's side, glow times the palette's night colour
+const NIGHT_IMG = { top: 0.3, pow: 1.4, side: 0.25, glow: 3.0 };
+const BGL = { base: 0.7, spot: 0.8, ovalX: 0.8, ovalY: 0.65, spotW: 0.55, spotH: 0.45,
+  glow: 0.7, bandX: 0.3, bandW: 0.45, bandY: -0.05, bandH: 0.35, pale: 0.4, midSat: 0.3,
+  topDark: 1.4, topSat: 2.0, topPow: 1.0, nightMix: 0.6, nightBase: 0.6, nightFloor: 0.45 };
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
