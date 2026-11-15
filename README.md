@@ -128,9 +128,12 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 - Sparkles are born uniformly over the surface's parameters, mostly in
   bursts. They leave in a cone around the surface normal, with a held random
   jitter, light gravity and friction. They ramp in and out linearly, spin,
-  and are sized in scene units with a partial turn towards the camera. They
-  are lit by a point light in front of the camera through an iridescent
-  colour map, with depth of field that grows a disc while keeping most of its
+  and are hard-edged discs sized in scene units; only the near, large ones
+  turn towards the camera, so the rest pass through edge-on and twinkle. They
+  are lit by a point light in front of the camera, the highlight tinted at
+  full strength by an iridescent colour map of coloured patches (pinks,
+  magentas, peach, gold, red-orange, violet-blue) between near-neutral
+  regions, with depth of field that grows a disc while keeping most of its
   brightness, and a camera-facing glint that follows the highlight. They are
   drawn straight onto the output after the final pass.
 - Four moods (night, dawn, day, dusk) each hold a full parameter set
@@ -174,18 +177,22 @@ README).
 
 ## Status
 
-Built to spec version 17 and tuned against the original's recordings in
-`comparison/original/`, measured with the same tools as my renders (see
-`docs/references/tuning-log.md`). Matched: the band's centre speed and
+Built to spec version 17 (section 6, the sparkles, to version 21) and tuned
+against the original's recordings in `comparison/original/` and the lossless
+reference renders of the footage index, measured with the same tools as my
+renders (see `docs/references/tuning-log.md`). Matched: the band's centre speed and
 height change over time, the sideways drift of the dark partings, the number
 of strands per column, the band's brightness at night, and the sparkles'
-count, brightness, look and motion at noon. The geometry checks of 4.4d
+in-focus size, brightness range, colour (share and strength of the coloured
+minority, its tie to brightness, its hues), twinkle and motion over all 16
+reference conditions. The sparkles yield fewer separate points per frame
+than the original (about 650 against 885 at full size, 574 against 801 in the
+battery), and slightly too many of them move upwards. The geometry checks of 4.4d
 (framing, depth, camera below the sheet) and 4.5 (where the sheet sits on the
 shading curves) pass in every mood. Still short of the original: the picture
 changes faster (0.08 correlation after one second against 0.15-0.36), the swell
 crosses a little quickly (20 s against 25-107 s), the band arches less and is
-thinner, its lines stand out more over the band, and the brightest sparkles
-are a little dim. The palettes are fitted to the recordings at four months
+thinner, and its lines stand out more over the band. The palettes are fitted to the recordings at four months
 (mean difference about 12.5 levels per channel).
 
 Not verifiable from the references available so far: the palettes for
