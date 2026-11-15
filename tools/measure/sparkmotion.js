@@ -4,7 +4,7 @@
 // vertical speed (px/s at 1080p), the mean number on screen, and how much a sparkle's velocity changes over 2 s (its path's bend), in the same units.
 const src = require('fs').readFileSync(process.env.PAGE || require('path').resolve(__dirname, '../../index.html'), 'utf8');
 const XMBW_SIM = new Function(src.match(/function XMBW_SIM\(\) \{[\s\S]*?\n\}\n/)[0] + '; return XMBW_SIM;')();
-const camSrc = src.match(/const CAMERA = \{[^\n]*\n/)[0] + src.match(/function cameraFor\(pitchDeg, aspect\) \{[\s\S]*?\n\}\n/)[0];
+const camSrc = src.match(/const CAMERA = \{[^\n]*\n/)[0] + src.match(/function cameraFor\(pitchDeg, aspect[^)]*\) \{[\s\S]*?\n\}\n/)[0];
 const [cameraFor, CAMERA] = new Function(camSrc + '; return [cameraFor, CAMERA];')();
 const pitch = +(process.argv[2] || 2.7), seed = +(process.argv[3] || 5);
 const M = XMBW_SIM(), sim = M.createSim(seed), cam = cameraFor(pitch, 16 / 9);

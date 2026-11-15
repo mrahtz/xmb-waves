@@ -31,7 +31,7 @@ function loadPage(path) {
   const dayTxt = src.match(/\n  day: \{[\s\S]*?\},\n/)[0];
   const fsWave = src.match(/const FS_WAVE = `[\s\S]*?`;/)[0];
   const mood = {};
-  for (const k of ['waveBright', 'base', 'baseC', 'baseK', 'edge', 'edgeC', 'envCross', 'camPitch', 'latX', 'latY', 'latZ', 'fres', 'sizeK']) mood[k] = num(dayTxt, k, undefined);
+  for (const k of ['waveBright', 'base', 'baseC', 'baseK', 'edge', 'edgeC', 'envCross', 'camPitch', 'camLift', 'latX', 'latY', 'latZ', 'fres', 'sizeK']) mood[k] = num(dayTxt, k, undefined);
   // spec-16 shading: per vertex in the projected space, a sheen cut off at large size factors plus a Fresnel-like peak
   // indexed by cosine x size factor, both times the size factor (area x cosine over the first power of the distance)
   if (/uSizeNorm/.test(src)) mood.spec16 = true;
@@ -616,7 +616,7 @@ function makeSim(page, seed, tune, moodOver, aspect, fast) {
   if (tune) M.setTunables(tune);
   const mood = Object.assign({}, page.mood, moodOver || {});
   const camOv = {}; if (mood.fovY != null) camOv.fovY = mood.fovY; if (mood.camDist != null) camOv.dist = mood.camDist;
-  const cam = page.cameraForOv(camOv)(mood.camPitch, aspect || 16 / 9);
+  const cam = page.cameraForOv(camOv)(mood.camPitch, aspect || 16 / 9, mood.camLift || 0);
   mood.areaRef = M.tunables.SCENE.len * M.tunables.SCENE.wid / (18 * 18);
   if (mood.spec16) { // the page's projected space and size-factor scale (render.js), for this camera and aspect
     const asp = aspect || 16 / 9, fx = cam.f / asp, fy = cam.f, W = page.WAVE;

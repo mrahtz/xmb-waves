@@ -20,7 +20,7 @@ const P = FW.loadPage(pagePath);
 function num(txt, key) { const m = txt.match(new RegExp('\\b' + key + ': *(-?[0-9.]+(?:e-?[0-9]+)?)')); return m ? +m[1] : undefined; }
 function moodOf(name) {
   const t = src.match(new RegExp('\\n  ' + name + ': \\{[\\s\\S]*?\\},\\n'))[0];
-  return { envCross: num(t, 'envCross'), latScale: [num(t, 'latX'), num(t, 'latY'), num(t, 'latZ')], camPitch: num(t, 'camPitch') };
+  return { envCross: num(t, 'envCross'), latScale: [num(t, 'latX'), num(t, 'latY'), num(t, 'latZ')], camPitch: num(t, 'camPitch'), camLift: num(t, 'camLift') || 0 };
 }
 const MOODS = { day: moodOf('day'), night: moodOf('night') };
 const fadeFrac = num(src.match(/const WAVE = \{[\s\S]*?\n\};/)[0], 'fade');
@@ -59,7 +59,7 @@ function evaluatePop(tunes, base, targets) {
   for (const tg of targets) (byMood[tg.mood] = byMood[tg.mood] || []).push(tg);
   for (const m in byMood) {
     const M = P.XMBW_SIM_FAST(); M.setTunables(base);
-    const mood = MOODS[m], cam = P.cameraFor(mood.camPitch, 16 / 9);
+    const mood = MOODS[m], cam = P.cameraFor(mood.camPitch, 16 / 9, mood.camLift);
     const sim = M.createSim(1); sim.setMood({ envCross: mood.envCross, latScale: mood.latScale, camFwd: cam.fwd }); sim.warm(sim.warmSteps);
     const want = [];
     for (const tg of byMood[m]) {
