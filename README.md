@@ -189,11 +189,15 @@ are a little dim. The night picture's black top reaches as far down as the origi
 (0.336 H against 0.332 H), and the band's brightest places compare left to right as the original's do.
 By day the band's light at the glare's coarse resolution is about a third short of the original's and the
 day and dusk backgrounds are brighter, so the daytime glare is faint and some months' backgrounds glare by
-themselves (see the tuning log). The palettes are fitted to the recordings at four months
-(mean difference about 12.5 levels per channel).
+themselves (see the tuning log). The palettes and each mood's exposure are fitted together to the
+original's renders and recordings at four months (January, April, July, October) and four hours
+(`tools/measure/jointfit.py`; background pixels away from the band differ by about 9.5 levels per channel
+on average, against 11.9 before). Still short: at dawn the background is about 6 levels dark, because the
+exposure keeps the spec's order of the moods (dawn only slightly above day); by day the sun spot at the top
+is too bright and the bottom too dark.
 
 Not verifiable from the references available so far: the palettes for
-January, March, June, July and December (and theme 1, silver), the look in
+the eight months without footage, the look in
 the small hours and at dawn, and the exact month-to-month blend in the
 middle of a month. These are design guesses that follow the spec.
 
