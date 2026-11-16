@@ -12,9 +12,8 @@ function setBgAndWave(pr, bgT, bgOn, waveOn, dstW, dstH) {
   gl.uniform1i(pr.u.uWTaps, taps); gl.uniform2f(pr.u.uWTexel, 1 / dstW, 1 / dstH); gl.uniform1f(pr.u.uWSpread, WAVE.filterSpread);
   gl.uniform3fv(pr.u.uTintL, WAVE.tintL); gl.uniform3fv(pr.u.uTintR, WAVE.tintR);
 }
-// the composite's per-mood exposure and tone curve (spec 17)
-function setTone(pr, m) { gl.uniform1f(pr.u.uBlack, m.black); gl.uniform1f(pr.u.uGain, m.exposure); gl.uniform1f(pr.u.uWhite, m.white); }
-function toneJS(c, m) { c = Math.max(c - m.black, 0) * m.exposure; return c * (1 + c / (m.white * m.white)) / (1 + c); }
+// the composite's exposure and tone curve (spec 17 and 20): one black offset for every mood, the gain and white point per mood
+function setTone(pr, m) { gl.uniform1f(pr.u.uBlack, TONE_BLACK); gl.uniform1f(pr.u.uGain, m.exposure); gl.uniform1f(pr.u.uWhite, m.white); }
 
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
 // The settings menu may add: view {x, y} (where the picture sits in the output
@@ -84,7 +83,7 @@ function renderFrame(st, outTarget) {
   let glareT = null, glareK = 0;
   if (L.glare && (L.bg || L.wave)) {
     if (T) T.begin('glare');
-    glareT = buildGlare(m, bgT, L.bg, L.wave, L.bg ? bgPeak(sc) : 0); glareK = RT.glareScale;
+    glareT = buildGlare(m, bgT, L.bg, L.wave); glareK = RT.glareScale;
     if (T) T.end();
   }
   if (stopAfter < 4) return;
@@ -144,14 +143,15 @@ function sparkUniforms(pr, m, cam, st) {
   gl.uniform2f(pr.u.uRes, ow, oh);
 }
 
-function buildGlare(m, bgT, bgOn, waveOn, peak) {
+function buildGlare(m, bgT, bgOn, waveOn) {
   const lv = RT.levels;
   // bright-pass at a small size (the pyramid's first level is far below the screen's resolution)
   let pr = PR.bright; gl.useProgram(pr.p);
   bindTarget(lv[0].a); gl.viewport(0, 0, lv[0].w, lv[0].h);
   setBgAndWave(pr, bgT, bgOn, waveOn, lv[0].w, lv[0].h);
   setTone(pr, m);
-  gl.uniform1f(pr.u.uThr, Math.max(m.glareThr, Math.min(0.97, toneJS(peak, m) + 0.06)));
+  // the threshold is the mood's own (spec 20): never recomputed from the frame's content
+  gl.uniform1f(pr.u.uThr, m.glareThr);
   gl.activeTexture(gl.TEXTURE0);
   quad();
   // mip pyramid

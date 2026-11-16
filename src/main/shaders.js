@@ -162,9 +162,10 @@ void main(){
   if (uBgOn == 1) c += bicubicBg(vUv);
   if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);
   c = toneMap(c);
-  // keep the colour: one weight from the brightest channel, a soft knee (zero up to the threshold, rising above it)
+  // keep the colour: one weight from the brightest channel, a soft knee (zero up to the threshold, rising above it). The
+  // threshold is the mood's own, fixed (spec 20); the knee's width is fixed too, so any threshold works, also above 1.
   float m = max(c.r, max(c.g, c.b)), e = max(m - uThr, 0.0);
-  o = vec4(c * (e * e / (e + 0.1 * (1.0 - uThr))) / max(m, 1e-4), 1.0);
+  o = vec4(c * (e * e / (e + 0.03)) / max(m, 1e-4), 1.0);
 }`;
 const FS_DOWN = `#version 300 es
 precision highp float;

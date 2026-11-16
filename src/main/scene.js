@@ -33,25 +33,31 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 const MOOD_KEYS = [
   'waveBright', 'base', 'fres', 'sizeK',
   'latX', 'latY', 'latZ', 'envCross', 'camPitch',
-  'black', 'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
+  'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
+// The composite's black offset (spec 4.5, version 20): the same in every mood (the moods set only the gain and the white
+// point). Fitted on the original's night footage: how far down a night frame the top stays flat at the darkest level.
+let TONE_BLACK = 0.02;
+// Glare (spec 5, version 20): each mood's bright-pass threshold is fixed, in the composite's output units after its curve.
+// Fitted with the glare layer switched on and off: the most halo at dusk, less by day (faint), least at dawn; at night the
+// threshold sits well above anything in the picture, so the night has none whatever the strength.
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
-    black: 0.02, exposure: 1.5, white: 1.0, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
+    exposure: 1.5, white: 1.0, glareThr: 1.2, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
-    black: 0.02, exposure: 1.1, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 1.3,
+    exposure: 1.1, white: 1.0, glareThr: 0.78, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
-    black: 0.02, exposure: 1.0, white: 0.9, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.0, white: 0.9, glareThr: 0.76, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
-    black: 0.02, exposure: 1.25, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.25, white: 1.0, glareThr: 0.92, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
@@ -163,7 +169,10 @@ const WAVE = {
   fresPeak: 0.12, fresZero: 0.5961, fresTail: 0.1403,
   fade: 0.06,                           // fraction of the sheet over which it fades out, linearly, at the ends and edges
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
-  tintL: [0.94, 0.94, 0.94], tintR: [1.0, 1.0, 1.0], // a neutral tint brightening slightly from left to right
+  // a neutral tint brightening slightly from left to right (spec 20: measured, the band's brightest places left against right
+  // over 48 clips of the original, matched by my renders at the same conditions): left 0.82 of right, with the mean over
+  // the screen kept at the earlier tint's (0.97) so the band's overall level is unchanged
+  tintL: [0.875, 0.875, 0.875], tintR: [1.067, 1.067, 1.067],
 };
 // (these scalars are let, not const, only so the settings menu can change them live)
 // background lighting (spec 17, original design): base level away from the lights, the spot's and the bottom glow's

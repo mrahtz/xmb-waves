@@ -43,10 +43,8 @@ function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(
 function bindTarget(t) { gl.bindFramebuffer(gl.FRAMEBUFFER, t ? t.fb : null); }
 
 // Background images: day and night for each month, stacked in one texture.
-let bgImageData = null;
 function makeBackgroundImages() {
   const tiles = 24, data = new Float32Array(BG_W * BG_H * tiles * 4);
-  bgImageData = data;
   const put = (tile, x, y, c) => { const o = ((tile * BG_H + y) * BG_W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 1; };
   PALETTES.forEach((P, m) => {
     for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
@@ -68,25 +66,6 @@ function makeBackgroundImages() {
   return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
 }
 const bgImages = makeBackgroundImages();
-// Peak luminance of the background for this frame's blend (the glare keeps only
-// what exceeds the background itself, so a bright palette never blooms into a haze).
-function bgPeak(sc) {
-  let peak = 0; const n = BG_W * BG_H;
-  const a = sc.monA * 2 * n * 4, b = sc.monB * 2 * n * 4, na = a + n * 4, nb = b + n * 4;
-  const f = Math.min(Math.max(((sc.monC - 0.5) / sc.monW + 1) / 2, 0), 1), k = sc.night * BGL.nightMix; // the month mix mid-screen
-  for (let i = 0; i < n * 4; i += 4) {
-    let l = 0;
-    for (let c = 0; c < 3; c++) {
-      const w = [0.299, 0.587, 0.114][c];
-      const day = bgImageData[a + i + c] + (bgImageData[b + i + c] - bgImageData[a + i + c]) * f;
-      const night = bgImageData[na + i + c] + (bgImageData[nb + i + c] - bgImageData[na + i + c]) * f;
-      l += w * (day * sc.daylight * (BGL.base + BGL.spot + BGL.glow) * (1 - k) + night * (BGL.nightBase + BGL.spot) * k);
-    }
-    if (l > peak) peak = l;
-  }
-  return peak;
-}
-
 // Control nets: two float textures (previous and current step).
 const netTex = [0, 1].map(() => makeTex(NN, NN, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST, null));
 const netUpload = new Float32Array(NN * NN * 4);
