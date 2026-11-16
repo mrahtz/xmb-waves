@@ -12,7 +12,7 @@ const D = require('path').join(__dirname, '..', 'work', 'bgfit'), meta = JSON.pa
   await pg.evaluate(([T, K, meta]) => {
     const dec = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
     window.__T = new Float32Array(dec(T).buffer); window.__K = dec(K); window.__meta = meta;
-    const I = window.XMBW._internals.bg; window.__def = JSON.parse(JSON.stringify({ BGL: I.BGL, BGW: I.BGW, NI: I.NIGHT_IMG, PAL: I.PALETTES }));
+    const I = window.XMBW._internals.bg; window.__def = JSON.parse(JSON.stringify({ BGL: I.BGL, BGW: I.BGW, PAL: I.PALETTES, grid: I.grid }));
     // picture statistics over the day (the background's own colour, before the composite) for October 4 (one month alone)
     window.__curve = (date) => {
       const I = window.XMBW._internals, out = [];
@@ -34,12 +34,14 @@ const D = require('path').join(__dirname, '..', 'work', 'bgfit'), meta = JSON.pa
     };
     window.__eval = (p, want) => {
       const I = window.XMBW._internals.bg, d = window.__def;
-      Object.assign(I.BGL, d.BGL, p.BGL || {}); Object.assign(I.BGW, d.BGW, p.BGW || {}); Object.assign(I.NIGHT_IMG, d.NI, p.NI || {});
+      Object.assign(I.BGL, d.BGL, p.BGL || {}); Object.assign(I.BGW, d.BGW, p.BGW || {});
       d.PAL.forEach((P, m) => { const Q = I.PALETTES[m]; for (const k in P) Q[k] = JSON.parse(JSON.stringify(P[k])); });
       for (const m in (p.PAL || {})) Object.assign(I.PALETTES[m], p.PAL[m]);
       I.remake();
       const n = 240 * 135, out = [], imgs = [];
+      const want_ = p.conds ? new Set(p.conds) : null;   // only the conditions this block needs
       meta.forEach((c, j) => {
+        if (want_ && !want_.has(j)) return;
         const r = window.XMBW.render({ time: c.time, theme: 0, seed: 1, frames: 0, w: 240, h: 135, layers: 'bg' }).data;
         let s = 0, cnt = 0; const t0 = j * n * 3;
         for (let i = 0; i < n; i++) if (window.__K[j * n + i]) {
