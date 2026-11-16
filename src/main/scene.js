@@ -159,7 +159,12 @@ function cameraFor(pitchDeg, aspect, lift) {
 // Wave, glare, sparkle and output settings (original design)
 // ---------------------------------------------------------------------------
 const WAVE = {
-  samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
+  // per patch (16 x 16 patches), comparably fine across the ribbon and along it (spec 26, 4.4c): the folds and the turns
+  // where the sheet goes edge-on are as fine across the width as anything along the length. At the earlier 64 along and 6
+  // across the whole width carried 96 samples; the band's statistics come out the same at 16, 24 and 64 samples across
+  // (thickness, peaks per column and fill identical to two figures), so the across direction was not short of structure,
+  // but it was sampled an order more coarsely than the length. 24 x 24 is 1.5 times the cells of 64 x 6
+  samplesAlong: 24, samplesAcross: 24,
   sheenCut0: 0.2179, sheenCut1: 0.599, // the sheen falls linearly between these size factors (the fused thread profile)
   // the Fresnel-like peak: where it sits in cosine x size factor; zero below fresZero of that; the tail's length above it
   fresPeak: 0.12, fresZero: 0.5961, fresTail: 0.1403,
