@@ -10,6 +10,10 @@
 //        distance to the visible sheet, and of its height on screen; the median over columns, against the change from left to right
 //   4.5: over the on-screen sheet (by screen area), the product cosine x size factor relative to the Fresnel-like peak,
 //        and the share whose size factor is beyond the start of the sheen's cut-off; also the viewing cosine (4.4d, v16)
+//   4.4a folded slack across the width (spec 26): by one and the same measure both ways, the length of the path the net
+//        follows across its width against the straight line between the width's edges, and the same along its length;
+//        how many times the width turns over down a column of the screen; and how much of the depth the sheet's width
+//        could occupy (the across cloth laid straight) the drawn surface actually occupies
 const src = require('fs').readFileSync(process.env.PAGE || require('path').resolve(__dirname, '../../index.html'), 'utf8');
 const XMBW_SIM = new Function(src.match(/function XMBW_SIM\(\) \{[\s\S]*?\n\}\n/)[0] + '; return XMBW_SIM;')();
 const camSrc = src.match(/const CAMERA = \{[^\n]*\n/)[0] + src.match(/function cameraFor\(pitchDeg, aspect[^)]*\) \{[\s\S]*?\n\}\n/)[0];
@@ -31,7 +35,8 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const len = a => Math.hypot(a[0], a[1], a[2]), sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const ev = (s, t) => { const o = [0, 0, 0]; sim.surf(sim.netCur, s, t, o); return o.slice(); };
 const S = N - 3, n = 160, m = 32, h = 1e-3;
-const acc = { farY: [], colD: [], colY: [], ally: [], left: [], free: [], outside: [], dl: [], dr: [], below: [], farLower: [], prod: [], cut: [], cos: [] };
+const acc = { farY: [], colD: [], colY: [], ally: [], left: [], free: [], outside: [], dl: [], dr: [], below: [], farLower: [], prod: [], cut: [], cos: [],
+  slackW: [], slackL: [], turns: [], depthUse: [], top: [] };
 for (let f = 0; f < 5; f++) {
   for (let k = 0; k < 600; k++) sim.step();
   // framing: the along-length fraction (at mid-width) where the sheet first enters the screen; the free end's screen x
@@ -65,6 +70,37 @@ for (let f = 0; f < 5; f++) {
   acc.below.push(cam.pos[1] - ys / yc);
   const mean = a => a.reduce((p, x) => p + x, 0) / a.length; acc.farLower.push(mean(farF) - mean(nearF)); // > 0: far side lower
   acc.prod.push(...hist); acc.cut.push(cu / wsum); acc.cos.push(...co);
+
+  // spec 26, 4.4a: the same measure both ways on the deformed scene net: the path it follows across its width against
+  // the straight line between the width's edges, and the path along its length against the straight line end to end
+  const netP = (i, j) => { const k = (j * N + i) * 3; return [sim.netCur[k], sim.netCur[k + 1], sim.netCur[k + 2]]; };
+  for (let i = 0; i < N; i++) { let p = 0; for (let j = 0; j + 1 < N; j++) p += len(sub(netP(i, j + 1), netP(i, j)));
+    acc.slackW.push(p / Math.max(1e-9, len(sub(netP(i, N - 1), netP(i, 0))))); }
+  for (let j = 0; j < N; j++) { let p = 0; for (let i = 0; i + 1 < N; i++) p += len(sub(netP(i + 1, j), netP(i, j)));
+    acc.slackL.push(p / Math.max(1e-9, len(sub(netP(N - 1, j), netP(0, j))))); }
+  // how many times the width turns over down a column of the screen, and how much of the depth its cloth could occupy
+  // the drawn surface occupies: at each of 32 positions along the length, the width's trace on screen and in distance
+  let topY = Infinity;
+  for (let a = 0; a < 32; a++) {
+    const s = (a + 0.5) / 32 * S, ys = [], ds = [];
+    for (let b = 0; b <= 96; b++) {
+      const P = ev(s, b / 96 * S), Q = view(P); if (Q[2] <= 0.1) continue;
+      const sp = scr(Q); ys.push(sp[1]); ds.push(len(sub(P, cam.pos)));
+      if (sp[0] >= 0 && sp[0] <= 1) topY = Math.min(topY, sp[1]);
+    }
+    if (ys.length < 10) continue;
+    // turns: reversals of the trace's screen height, each at least this far (in screen heights) from the last extreme
+    const thr = 0.012; let turns = 0, dir = 0, ext = ys[0];
+    for (const y of ys) {
+      if (dir === 0) { if (Math.abs(y - ext) > thr) { dir = Math.sign(y - ext); ext = y; } }
+      else if ((y - ext) * dir > 0) ext = y;
+      else if (Math.abs(y - ext) > thr) { turns++; dir = -dir; ext = y; }
+    }
+    acc.turns.push(turns);
+    let path = 0; for (let b = 0; b + 1 < 96; b++) path += len(sub(ev(s, (b + 1) / 96 * S), ev(s, b / 96 * S)));
+    acc.depthUse.push((Math.max(...ds) - Math.min(...ds)) / Math.max(1e-9, path));
+  }
+  acc.top.push(topY);
 }
 const avg = a => a.reduce((p, x) => p + x, 0) / a.length;
 const wq = (arr, q) => { const a = arr.slice().sort((x, y) => x[0] - y[0]), tot = a.reduce((p, x) => p + x[1], 0); let c = 0; for (const x of a) { c += x[1]; if (c >= q * tot) return x[0]; } return a[a.length - 1][0]; };
@@ -81,3 +117,8 @@ console.log('4.4d from below: camera height above the sheet mean %s (negative = 
 console.log('4.5: cosine x size factor over the Fresnel-like peak: p25 / median / p75 %s / %s / %s; share with size factor beyond the sheen cut-off start %s',
   wq(acc.prod, 0.25).toFixed(2), wq(acc.prod, 0.5).toFixed(2), wq(acc.prod, 0.75).toFixed(2), avg(acc.cut).toFixed(2));
 console.log('viewing cosine p10 / p25 / median / p75 / p90 %s / %s / %s / %s / %s', ...[0.1, 0.25, 0.5, 0.75, 0.9].map(q => wq(acc.cos, q).toFixed(2)));
+const pct = (a, q) => { const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(q * b.length))]; };
+console.log('4.4a folded slack: path / straight line across the width %s (p10 %s, p90 %s), along the length %s; the width turns over down a column %s times (median; p10 %s, p90 %s); the drawn surface occupies %s of the depth its across cloth could',
+  med(acc.slackW).toFixed(2), pct(acc.slackW, 0.1).toFixed(2), pct(acc.slackW, 0.9).toFixed(2), med(acc.slackL).toFixed(2),
+  med(acc.turns).toFixed(1), pct(acc.turns, 0.1).toFixed(0), pct(acc.turns, 0.9).toFixed(0), med(acc.depthUse).toFixed(2));
+console.log('top of the sheet on screen (0 = top row): min over frames %s, median %s', Math.min(...acc.top).toFixed(3), med(acc.top).toFixed(3));
