@@ -192,8 +192,8 @@ original's lean where the original's stay neutral. The night picture's black top
 The band's brightest places compare left to right as the original's do.
 Each mood's bright-pass threshold sits inside the bracket measured on the original's footage (spec 24), and the night runs
 the same glare chain without any halo. But my brightest day background is the sun spot at the top, about 0.1 brighter than the
-original's brightest part, so by day my background glares by itself in ten months instead of only around the turn of the year
-(see the tuning log). The palettes and each mood's exposure are fitted together to the
+original's brightest part, so by day my background glares by itself in ten months instead of only around the turn of the year,
+as a visible blob over the spot in June and August (see the tuning log). The palettes and each mood's exposure are fitted together to the
 original's renders and recordings at four months (January, April, July, October) and four hours
 (`tools/measure/jointfit.py`). After the offset change of spec 24 each mood's exposure was re-fitted but the palettes
 were not, so the background away from the band now reads darker than the original's (6-44 % by mood) while the band reads slightly
