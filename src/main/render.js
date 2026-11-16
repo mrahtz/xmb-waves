@@ -19,6 +19,7 @@ function toneJS(c, m) { c = Math.max(c - m.black, 0) * m.exposure; return c * (1
 function setBgLights(pr) {
   gl.uniform4f(pr.u.uOval, BGL.ovalX, BGL.ovalY, BGL.spotW, BGL.spotH);
   gl.uniform4f(pr.u.uBand, BGL.bandX, BGL.bandW, BGL.bandY, BGL.bandH); gl.uniform2f(pr.u.uLStr, BGL.spot, BGL.glow);
+  gl.uniform2f(pr.u.uBandWide, BGL.bandWide, BGL.bandWidePow);
 }
 
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }

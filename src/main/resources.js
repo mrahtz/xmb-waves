@@ -42,6 +42,18 @@ function makeTarget(w, h, kind) { // kind: 'rgba16f' | 'r16f' | 'rgba8'
 function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); } }
 function bindTarget(t) { gl.bindFramebuffer(gl.FRAMEBUFFER, t ? t.fb : null); }
 
+// A painted picture read from its grid of colours (spec 23): separable smooth interpolation between the nodes, so the
+// picture is smooth everywhere (the weights flatten at each node) and no edge or band can show. v = 0 at the top.
+function gridColour(G, gw, gh, u, v) {
+  const x = u * (gw - 1), y = v * (gh - 1);
+  const i0 = Math.min(Math.max(Math.floor(x), 0), gw - 2), j0 = Math.min(Math.max(Math.floor(y), 0), gh - 2);
+  const fx = ease(x - i0), fy = ease(y - j0), o = [0, 0, 0];
+  for (const [di, dj, w] of [[0, 0, (1 - fx) * (1 - fy)], [1, 0, fx * (1 - fy)], [0, 1, (1 - fx) * fy], [1, 1, fx * fy]]) {
+    const b = ((j0 + dj) * gw + i0 + di) * 3;
+    for (let c = 0; c < 3; c++) o[c] += w * G[b + c];
+  }
+  return o;
+}
 // Background images: day and night for each month, stacked in one texture.
 let bgImageData = null;
 function makeBackgroundImages() {
@@ -51,18 +63,8 @@ function makeBackgroundImages() {
   PALETTES.forEach((P, m) => {
     for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
       const u = (x + 0.5) / BG_W, v = (y + 0.5) / BG_H; // v = 0 at the top
-      const g = v * v * (3 - 2 * v) * 0.75 + v * 0.25;
-      // optional middle colour: a smooth three-stop gradient instead of two stops
-      const base = P.mid
-        ? (v < 0.5 ? P.top.map((c, i) => c + (P.mid[i] - c) * ease(v * 2)) : P.mid.map((c, i) => c + (P.bottom[i] - c) * ease(v * 2 - 1)))
-        : P.top.map((c, i) => c + (P.bottom[i] - c) * g);
-      const dx = (u - P.glowPos[0]) / P.glowSize, dy = (v - P.glowPos[1]) / (P.glowSize * 0.8);
-      const glow = Math.exp(-(dx * dx + dy * dy));
-      const tilt = 1 + P.tilt * (u - 0.5);
-      put(m * 2, x, y, [0, 1, 2].map(i => (base[i] + P.glow[i] * glow) * tilt));
-      // night (spec 17): black at the top, a clear dim glow in the month's colour over the lower part
-      const low = Math.pow(Math.min(Math.max((v - NIGHT_IMG.top) / (1 - NIGHT_IMG.top), 0), 1), NIGHT_IMG.pow), side = 1 + NIGHT_IMG.side * Math.cos(TAU * (u - P.night[1]));
-      put(m * 2 + 1, x, y, [0, 1, 2].map(i => P.night[0][i] * NIGHT_IMG.glow * low * side));
+      put(m * 2, x, y, gridColour(P.day, BG_GRID_W, BG_GRID_H, u, v));
+      put(m * 2 + 1, x, y, gridColour(P.night, BG_GRID_W, BG_NGRID_H, u, v));
     }
   });
   return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
@@ -89,22 +91,25 @@ function bgImageAt(tile, u, v) {
   }
   return o;
 }
+// The two lights' total lift at (u, v) for the driving angle a: the lifts add, with nothing taken off for the overlap
+// (spec 23). The bottom glow's half-width broadens around the middle of the light's day.
 function bgLightsJS(u, v, a) {
   const sx = (u - 0.5 - BGL.ovalX * Math.sin(a)) / BGL.spotW, sy = (v - 1 + BGL.ovalY * (1 - Math.cos(a))) / BGL.spotH;
-  const gx = (u - 0.5 + BGL.bandX * Math.sin(a)) / BGL.bandW, gy = (v - BGL.bandY) / BGL.bandH;
-  return 1 - (1 - BGL.spot * Math.exp(-sx * sx - sy * sy)) * (1 - BGL.glow * Math.exp(-gx * gx - gy * gy));
+  const bw = BGL.bandW * (1 + BGL.bandWide * Math.pow(Math.max(0, Math.cos(a)), BGL.bandWidePow));
+  const gx = (u - 0.5 + BGL.bandX * Math.sin(a)) / bw, gy = (v - BGL.bandY) / BGL.bandH;
+  return BGL.spot * Math.exp(-sx * sx - sy * sy) + BGL.glow * Math.exp(-gx * gx - gy * gy);
 }
 function bgColorAt(sc, u, v) {
   const f = ease(((sc.monC - v) / sc.monW + 1) / 2), L = bgLightsJS(u, v, sc.aday), g = sc.top * Math.pow(v, BGL.topPow);
   const proc = (c) => {
     const h = rgb2hsvJS(c[0], c[1], c[2]);
-    const val = h[2] * sc.daylight * (BGL.base + (1 - BGL.base) * L) * Math.max(0, 1 - BGL.topDark * g);
-    const sat = Math.min(1, h[1] * (1 - BGL.pale * L) * (1 - BGL.midSat * sc.mid) * (1 + BGL.topSat * g));
+    const val = h[2] * sc.daylight * Math.min(1, BGL.base + L) * Math.max(0, 1 - BGL.topDark * g);
+    const sat = Math.min(1, Math.max(0, h[1] * (1 - BGL.pale * L)) * (1 - BGL.midSat * sc.mid) * (1 + BGL.topSat * g));
     return hsv2rgbJS(h[0], sat, val);
   };
   const da = proc(bgImageAt(sc.monA * 2, u, v)), db = proc(bgImageAt(sc.monB * 2, u, v));
   const na = bgImageAt(sc.monA * 2 + 1, u, v), nb = bgImageAt(sc.monB * 2 + 1, u, v);
-  const nl = Math.max(BGL.nightFloor, sc.nightEnv * (BGL.nightBase + (1 - BGL.nightBase) * bgLightsJS(u, v, sc.anight)));
+  const nl = Math.max(BGL.nightFloor, sc.nightEnv * Math.min(1, BGL.nightBase + bgLightsJS(u, v, sc.anight)));
   const k = sc.night * BGL.nightMix;
   return [0, 1, 2].map(c => (da[c] + (db[c] - da[c]) * f) * (1 - k) + (na[c] + (nb[c] - na[c]) * f) * nl * k);
 }

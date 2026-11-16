@@ -518,27 +518,151 @@ const NN = SIMM.N, DT = SIMM.DT, SPARK_STRIDE = SIMM.SPARK_STRIDE;
 const TAU = Math.PI * 2;
 
 // ---------------------------------------------------------------------------
-// Palettes (original design). Each month has a day image and a night image,
-// generated in code as small soft images (see makeBackgroundImages).
-//   top, bottom: colours at the top and bottom edge
-//   glow: colour added by a broad soft highlight, glowPos [x, y], glowSize
-//   tilt: brightness change from left to right
-//   night: [colour of the night glow over the lower part, where it is strongest (0 = left, 1 = right)]
-// Colours are display values (sRGB-encoded) in 0..1.
+// Palettes (original design). Each month has a day image and a night image:
+// small painted pictures, each described by a coarse grid of colours read with
+// smooth interpolation (spec 23). A grid can hold any smooth picture - the
+// colour varies down the image, across it and diagonally, the hue drifts where
+// the brightness does not, and the left-to-right difference may reverse down
+// the frame - while staying too coarse to show an edge or to take in noise.
+//   day:   BG_GRID_W x BG_GRID_H colours, row by row from the top of the image
+//   night: BG_GRID_W x BG_NGRID_H colours, the same way (the month's dark look,
+//          with structure of its own: the glow's lean and the lower corners)
+// Colours are display values (sRGB-encoded) in 0..1, three numbers each.
 // ---------------------------------------------------------------------------
+const BG_GRID_W = 3, BG_GRID_H = 4, BG_NGRID_H = 4;
 const PALETTES = [
-  /* 1 silver      */ { top: [0.482, 0.521, 0.474], mid: [0.545, 0.499, 0.537], bottom: [0.579, 0.581, 0.606], glow: [0.198, 0.170, 0.044], glowPos: [0.978, 0.408], glowSize: 0.565, tilt: 0.013, night: [[0.361, 0.262, 0.247], 0.350] },
-  /* 2 yellow      */ { top: [0.706, 0.697, 0.217], mid: [0.577, 0.478, 0.001], bottom: [0.872, 0.783, 0.297], glow: [0.271, 0.214, 0.043], glowPos: [0.157, 0.008], glowSize: 0.448, tilt: -0.059, night: [[0.219, 0.285, 0.195], 0.550] },
-  /* 3 light green */ { top: [0.407, 0.573, 0.063], bottom: [0.594, 0.820, 0.348], glow: [0.157, 0.186, 0.090], glowPos: [0.550, 0.100], glowSize: 0.550, tilt: 0.060, night: [[0.098, 0.239, 0.032], 0.350] },
-  /* 4 pink        */ { top: [0.528, 0.241, 0.324], mid: [0.466, 0.047, 0.258], bottom: [0.843, 0.252, 0.559], glow: [0.108, 0.000, 0.000], glowPos: [0.000, 0.374], glowSize: 0.643, tilt: 0.021, night: [[0.373, 0.000, 0.182], 0.350] },
-  /* 5 green       */ { top: [0.070, 0.291, 0.048], mid: [0.151, 0.600, 0.184], bottom: [0.006, 0.538, 0.055], glow: [0.001, 0.248, 0.009], glowPos: [0.772, 0.137], glowSize: 0.751, tilt: 0.400, night: [[0.006, 0.328, 0.109], 0.350] },
-  /* 6 lavender    */ { top: [0.427, 0.272, 0.725], bottom: [0.638, 0.559, 0.988], glow: [0.157, 0.124, 0.205], glowPos: [0.550, 0.100], glowSize: 0.550, tilt: 0.060, night: [[0.130, 0.125, 0.209], 0.350] },
-  /* 7 teal        */ { top: [0.002, 0.477, 0.515], mid: [0.000, 0.373, 0.426], bottom: [0.024, 0.349, 0.422], glow: [0.002, 0.312, 0.283], glowPos: [0.872, 0.600], glowSize: 0.558, tilt: 0.392, night: [[0.012, 0.154, 0.212], 0.350] },
-  /* 8 blue        */ { top: [0.079, 0.594, 0.639], mid: [0.000, 0.322, 0.461], bottom: [0.021, 0.357, 0.551], glow: [0.072, 0.316, 0.525], glowPos: [0.009, 0.089], glowSize: 0.544, tilt: 0.400, night: [[0.000, 0.177, 0.182], 0.150] },
-  /* 9 purple      */ { top: [0.213, 0.095, 0.421], bottom: [0.614, 0.316, 0.971], glow: [0.225, 0.165, 0.295], glowPos: [0.500, 0], glowSize: 0.420, tilt: 0.040, night: [[0.105, 0.118, 0.378], 0.150] },
-  /*10 gold        */ { top: [0.551, 0.498, 0.013], mid: [0.587, 0.438, 0.000], bottom: [0.769, 0.492, 0.054], glow: [0.095, 0.052, 0.071], glowPos: [0.868, 0.160], glowSize: 0.530, tilt: -0.139, night: [[0.379, 0.242, 0.003], 0.350] },
-  /*11 brown       */ { top: [0.504, 0.273, 0.008], mid: [0.502, 0.307, 0.045], bottom: [0.465, 0.357, 0.096], glow: [0.080, 0.086, 0.041], glowPos: [0.141, 0.164], glowSize: 0.449, tilt: 0.115, night: [[0.164, 0.068, 0.000], 0.350] },
-  /*12 red         */ { top: [0.602, 0.013, 0.023], bottom: [0.798, 0.124, 0.170], glow: [0.180, 0.082, 0.079], glowPos: [0.550, 0.100], glowSize: 0.550, tilt: 0.060, night: [[0.254, 0.047, 0.034], 0.350] },
+  /*  1 silver      */ { day: [
+    0.475, 0.521, 0.467,  0.526, 0.565, 0.481,  0.586, 0.618, 0.496,
+    0.526, 0.499, 0.516,  0.627, 0.586, 0.541,  0.748, 0.690, 0.570,
+    0.553, 0.515, 0.553,  0.628, 0.580, 0.572,  0.717, 0.657, 0.595,
+    0.577, 0.584, 0.607,  0.597, 0.602, 0.614,  0.620, 0.622, 0.622
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.104, 0.076, 0.071,  0.104, 0.076, 0.071,  0.104, 0.076, 0.071,
+    0.640, 0.464, 0.438,  0.640, 0.464, 0.438,  0.640, 0.464, 0.438,
+    1.054, 0.765, 0.721,  1.054, 0.765, 0.721,  1.054, 0.765, 0.721
+  ] },
+  /*  2 yellow      */ { day: [
+    1.062, 0.992, 0.296,  0.887, 0.851, 0.265,  0.685, 0.687, 0.229,
+    0.744, 0.637, 0.064,  0.665, 0.573, 0.052,  0.574, 0.500, 0.040,
+    0.662, 0.559, 0.066,  0.644, 0.544, 0.064,  0.626, 0.528, 0.063,
+    0.923, 0.834, 0.333,  0.898, 0.811, 0.324,  0.872, 0.788, 0.315
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.063, 0.082, 0.056,  0.063, 0.082, 0.056,  0.063, 0.082, 0.056,
+    0.388, 0.505, 0.346,  0.388, 0.505, 0.346,  0.388, 0.505, 0.346,
+    0.639, 0.832, 0.569,  0.639, 0.832, 0.569,  0.639, 0.832, 0.569
+  ] },
+  /*  3 light green */ { day: [
+    0.462, 0.635, 0.096,  0.572, 0.768, 0.154,  0.521, 0.711, 0.120,
+    0.495, 0.681, 0.164,  0.581, 0.785, 0.210,  0.548, 0.749, 0.187,
+    0.540, 0.746, 0.271,  0.571, 0.786, 0.288,  0.577, 0.796, 0.290,
+    0.581, 0.801, 0.343,  0.597, 0.825, 0.353,  0.614, 0.848, 0.363
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.028, 0.069, 0.009,  0.028, 0.069, 0.009,  0.028, 0.069, 0.009,
+    0.174, 0.424, 0.057,  0.174, 0.424, 0.057,  0.174, 0.424, 0.057,
+    0.286, 0.698, 0.093,  0.286, 0.698, 0.093,  0.286, 0.698, 0.093
+  ] },
+  /*  4 pink        */ { day: [
+    0.606, 0.257, 0.330,  0.577, 0.259, 0.333,  0.548, 0.262, 0.337,
+    0.578, 0.085, 0.259,  0.527, 0.086, 0.262,  0.477, 0.087, 0.265,
+    0.633, 0.088, 0.325,  0.599, 0.089, 0.329,  0.566, 0.090, 0.332,
+    0.891, 0.268, 0.578,  0.887, 0.271, 0.584,  0.884, 0.274, 0.590
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.108, 0.000, 0.053,  0.108, 0.000, 0.053,  0.108, 0.000, 0.053,
+    0.661, 0.000, 0.323,  0.661, 0.000, 0.323,  0.661, 0.000, 0.323,
+    1.089, 0.000, 0.531,  1.089, 0.000, 0.531,  1.089, 0.000, 0.531
+  ] },
+  /*  5 green       */ { day: [
+    0.050, 0.286, 0.031,  0.062, 0.488, 0.043,  0.074, 0.610, 0.053,
+    0.112, 0.493, 0.129,  0.138, 0.731, 0.163,  0.164, 0.896, 0.195,
+    0.097, 0.517, 0.129,  0.119, 0.697, 0.162,  0.142, 0.842, 0.193,
+    0.000, 0.438, 0.035,  0.000, 0.555, 0.044,  0.000, 0.664, 0.052
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.002, 0.095, 0.031,  0.002, 0.095, 0.031,  0.002, 0.095, 0.031,
+    0.011, 0.581, 0.193,  0.011, 0.581, 0.193,  0.011, 0.581, 0.193,
+    0.018, 0.957, 0.318,  0.018, 0.957, 0.318,  0.018, 0.957, 0.318
+  ] },
+  /*  6 lavender    */ { day: [
+    0.481, 0.314, 0.790,  0.591, 0.400, 0.940,  0.542, 0.358, 0.880,
+    0.520, 0.379, 0.839,  0.607, 0.446, 0.957,  0.575, 0.420, 0.920,
+    0.577, 0.478, 0.907,  0.609, 0.504, 0.953,  0.615, 0.510, 0.966,
+    0.624, 0.548, 0.965,  0.642, 0.564, 0.993,  0.660, 0.580, 1.021
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.038, 0.036, 0.060,  0.038, 0.036, 0.060,  0.038, 0.036, 0.060,
+    0.230, 0.222, 0.370,  0.230, 0.222, 0.370,  0.230, 0.222, 0.370,
+    0.379, 0.365, 0.610,  0.379, 0.365, 0.610,  0.379, 0.365, 0.610
+  ] },
+  /*  7 teal        */ { day: [
+    0.002, 0.396, 0.426,  0.003, 0.515, 0.550,  0.003, 0.633, 0.671,
+    0.000, 0.329, 0.368,  0.000, 0.545, 0.580,  0.001, 0.754, 0.786,
+    0.005, 0.301, 0.348,  0.007, 0.570, 0.609,  0.009, 0.829, 0.861,
+    0.021, 0.287, 0.347,  0.027, 0.450, 0.515,  0.032, 0.609, 0.679
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.003, 0.044, 0.061,  0.003, 0.044, 0.061,  0.003, 0.044, 0.061,
+    0.021, 0.273, 0.376,  0.021, 0.273, 0.376,  0.021, 0.273, 0.376,
+    0.035, 0.449, 0.619,  0.035, 0.449, 0.619,  0.035, 0.449, 0.619
+  ] },
+  /*  8 blue        */ { day: [
+    0.137, 0.797, 1.024,  0.120, 0.766, 0.904,  0.102, 0.733, 0.779,
+    0.063, 0.524, 0.755,  0.043, 0.493, 0.677,  0.022, 0.460, 0.596,
+    0.011, 0.300, 0.454,  0.007, 0.340, 0.510,  0.002, 0.380, 0.565,
+    0.019, 0.295, 0.454,  0.024, 0.363, 0.560,  0.028, 0.432, 0.666
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.000, 0.051, 0.053,  0.000, 0.051, 0.053,  0.000, 0.051, 0.053,
+    0.000, 0.314, 0.323,  0.000, 0.314, 0.323,  0.000, 0.314, 0.323,
+    0.000, 0.517, 0.531,  0.000, 0.517, 0.531,  0.000, 0.517, 0.531
+  ] },
+  /*  9 purple      */ { day: [
+    0.278, 0.145, 0.503,  0.452, 0.272, 0.734,  0.289, 0.151, 0.523,
+    0.339, 0.170, 0.590,  0.405, 0.216, 0.679,  0.353, 0.177, 0.614,
+    0.497, 0.252, 0.809,  0.505, 0.255, 0.822,  0.516, 0.262, 0.840,
+    0.610, 0.314, 0.963,  0.623, 0.321, 0.983,  0.633, 0.326, 1.000
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.030, 0.034, 0.109,  0.030, 0.034, 0.109,  0.030, 0.034, 0.109,
+    0.186, 0.209, 0.670,  0.186, 0.209, 0.670,  0.186, 0.209, 0.670,
+    0.306, 0.344, 1.103,  0.306, 0.344, 1.103,  0.306, 0.344, 1.103
+  ] },
+  /* 10 gold        */ { day: [
+    0.589, 0.538, 0.018,  0.610, 0.536, 0.059,  0.610, 0.522, 0.085,
+    0.611, 0.481, 0.003,  0.623, 0.479, 0.040,  0.617, 0.467, 0.064,
+    0.675, 0.478, 0.014,  0.646, 0.456, 0.022,  0.612, 0.431, 0.027,
+    0.834, 0.530, 0.062,  0.783, 0.497, 0.058,  0.732, 0.465, 0.055
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.109, 0.070, 0.001,  0.109, 0.070, 0.001,  0.109, 0.070, 0.001,
+    0.672, 0.429, 0.005,  0.672, 0.429, 0.005,  0.672, 0.429, 0.005,
+    1.106, 0.706, 0.009,  1.106, 0.706, 0.009,  1.106, 0.706, 0.009
+  ] },
+  /* 11 brown       */ { day: [
+    0.557, 0.343, 0.047,  0.546, 0.317, 0.028,  0.527, 0.282, 0.004,
+    0.545, 0.354, 0.067,  0.540, 0.335, 0.052,  0.528, 0.309, 0.034,
+    0.475, 0.313, 0.060,  0.498, 0.326, 0.061,  0.519, 0.337, 0.062,
+    0.436, 0.340, 0.094,  0.462, 0.360, 0.099,  0.487, 0.380, 0.105
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.047, 0.020, 0.000,  0.047, 0.020, 0.000,  0.047, 0.020, 0.000,
+    0.291, 0.121, 0.000,  0.291, 0.121, 0.000,  0.291, 0.121, 0.000,
+    0.479, 0.198, 0.000,  0.479, 0.198, 0.000,  0.479, 0.198, 0.000
+  ] },
+  /* 12 red         */ { day: [
+    0.661, 0.047, 0.055,  0.791, 0.099, 0.105,  0.737, 0.067, 0.074,
+    0.694, 0.068, 0.086,  0.796, 0.107, 0.124,  0.762, 0.085, 0.103,
+    0.738, 0.098, 0.133,  0.776, 0.108, 0.144,  0.786, 0.106, 0.143,
+    0.779, 0.122, 0.168,  0.802, 0.126, 0.173,  0.824, 0.130, 0.178
+  ], night: [
+    0.000, 0.000, 0.000,  0.000, 0.000, 0.000,  0.000, 0.000, 0.000,
+    0.073, 0.014, 0.010,  0.073, 0.014, 0.010,  0.073, 0.014, 0.010,
+    0.450, 0.083, 0.060,  0.450, 0.083, 0.060,  0.450, 0.083, 0.060,
+    0.741, 0.137, 0.099,  0.741, 0.137, 0.099,  0.741, 0.137, 0.099
+  ] },
 ];
 const BG_W = 32, BG_H = 18; // size of each generated background image
 
@@ -592,22 +716,42 @@ function nightWeight(hour) {
   if (h < 20.5) return ease((h - 18.5) / 2);
   return 1;
 }
-// Background clock (spec 19). The warped hour advances slowly around midday and quickly around midnight; one angle of it
-// (0 at the warp's midday, +-pi at its midnight) drives the day image's two lights, its daylight factor and its shaping down
-// the frame. BGW: warp strength, the hour the warp centres on, the daylight factor's floor and exponent, and the warped
-// angles between which the shaping down the frame switches on (nothing below a0, full from a1).
-const BGW = { warp: 0.808, noon: 11.954, dayFloor: 0.034, dayPow: 0.896, a0: 1.590, a1: 2.231, envPow: 3.287 };
+// Background clock (spec 19, 23). The warped hour advances slowly around midday and quickly around midnight; one angle of
+// it (0 at the warp's midday, +-pi at its midnight) drives the day image's two lights, its daylight factor and its shaping
+// down the frame. BGW: warp strength, the hour the warp centres on, the daylight factor's floor, its morning step (mornAt:
+// how far after the warped midnight the rise begins, mornW: its width) and its evening step (eveAt: how far before the
+// warped midnight the fall has finished, eveW: its width), the widths of the two turns of the shaping down the frame
+// (topMornW, topEveW: the same two places, steepnesses of their own), and the night envelope's exponent.
+const BGW = { warp: 0.808, noon: 11.954, dayFloor: 0.034, mornAt: 0.600, mornW: 3.000, eveAt: 0.300, eveW: 1.600,
+  topMornW: 0.600, topEveW: 1.000, envPow: 3.287 };
 function wrapPi(a) { return a - TAU * Math.floor((a + Math.PI) / TAU); }
 function dayAngle(hour) {
   const p = wrapPi(((hour - BGW.noon) / 24) * TAU);
   return p - BGW.warp * Math.sin(p);
 }
-// The day image's daylight factor: from the warped angle alone, lowest (close to nothing) at midnight, rising without
-// turning back to its top at midday. The picture's minimum after midnight comes from the mix with the night image.
-function daylightOf(a) { return BGW.dayFloor + (1 - BGW.dayFloor) * Math.pow(0.5 + 0.5 * Math.cos(a), BGW.dayPow); }
+// A smooth step of the warped angle, rising from 0 to 1 over the width w about the angle c.
+function angStep(a, c, w) { return ease((a - c) / w + 0.5); }
+// Where the two steps turn: the morning one a mornW/2 past the start of its rise, the evening one an eveW/2 before the end
+// of its fall. Both steps are flat at the warped midnight, so the day's curves meet there with no jump.
+function mornTurn() { return -Math.PI + BGW.mornAt + BGW.mornW / 2; }
+function eveTurn() { return Math.PI - BGW.eveAt - BGW.eveW / 2; }
+// The day image's daylight factor (spec 23): the product of a morning step and an evening step of the warped angle, each
+// with its own steepness. The evening fall is the steeper side, so the factor peaks in the later afternoon rather than at
+// midday. It is lowest (close to nothing) at midnight and rises from there without turning back; the picture's minimum
+// after midnight comes from the mix with the night image.
+function daylightOf(a) {
+  const d = angStep(a, mornTurn(), BGW.mornW) * (1 - angStep(a, eveTurn(), BGW.eveW));
+  return BGW.dayFloor + (1 - BGW.dayFloor) * d;
+}
 // Strength of the clock's shaping of the day image down the frame: nothing from early morning until late evening, full
-// through the late evening and the small hours.
-function topShape(a) { return ease((Math.abs(a) - BGW.a0) / (BGW.a1 - BGW.a0)); }
+// through the late evening and the small hours. It turns at the same two places as the daylight factor, with widths of its
+// own (held to the room each turn has, so the shaping too is flat at the warped midnight).
+function topShape(a) {
+  const cm = mornTurn(), ce = eveTurn();
+  const m = angStep(a, cm, Math.min(BGW.topMornW, 2 * (cm + Math.PI)));
+  const e = 1 - angStep(a, ce, Math.min(BGW.topEveW, 2 * (Math.PI - ce)));
+  return 1 - m * e;
+}
 // The night images' clock: not warped, one steady turn a day counted from midday (0 at midnight, -pi/2 at 18:00 with the
 // light at the left edge, +pi/2 at 06:00 at the right edge, +-pi at midday below the picture).
 function nightAngle(hour) { return wrapPi(((hour - 12) / 24) * TAU - Math.PI); }
@@ -680,19 +824,20 @@ const WAVE = {
   tintL: [0.94, 0.94, 0.94], tintR: [1.0, 1.0, 1.0], // a neutral tint brightening slightly from left to right
 };
 // (these scalars are let, not const, only so the settings menu can change them live)
-// background (spec 19, original design). Day images: base: value away from both lights (a light lifts its area towards
-// the image's own value, never past it); spot: its strength, oval (centre x amplitude, centre y amplitude: the centre is on
-// the top edge at midday and 1 - 2 ovalY below the bottom at midnight) and radii; band: the bottom glow's strength, centre x
-// amplitude (mirrored from the spot), half-width, centre height and half-height; pale: how much paler lit areas get;
-// midSat: the mid-month saturation drop; topDark, topSat, topPow: the clock's shaping down the frame (value reduced, and
-// saturation raised, by strength x height^topPow). Night images: nightMix: their share at full night weight; nightBase:
-// their level away from the lights; nightFloor: the floor under the lit, enveloped level.
-// the night images: dark above top (in image heights from the top), rising with exponent pow to the bottom, brighter by side
-// towards the palette's side, glow times the palette's night colour
-const NIGHT_IMG = { top: 0.265, pow: 0.905, side: 0.000, glow: 3.000 };
-const BGL = { base: 0.668, spot: 0.868, ovalX: 0.770, ovalY: 0.717, spotW: 0.417, spotH: 0.329,
-  glow: 0.713, bandX: 0.386, bandW: 0.575, bandY: -0.033, bandH: 0.348, pale: 0.278, midSat: 0.300,
-  topDark: 1.862, topSat: 6.763, topPow: 0.729, nightMix: 0.358, nightBase: 0.483, nightFloor: 0.309 };
+// background (spec 19, 23; original design). The picture starts from a fixed share of the image's own value and each light
+// adds its own lift on top of that; the two lifts add, and base + spot + glow <= 1 keeps the total from carrying the
+// picture past the image's own colour. Day images: base: the fixed share; spot: the sun-like spot's lift, oval (centre x
+// amplitude, centre y amplitude: the centre is on the top edge at midday, crosses the bottom edge towards either end of the
+// warped daylight hours and is 1 - 2 ovalY below the bottom at midnight) and radii; band: the bottom glow's lift, centre x
+// amplitude (mirrored from the spot), half-width, centre height and half-height; bandWide, bandWidePow: how much the glow
+// broadens around the middle of the day (its half-width x (1 + bandWide x cos(angle)^bandWidePow)); pale: how much paler lit
+// areas get; midSat: the mid-month saturation drop; topDark, topSat, topPow: the clock's shaping down the frame (value
+// reduced, and saturation raised, by strength x height^topPow). Night images: nightMix: their share at full night weight;
+// nightBase: their fixed share; nightFloor: the floor under the lit, enveloped level.
+const BGL = { base: 0.600, spot: 0.220, ovalX: 0.770, ovalY: 0.780, spotW: 0.417, spotH: 0.329,
+  glow: 0.180, bandX: 0.386, bandW: 0.575, bandY: -0.033, bandH: 0.348, bandWide: 0.500, bandWidePow: 2.000,
+  pale: 0.700, midSat: 0.300, topDark: 1.862, topSat: 6.763, topPow: 0.729,
+  nightMix: 0.358, nightBase: 0.483, nightFloor: 0.309 };
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
@@ -735,13 +880,16 @@ void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2); vUv =
 const GLSL_BGLIGHT = `
 uniform vec4 uOval;   // spot: centre x amplitude, centre y amplitude (its centre is on the top edge at angle 0), radii x, y
 uniform vec4 uBand;   // bottom glow: centre x amplitude, half-width, centre height (at or below the bottom edge), half-height
-uniform vec2 uLStr;   // strengths of the spot and the bottom glow (0..1: a light lifts its area towards the image's own value)
-// the two soft lights for angle a (0: the spot's centre on the top edge, mid-width), combined so the sum never exceeds 1
+uniform vec2 uLStr;   // the lifts of the spot and the bottom glow (a light lifts its area towards the image's own value)
+uniform vec2 uBandWide; // how much the glow's half-width broadens around the middle of the light's day, and its exponent
+// the total lift of the two soft lights for angle a (0: the spot's centre on the top edge, the glow at mid-width): the two
+// lifts add, with nothing taken off where they overlap (spec 23)
 float lights(vec2 uv, float a){
   vec2 s = vec2(0.5 + uOval.x * sin(a), 1.0 - uOval.y * (1.0 - cos(a)));
   vec2 ds = (uv - s) / uOval.zw;
-  float gx = (uv.x - (0.5 - uBand.x * sin(a))) / uBand.y, gy = (uv.y - uBand.z) / uBand.w;
-  return 1.0 - (1.0 - uLStr.x * exp(-dot(ds, ds))) * (1.0 - uLStr.y * exp(-gx * gx - gy * gy));
+  float bw = uBand.y * (1.0 + uBandWide.x * pow(max(0.0, cos(a)), uBandWide.y));
+  float gx = (uv.x - (0.5 - uBand.x * sin(a))) / bw, gy = (uv.y - uBand.z) / uBand.w;
+  return uLStr.x * exp(-dot(ds, ds)) + uLStr.y * exp(-gx * gx - gy * gy);
 }`;
 const FS_BGGEN = `#version 300 es
 precision highp float;
@@ -764,8 +912,8 @@ vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)
 // one month's day image, processed on its own (L: the lights here; g: the clock's shaping at this height)
 vec3 processDay(vec3 c, float L, float g){
   vec3 h = rgb2hsv(c);
-  h.z *= uDaylight * (uBase + (1.0 - uBase) * L) * max(0.0, 1.0 - uTopDark * g);
-  h.y = min(1.0, h.y * (1.0 - uPale * L) * (1.0 - uMidSat) * (1.0 + uTopSat * g));
+  h.z *= uDaylight * min(1.0, uBase + L) * max(0.0, 1.0 - uTopDark * g);
+  h.y = min(1.0, max(0.0, h.y * (1.0 - uPale * L)) * (1.0 - uMidSat) * (1.0 + uTopSat * g));
   return hsv2rgb(h);
 }
 void main(){
@@ -776,7 +924,7 @@ void main(){
   float L = lights(uv, uAday), g = uTop * pow(uv.y, uTopPow);
   vec3 day = mix(processDay(img(uA * 2.0, iu), L, g), processDay(img(uB * 2.0, iu), L, g), f);
   float Ln = lights(uv, uAnight);
-  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f) * max(uNightFloor, uNightEnv * (uNightBase + (1.0 - uNightBase) * Ln));
+  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f) * max(uNightFloor, uNightEnv * min(1.0, uNightBase + Ln));
   vec3 c = mix(day, night, uNight * uNightMix);
   vec3 prev = texture(uPrev, vUv).rgb;
   o = vec4(mix(prev, c, uEase), 1.0);
@@ -1125,6 +1273,18 @@ function makeTarget(w, h, kind) { // kind: 'rgba16f' | 'r16f' | 'rgba8'
 function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fb); } }
 function bindTarget(t) { gl.bindFramebuffer(gl.FRAMEBUFFER, t ? t.fb : null); }
 
+// A painted picture read from its grid of colours (spec 23): separable smooth interpolation between the nodes, so the
+// picture is smooth everywhere (the weights flatten at each node) and no edge or band can show. v = 0 at the top.
+function gridColour(G, gw, gh, u, v) {
+  const x = u * (gw - 1), y = v * (gh - 1);
+  const i0 = Math.min(Math.max(Math.floor(x), 0), gw - 2), j0 = Math.min(Math.max(Math.floor(y), 0), gh - 2);
+  const fx = ease(x - i0), fy = ease(y - j0), o = [0, 0, 0];
+  for (const [di, dj, w] of [[0, 0, (1 - fx) * (1 - fy)], [1, 0, fx * (1 - fy)], [0, 1, (1 - fx) * fy], [1, 1, fx * fy]]) {
+    const b = ((j0 + dj) * gw + i0 + di) * 3;
+    for (let c = 0; c < 3; c++) o[c] += w * G[b + c];
+  }
+  return o;
+}
 // Background images: day and night for each month, stacked in one texture.
 let bgImageData = null;
 function makeBackgroundImages() {
@@ -1134,18 +1294,8 @@ function makeBackgroundImages() {
   PALETTES.forEach((P, m) => {
     for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
       const u = (x + 0.5) / BG_W, v = (y + 0.5) / BG_H; // v = 0 at the top
-      const g = v * v * (3 - 2 * v) * 0.75 + v * 0.25;
-      // optional middle colour: a smooth three-stop gradient instead of two stops
-      const base = P.mid
-        ? (v < 0.5 ? P.top.map((c, i) => c + (P.mid[i] - c) * ease(v * 2)) : P.mid.map((c, i) => c + (P.bottom[i] - c) * ease(v * 2 - 1)))
-        : P.top.map((c, i) => c + (P.bottom[i] - c) * g);
-      const dx = (u - P.glowPos[0]) / P.glowSize, dy = (v - P.glowPos[1]) / (P.glowSize * 0.8);
-      const glow = Math.exp(-(dx * dx + dy * dy));
-      const tilt = 1 + P.tilt * (u - 0.5);
-      put(m * 2, x, y, [0, 1, 2].map(i => (base[i] + P.glow[i] * glow) * tilt));
-      // night (spec 17): black at the top, a clear dim glow in the month's colour over the lower part
-      const low = Math.pow(Math.min(Math.max((v - NIGHT_IMG.top) / (1 - NIGHT_IMG.top), 0), 1), NIGHT_IMG.pow), side = 1 + NIGHT_IMG.side * Math.cos(TAU * (u - P.night[1]));
-      put(m * 2 + 1, x, y, [0, 1, 2].map(i => P.night[0][i] * NIGHT_IMG.glow * low * side));
+      put(m * 2, x, y, gridColour(P.day, BG_GRID_W, BG_GRID_H, u, v));
+      put(m * 2 + 1, x, y, gridColour(P.night, BG_GRID_W, BG_NGRID_H, u, v));
     }
   });
   return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
@@ -1172,22 +1322,25 @@ function bgImageAt(tile, u, v) {
   }
   return o;
 }
+// The two lights' total lift at (u, v) for the driving angle a: the lifts add, with nothing taken off for the overlap
+// (spec 23). The bottom glow's half-width broadens around the middle of the light's day.
 function bgLightsJS(u, v, a) {
   const sx = (u - 0.5 - BGL.ovalX * Math.sin(a)) / BGL.spotW, sy = (v - 1 + BGL.ovalY * (1 - Math.cos(a))) / BGL.spotH;
-  const gx = (u - 0.5 + BGL.bandX * Math.sin(a)) / BGL.bandW, gy = (v - BGL.bandY) / BGL.bandH;
-  return 1 - (1 - BGL.spot * Math.exp(-sx * sx - sy * sy)) * (1 - BGL.glow * Math.exp(-gx * gx - gy * gy));
+  const bw = BGL.bandW * (1 + BGL.bandWide * Math.pow(Math.max(0, Math.cos(a)), BGL.bandWidePow));
+  const gx = (u - 0.5 + BGL.bandX * Math.sin(a)) / bw, gy = (v - BGL.bandY) / BGL.bandH;
+  return BGL.spot * Math.exp(-sx * sx - sy * sy) + BGL.glow * Math.exp(-gx * gx - gy * gy);
 }
 function bgColorAt(sc, u, v) {
   const f = ease(((sc.monC - v) / sc.monW + 1) / 2), L = bgLightsJS(u, v, sc.aday), g = sc.top * Math.pow(v, BGL.topPow);
   const proc = (c) => {
     const h = rgb2hsvJS(c[0], c[1], c[2]);
-    const val = h[2] * sc.daylight * (BGL.base + (1 - BGL.base) * L) * Math.max(0, 1 - BGL.topDark * g);
-    const sat = Math.min(1, h[1] * (1 - BGL.pale * L) * (1 - BGL.midSat * sc.mid) * (1 + BGL.topSat * g));
+    const val = h[2] * sc.daylight * Math.min(1, BGL.base + L) * Math.max(0, 1 - BGL.topDark * g);
+    const sat = Math.min(1, Math.max(0, h[1] * (1 - BGL.pale * L)) * (1 - BGL.midSat * sc.mid) * (1 + BGL.topSat * g));
     return hsv2rgbJS(h[0], sat, val);
   };
   const da = proc(bgImageAt(sc.monA * 2, u, v)), db = proc(bgImageAt(sc.monB * 2, u, v));
   const na = bgImageAt(sc.monA * 2 + 1, u, v), nb = bgImageAt(sc.monB * 2 + 1, u, v);
-  const nl = Math.max(BGL.nightFloor, sc.nightEnv * (BGL.nightBase + (1 - BGL.nightBase) * bgLightsJS(u, v, sc.anight)));
+  const nl = Math.max(BGL.nightFloor, sc.nightEnv * Math.min(1, BGL.nightBase + bgLightsJS(u, v, sc.anight)));
   const k = sc.night * BGL.nightMix;
   return [0, 1, 2].map(c => (da[c] + (db[c] - da[c]) * f) * (1 - k) + (na[c] + (nb[c] - na[c]) * f) * nl * k);
 }
@@ -1265,6 +1418,7 @@ function toneJS(c, m) { c = Math.max(c - m.black, 0) * m.exposure; return c * (1
 function setBgLights(pr) {
   gl.uniform4f(pr.u.uOval, BGL.ovalX, BGL.ovalY, BGL.spotW, BGL.spotH);
   gl.uniform4f(pr.u.uBand, BGL.bandX, BGL.bandW, BGL.bandY, BGL.bandH); gl.uniform2f(pr.u.uLStr, BGL.spot, BGL.glow);
+  gl.uniform2f(pr.u.uBandWide, BGL.bandWide, BGL.bandWidePow);
 }
 
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
@@ -1559,7 +1713,7 @@ function render(opts) {
 }
 
 window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, moodAt, nightWeight, sceneParams,
-  bg: { BGL, BGW, NIGHT_IMG, PALETTES, remake: remakeBackgroundImages, colorAt: bgColorAt } } };
+  bg: { BGL, BGW, PALETTES, grid: [BG_GRID_W, BG_GRID_H, BG_NGRID_H], remake: remakeBackgroundImages, colorAt: bgColorAt } } };
 if (SCORE) { canvas.style.display = 'none'; return; }
 
 // ---------------------------------------------------------------------------
@@ -1707,14 +1861,20 @@ group('Background', [
   field('BGL', BGL, 'spotW', 'sun spot radius x', 0.1, 2, 0.01), field('BGL', BGL, 'spotH', 'sun spot radius y', 0.1, 2, 0.01),
   field('BGL', BGL, 'glow', 'bottom glow strength', 0, 1, 0.01), field('BGL', BGL, 'bandX', 'bottom glow travel', 0, 0.5, 0.01),
   field('BGL', BGL, 'bandW', 'bottom glow half-width', 0.1, 2, 0.01), field('BGL', BGL, 'bandY', 'bottom glow centre height', -0.5, 0, 0.01),
-  field('BGL', BGL, 'bandH', 'bottom glow half-height', 0.05, 1.5, 0.01), field('BGL', BGL, 'pale', 'lit areas paler', 0, 1, 0.01),
+  field('BGL', BGL, 'bandH', 'bottom glow half-height', 0.05, 1.5, 0.01),
+  field('BGL', BGL, 'bandWide', 'bottom glow: midday broadening', 0, 2, 0.01),
+  field('BGL', BGL, 'bandWidePow', 'bottom glow: broadening shape', 0.2, 8, 0.05),
+  field('BGL', BGL, 'pale', 'lit areas paler', 0, 2.5, 0.01),
   field('BGL', BGL, 'midSat', 'mid-month desaturation', 0, 1, 0.01), field('BGL', BGL, 'topDark', 'late hours: top darker', 0, 4, 0.01),
   field('BGL', BGL, 'topSat', 'late hours: top deeper', 0, 8, 0.05), field('BGL', BGL, 'topPow', 'late hours: shape up the frame', 0.2, 4, 0.01),
   field('BGL', BGL, 'nightMix', 'night image share', 0, 1, 0.01), field('BGL', BGL, 'nightBase', 'night: level away from the lights', 0, 1, 0.01),
   field('BGL', BGL, 'nightFloor', 'night: floor', 0, 1, 0.01),
   field('BGW', BGW, 'warp', 'clock warp', 0, 0.95, 0.01), field('BGW', BGW, 'noon', 'clock warp: midday', 10, 14, 0.05),
-  field('BGW', BGW, 'dayPow', 'daylight: exponent', 0.5, 6, 0.05), field('BGW', BGW, 'dayFloor', 'daylight: floor', 0, 0.3, 0.005),
-  field('BGW', BGW, 'a0', 'late hours: from angle', 0, 3.1, 0.01), field('BGW', BGW, 'a1', 'late hours: full at angle', 0, 3.2, 0.01),
+  field('BGW', BGW, 'dayFloor', 'daylight: floor', 0, 0.3, 0.005),
+  field('BGW', BGW, 'mornAt', 'daylight: morning rise begins', 0, 2.5, 0.01), field('BGW', BGW, 'mornW', 'daylight: morning width', 0.1, 3.1, 0.01),
+  field('BGW', BGW, 'eveAt', 'daylight: evening fall ends', 0, 2.5, 0.01), field('BGW', BGW, 'eveW', 'daylight: evening width', 0.1, 3.1, 0.01),
+  field('BGW', BGW, 'topMornW', 'late hours: morning turn width', 0.05, 3.1, 0.01),
+  field('BGW', BGW, 'topEveW', 'late hours: evening turn width', 0.05, 3.1, 0.01),
   field('BGW', BGW, 'envPow', 'night envelope exponent', 0, 4, 0.05),
   live('BG_EASE', 'frame easing', () => BG_EASE, v => { BG_EASE = v; }, 0.005, 1, 0.005),
   live('DITHER', 'dither amplitude', () => DITHER, v => { DITHER = v; }, 0, 3, 0.05),

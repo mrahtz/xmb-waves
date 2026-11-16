@@ -13,13 +13,16 @@ void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2); vUv =
 const GLSL_BGLIGHT = `
 uniform vec4 uOval;   // spot: centre x amplitude, centre y amplitude (its centre is on the top edge at angle 0), radii x, y
 uniform vec4 uBand;   // bottom glow: centre x amplitude, half-width, centre height (at or below the bottom edge), half-height
-uniform vec2 uLStr;   // strengths of the spot and the bottom glow (0..1: a light lifts its area towards the image's own value)
-// the two soft lights for angle a (0: the spot's centre on the top edge, mid-width), combined so the sum never exceeds 1
+uniform vec2 uLStr;   // the lifts of the spot and the bottom glow (a light lifts its area towards the image's own value)
+uniform vec2 uBandWide; // how much the glow's half-width broadens around the middle of the light's day, and its exponent
+// the total lift of the two soft lights for angle a (0: the spot's centre on the top edge, the glow at mid-width): the two
+// lifts add, with nothing taken off where they overlap (spec 23)
 float lights(vec2 uv, float a){
   vec2 s = vec2(0.5 + uOval.x * sin(a), 1.0 - uOval.y * (1.0 - cos(a)));
   vec2 ds = (uv - s) / uOval.zw;
-  float gx = (uv.x - (0.5 - uBand.x * sin(a))) / uBand.y, gy = (uv.y - uBand.z) / uBand.w;
-  return 1.0 - (1.0 - uLStr.x * exp(-dot(ds, ds))) * (1.0 - uLStr.y * exp(-gx * gx - gy * gy));
+  float bw = uBand.y * (1.0 + uBandWide.x * pow(max(0.0, cos(a)), uBandWide.y));
+  float gx = (uv.x - (0.5 - uBand.x * sin(a))) / bw, gy = (uv.y - uBand.z) / uBand.w;
+  return uLStr.x * exp(-dot(ds, ds)) + uLStr.y * exp(-gx * gx - gy * gy);
 }`;
 const FS_BGGEN = `#version 300 es
 precision highp float;
@@ -42,8 +45,8 @@ vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)
 // one month's day image, processed on its own (L: the lights here; g: the clock's shaping at this height)
 vec3 processDay(vec3 c, float L, float g){
   vec3 h = rgb2hsv(c);
-  h.z *= uDaylight * (uBase + (1.0 - uBase) * L) * max(0.0, 1.0 - uTopDark * g);
-  h.y = min(1.0, h.y * (1.0 - uPale * L) * (1.0 - uMidSat) * (1.0 + uTopSat * g));
+  h.z *= uDaylight * min(1.0, uBase + L) * max(0.0, 1.0 - uTopDark * g);
+  h.y = min(1.0, max(0.0, h.y * (1.0 - uPale * L)) * (1.0 - uMidSat) * (1.0 + uTopSat * g));
   return hsv2rgb(h);
 }
 void main(){
@@ -54,7 +57,7 @@ void main(){
   float L = lights(uv, uAday), g = uTop * pow(uv.y, uTopPow);
   vec3 day = mix(processDay(img(uA * 2.0, iu), L, g), processDay(img(uB * 2.0, iu), L, g), f);
   float Ln = lights(uv, uAnight);
-  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f) * max(uNightFloor, uNightEnv * (uNightBase + (1.0 - uNightBase) * Ln));
+  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f) * max(uNightFloor, uNightEnv * min(1.0, uNightBase + Ln));
   vec3 c = mix(day, night, uNight * uNightMix);
   vec3 prev = texture(uPrev, vUv).rgb;
   o = vec4(mix(prev, c, uEase), 1.0);
