@@ -38,19 +38,19 @@ const MOOD_KEYS = [
 ];
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3, camLift: 0.2745,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -7.7, camLift: 0.2745,
     black: 0.02, exposure: 1.5, white: 1.0, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8, camLift: 0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -12.7, camLift: 0,
     black: 0.02, exposure: 1.1, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 1.3,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8, camLift: 0,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -12.7, camLift: 0,
     black: 0.02, exposure: 1.0, white: 0.9, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8, camLift: 0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -12.7, camLift: 0,
     black: 0.02, exposure: 1.25, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
@@ -135,6 +135,11 @@ function partsOf(d) {
 // seen at. The aim is one rotation of the view about the horizontal axis along the sheet's length (camPitch, degrees,
 // negative = looking up); it sets where the band falls on the screen. A turn about the vertical axis (yaw) is at most a
 // trace (2.5 degrees, which with the placement keeps the shaken left side slightly nearer), and there is no roll. dist is only the reference distance of the size factor (4.5), not where the camera stands.
+// The aim (spec 26) is fitted against the band's typical height over many times since the start, not one moment: over the twelve
+// times the footage covers (40 s to 30 minutes, at 12:00 and at 00:00) the original's band centre runs from 0.39 to 0.71 H with a
+// median of 0.567, which is also 4.6's median of about 0.57. At camPitch -8 this build's own spread matched (0.24 against 0.29 H)
+// but its median sat 0.066 H too high, so every mood's aim was lowered by 4.7 degrees (0.0141 H a degree, measured); the band's
+// centre over the same clips is then 0.529 against the footage's 0.533, with nothing else in the picture moved.
 // ---------------------------------------------------------------------------
 const CAMERA = { fovY: 64.4, px: 0.8, py: -0.5399, pz: -3.1131, yaw: 2.5, dist: 3.161, near: 0.1, far: 40 };
 function cameraFor(pitchDeg, aspect, lift) {
