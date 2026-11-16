@@ -95,14 +95,21 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   end, is simulated at 60 fixed steps per second in a Web Worker. Every row's
   shaken point follows one shared slow path in height and depth (two
   frequencies, 60 s and 40 s, with the phase drifting from row to row, a
-  little faster in depth than in height), so that end is gathered and twists
-  and the sheet folds gently over itself rather than rolling up into a tube. The bending springs are much stiffer
+  little faster in depth than in height), so that end is gathered and twists.
+  The net is square, so it carries as much cloth across its width as along
+  its length, and nothing pulls the width flat: it hangs in folds the whole
+  way along, over six times longer than the straight line between its edges,
+  where the length runs nearly straight. That folding is what the band is
+  made of. The bending springs are much stiffer
   than the stretching ones, and small random kicks keep the net moving and
   set how many strands the band shows. A stored, settled start state means
   the first frame already looks like a running one, and every start is the
   same: the clock, the warp's phases, the warm-up and the kicks' generator
   are fixed, so the wave at a given time since the start does not depend on
-  the seed (only the sparkles do). An envelope along the length scales the
+  the seed (only the sparkles do). The state is settled over eight decay
+  times (about 1000 s of simulation), which is where the net's own motion
+  stops easing off; a shorter warm-up leaves the whole picture running fast.
+  An envelope along the length scales the
   net's height and depth about one fixed axis, fullest at the shaken end.
   The gathered width is spread over enough depth in the scene that, down a
   column of the screen, the distance to the sheet changes several times more
@@ -118,7 +125,12 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   normals live in the projected space, as the spec asks. The camera's
   placement (below the sheet, which runs out past the left edge of the
   picture; raised at night) and its aim (one pitch about the axis along the
-  sheet's length, with only a trace of turn) are separate settings.
+  sheet's length, with only a trace of turn) are separate settings. The aim
+  is fitted against the band's typical height over many times since the
+  start, from tens of seconds to tens of minutes, rather than one moment.
+- Each patch of the B-spline surface is sampled 24 by 24, comparably finely
+  across the ribbon and along it, because the folds across the width are as
+  fine as anything along the length.
 - Shading is computed per vertex from two terms, each scaled by a size factor
   that falls with the first power of distance: a sheen that stays flat and
   then fades where the size factor is large, and a Fresnel-like glow indexed
@@ -185,27 +197,39 @@ README).
 
 ## Status
 
-Built to spec version 22 and tuned against the original's footage (19
+Built to spec version 26 (motion) and tuned against the original's footage (19
 recordings, 19 faithful renders and 48 noise clips from 40 s to 30 minutes
 after the start), measured with the fixed battery (see
-`docs/references/tuning-log.md`). The sheet is gathered at the shaken end and
-folds gently over itself instead of rolling into a tube, and its width recedes
-in depth (down a screen column the distance to it changes about three times as
-much as from left to right). The camera's placement and aim are separate
-settings, with only a trace of turn. Matched within the original's range over
-three seeds: strands per column (3.45, original 3.71), the band's brightness
-over the background (35; 41), its thickness, the sheen's width (29 px; 24),
-the picture's correlation after one second (0.26; 0.15) and the band's
-temporal spectrum; the band keeps its thickness and strands over 30 minutes,
-as the original does. Like the original, every start is the same. Still short
-of the original: less of the band is filled with light (19 % above 40 % of its
-peak against 34 %), its lines are thinner (4.6 px against 6.6), fewer strands
-are bright (1.4 above 40 % against 2.0), the picture five seconds on is too
-anti-correlated, the sparkles fly up faster (they take the sheet's livelier
-motion), and the band's slow height over half an hour does not yet follow the
-original's (the warp's phases were fitted to 40 s and 240 s only). The
-palettes are fitted to the recordings at four months (mean difference about
-12.5 levels per channel).
+`docs/references/tuning-log.md`). The sheet's width is folded slack over the
+whole length: the path the net follows across its width is 6.2 times the
+straight line between its edges (1.04 along the length), the width turns over
+four times down a screen column, and down that column the distance to the
+sheet changes about five times as much as from the left of the screen to the
+right. The start state is settled over eight decay times, so the picture no
+longer runs fast in the first minutes. The camera's placement and aim are
+separate settings, with only a trace of turn, and the aim is fitted to the
+band's typical height over many times since the start. Matched within the
+original's range: strands per column (3.88, original 3.71) and the stronger
+peaks at 25 % and 40 % of the column maximum (2.52 and 1.86; 2.55 and 1.95),
+the fill of the band (35 % above 40 % of its peak; 34 %), the face level
+(0.28; 0.24), the band's brightness over the background (46; 41), partings
+per column (0.78; 0.63), the picture's correlation after five seconds (-0.28;
+-0.28), the kymograph's vertical speed (11.4; 11.1) and the band's thickness;
+the band keeps its substance over 30 minutes. The sheet's light never comes
+within 0.1 H of the top of the frame at any of 103 moments from 30 s to 30
+minutes. Like the original, every start is the same. Still short of the
+original: the band's lines are thinner (4.5 px against 6.6) and stand less
+above the band (1.22 against 1.63); away from noon the broad sheen is about
+twice the original's (44-50 px against 23-26, while at noon it is 23.9 against
+22.8), which wants the per-mood sheen strength re-fitting to this sheet; the
+picture one second on is still too much like the picture now (0.33 against
+0.15); the free-end third of the screen does not travel faster than the
+shaken-end third (19.9 against 20.2 px/s, the original 28.0 and 20.7); and at
+40 s after the start, the moment nearly all the footage shows, the band sits
+about 0.09 H lower than the original's (the fitted warp phases follow the
+original's wandering to 0.065 H rms over twelve times since the start, but not
+that particular moment). The palettes are fitted to the recordings at four
+months (mean difference about 12.5 levels per channel).
 
 Not verifiable from the references available so far: the palettes for
 January, March, June, July and December (and theme 1, silver), the look in
