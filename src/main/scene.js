@@ -204,41 +204,56 @@ const MOOD_KEYS = [
 // separately at moments with the band in clearly different places (tools/measure/bandpos.py), with only the months that
 // speak (a channel of the night background cut away under the band: July and October of the footage, whose night
 // backgrounds are strongly coloured) allowed to vote, and the count of qualifying pixels reported beside every share.
-// 0.06 is the best of 0.03, 0.06, 0.09 and 0.12 over 17 speaking moments of six night conditions at three band positions
-// per month (mean |share error| 0.023, against 0.030 at 0.03 and 0.026 at 0.09), and also over the four months' 00 h clips.
-// Version 27 says not to let a whole-frame comparison of the background choose it, because a fit that may only scale the
-// palettes cannot follow the floor and will always prefer the value the build already has; so the background's own fit does
-// not vote here, and each mood's gain is re-fitted after this value moves.
-let TONE_BLACK = 0.06;
+// The look lane fitted 0.06 that way (the best of 0.03, 0.06, 0.09 and 0.12 over 17 speaking moments of six night
+// conditions at three band positions per month), and version 27 says not to let a whole-frame comparison of the background
+// choose it, because a fit that may only scale the palettes cannot follow the floor and will always prefer the value the
+// build already has.
+// It is held at 0.03 all the same, by the joint re-tune at the lane's merge, and the reason is the size of the cost rather
+// than the direction of the evidence. Three builds were re-tuned to convergence at 0.03, 0.045 and 0.06 (each: every mood's
+// gain and the twelve month palettes through tools/measure/jointfit.py --weight=1.0, step 0.7, rounds until the background
+// stopped improving) and both observables measured on each. The night band's colour (tools/measure/bandpos.py over the same
+// 30 moments of six night conditions, against the footage's) improves slowly with the floor: mean |share error| per channel
+// 0.0258 at 0.03, 0.0214 at 0.045, 0.0199 at 0.06, against 0.0254 on main - a span of 0.006 where one moment's own error
+// runs 0.011 to 0.038. The background away from the band gets worse quickly: mean absolute difference per channel over the
+// 38 recording and render conditions 1.73, 2.46 and 3.46 levels, against 1.56 on main and a noise range of 0.09 levels.
+// At 0.06 that is nineteen times the original's own variation in a measure of another lane, so the floor waits for the
+// remedy version 27 itself names - a background fit that lets the dark end of the night images move, which the palette
+// scaling used here cannot do and tools/measure/bgfit/ can. Until that is run, the whole-frame figure above is biased
+// towards 0.03 (the grids were fitted there) and is evidence of the cost, not of the right value.
+let TONE_BLACK = 0.03;
 // Glare (spec 5, versions 20 and 24): each mood's bright-pass threshold is fixed, in the composite's output units after its
 // curve, and the same chain runs in every mood. Placed inside the brackets measured on the original's footage at the bright-pass's
 // resolution (tools/measure/brightfoot.py): by day between July's brightest background (which does not glare) and January's and
 // December's (which do); at dawn and dusk above every background and below the dimmest month's brightest fold; at night above the
 // band's brightest folds, so the night is free of halo on the screen.
-// The exposures (the gain of spec 4.5) were re-fitted after the black offset moved to 0.06, which lowered every level in the
-// frame, on the background's level and the band's peak together (tools/measure/jointfit.py --exposure-only, four rounds to
-// convergence). Spec 4.5's order is kept and is not negotiable (version 27): lowest by day, slightly higher at dawn - held
-// to at most 1.10 times the day's, which it reaches - higher again at dusk, highest at night.
-// At the merge of this lane the look branch's exposures (fitted at offset 0.06 on the pre-spec-26 sheet) and main's (fitted
-// at offset 0.03 on the spec-26 sheet) were both out of date, so each mood keeps main's value scaled by the branch's own
-// offset compensation (its new exposure over its old: night 1.213, dawn 1.105, day 1.108, dusk 1.121), and the joint
-// re-tune that follows the merge fits them and the palettes again on this sheet at this offset.
+// The exposures (the gain of spec 4.5) are fitted with the palettes on the background's level and the band's peak
+// (tools/measure/jointfit.py). Spec 4.5's order is kept and is not negotiable (version 27): lowest by day, slightly higher
+// at dawn - held to at most 1.10 times the day's, which it reaches - higher again at dusk, highest at night.
+// The joint re-tune at the look lane's merge left them where the merge before it put them: with the floor held at 0.03,
+// the branch changes nothing that moves a level (its wave tint keeps the same mean across the screen), and a further step
+// of the fit from here makes the background worse, not better (1.56 -> 1.66 levels per channel), so this is its fixed
+// point. A note on what the fit cannot settle: the gain and a palette's level multiply, so the background alone fixes
+// only their product, and the split is pinned by the band, which the gain scales and the palettes do not. Letting the
+// band pull on the gain (--weight below 1) raises it until the background follows the band away from the footage, because
+// the band is short of the original by its own brightness and not by the gain: at this fixed point the band's peak over
+// the background is 93 against the original's 99 and its mean 42 against 41, and the shortfall is by mood (day 72 against
+// 81, dawn 89 against 97) - the per-mood waveBright above, which has not been refitted to the spec-26 sheet.
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -7.7, camLift: 0.2745,
-    exposure: 1.680, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
+    exposure: 1.385, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -12.7, camLift: 0,
-    exposure: 1.335, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.208, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -12.7, camLift: 0,
-    exposure: 1.216, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.098, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.20, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -12.7, camLift: 0,
-    exposure: 1.538, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.372, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.22, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
