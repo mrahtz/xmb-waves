@@ -116,11 +116,19 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   sheet's long edges. Every cell is drawn additively into a supersampled
   single-channel buffer, then filtered down one output pixel wide.
 - The background is made per frame from a small day image and night image
-  per month, processed in hue, saturation and value. It is lit by a sun-like
-  spot on an arc and an opposite glow along the bottom, both following the
-  hour (the night image has its own clock). The day image is scaled by a
-  daylight factor, and dawn and dusk darken and deepen the top. The next
-  month's images rise in from the bottom towards the end of a month.
+  per month, each painted as a coarse grid of colours read with smooth
+  interpolation. Each month's day image is processed on its own in hue,
+  saturation and value and the two months are then mixed (next month's
+  rising from the bottom). One angle of a warped hour drives a sun-like spot
+  whose centre goes round an oval larger than the frame and a mirrored band
+  of light along the bottom edge, which broadens around midday; the two
+  lights' lifts add on top of a fixed share of the image's own colour, and
+  lit areas are brighter and paler. The same
+  angle sets the day image's daylight factor (a morning step times an evening
+  step, each with its own steepness) and, late in the evening and in the small
+  hours, blacks out its top and deepens its colour lower down. The
+  night images are only scaled in brightness: lit by the same two lights on
+  an unwarped clock, under an envelope across the night and above a floor.
 - The composite of background and wave goes through each mood's exposure and
   an extended Reinhard tone curve with a white point. The glare is a bloom
   pyramid read from that composite through a colour-keeping bright-pass
@@ -174,7 +182,7 @@ README).
 
 ## Status
 
-Built to spec version 24 and tuned against the original's recordings in
+Built to spec version 24 (section 3, the background, to version 23) and tuned against the original's recordings in
 `comparison/original/`, measured with the same tools as my renders (see
 `docs/references/tuning-log.md`). Matched: the band's centre speed and
 height change over time, the sideways drift of the dark partings, the number
@@ -185,7 +193,13 @@ shading curves) pass in every mood. Still short of the original: the picture
 changes faster (0.08 correlation after one second against 0.15-0.36), the swell
 crosses a little quickly (20 s against 25-107 s), the band arches less and is
 thinner, its lines stand out more over the band, and the brightest sparkles
-are a little dim. The composite's black offset, each mood's exposure and the twelve month palettes are fitted
+are a little dim. The background is fitted to the original's 19 recordings
+and renders (15 January, April, July and October at four hours, 15 and 29
+October 21:30): where the wave does not cover it, the mean absolute difference
+is about 1.2 levels per channel (it was 10.5-12.3 before version 19's background, 1.4 after it). Each month's
+day and night image is now a painted picture held as a coarse grid of colours (version 23), which takes the part
+of the error that does not move with the hour from 1.17 to 0.95 levels.
+The composite's black offset, each mood's exposure and the twelve month palettes are fitted
 together to the original's renders and recordings at four months (January, April, July, October) and four hours
 (`tools/measure/jointfit.py`, with the offset swept around the fit). The offset is a three-way trade:
 the colour the band's light takes over the dark parts of a night frame (spec 24) wants it large, the depth of the
@@ -207,10 +221,16 @@ exposure keeps the spec's order of the moods (dawn only slightly above day); by 
 is too bright and the bottom too dark; and the background's residual is worst at the bottom right and middle
 right, around the glow spot, which the joint fit scales by the top row's factor rather than its own.
 
-Not verifiable from the references available so far: the palettes for
-the eight months without footage, the look in
-the small hours and at dawn, and the exact month-to-month blend in the
-middle of a month. These are design guesses that follow the spec.
+Not verifiable from the references available so far: each month's palette
+on its own (the footage shows two-month mixes on the 15th, and November nearly
+alone on 29 October), so the split between a month and the next, the palettes
+of March, June, September and December and the size of the mid-month
+saturation drop are design choices that follow the spec; likewise the look
+between 01:00 and 05:00 and between 18:00 and 21:30, which follows the spec's
+description (section 3, N8). The daylight factor's evening fall is built as its own fitted step (version 23), but
+the footage at 06:00 and 18:00 makes it as shallow as the morning rise rather than steeper, so the asymmetry
+version 23 describes is in the structure and not in the fitted values; the hours that would settle it, between
+18:00 and 21:30, are not in the footage.
 
 Performance has been checked only in a software renderer (headless Chromium
 with SwiftShader), where the frame time goes to drawing rather than to the

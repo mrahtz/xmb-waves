@@ -15,6 +15,12 @@ function setBgAndWave(pr, bgT, bgOn, waveOn, dstW, dstH) {
 // the composite's exposure and tone curve (spec 17 and 20): one black offset for every mood, the gain and white point per mood
 function setTone(pr, m) { gl.uniform1f(pr.u.uBlack, TONE_BLACK); gl.uniform1f(pr.u.uGain, m.exposure); gl.uniform1f(pr.u.uWhite, m.white); }
 
+function setBgLights(pr) {
+  gl.uniform4f(pr.u.uOval, BGL.ovalX, BGL.ovalY, BGL.spotW, BGL.spotH);
+  gl.uniform4f(pr.u.uBand, BGL.bandX, BGL.bandW, BGL.bandY, BGL.bandH); gl.uniform2f(pr.u.uLStr, BGL.spot, BGL.glow);
+  gl.uniform2f(pr.u.uBandWide, BGL.bandWide, BGL.bandWidePow);
+}
+
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
 // The settings menu may add: view {x, y} (where the picture sits in the output
 // target), stopAfter (the last pass to run: 1 background, 2 wave, 3 glare,
@@ -37,11 +43,12 @@ function renderFrame(st, outTarget) {
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, src.tex); gl.uniform1i(pr.u.uPrev, 1);
     gl.uniform1f(pr.u.uTiles, 24); gl.uniform1f(pr.u.uA, sc.monA); gl.uniform1f(pr.u.uB, sc.monB);
     gl.uniform1f(pr.u.uMc, sc.monC); gl.uniform1f(pr.u.uMw, sc.monW); gl.uniform1f(pr.u.uNight, sc.night);
-    gl.uniform1f(pr.u.uDaylight, sc.daylight); gl.uniform1f(pr.u.uWday, sc.wday); gl.uniform1f(pr.u.uWnight, sc.wnight);
-    gl.uniform1f(pr.u.uDusk, sc.dusk); gl.uniform1f(pr.u.uMidSat, BGL.midSat * sc.mid);
-    gl.uniform1f(pr.u.uNightMix, BGL.nightMix); gl.uniform1f(pr.u.uSpot, BGL.spot); gl.uniform1f(pr.u.uGlow, BGL.glow);
-    gl.uniform1f(pr.u.uLightBase, BGL.base); gl.uniform1f(pr.u.uNightBase, BGL.nightBase); gl.uniform1f(pr.u.uPale, BGL.pale);
-    gl.uniform1f(pr.u.uDuskDark, BGL.duskDark); gl.uniform1f(pr.u.uDuskSat, BGL.duskSat);
+    setBgLights(pr);
+    gl.uniform1f(pr.u.uDaylight, sc.daylight); gl.uniform1f(pr.u.uAday, sc.aday); gl.uniform1f(pr.u.uAnight, sc.anight);
+    gl.uniform1f(pr.u.uTop, sc.top); gl.uniform1f(pr.u.uTopDark, BGL.topDark); gl.uniform1f(pr.u.uTopSat, BGL.topSat);
+    gl.uniform1f(pr.u.uTopPow, BGL.topPow); gl.uniform1f(pr.u.uMidSat, BGL.midSat * sc.mid);
+    gl.uniform1f(pr.u.uNightMix, BGL.nightMix); gl.uniform1f(pr.u.uBase, BGL.base); gl.uniform1f(pr.u.uPale, BGL.pale);
+    gl.uniform1f(pr.u.uNightBase, BGL.nightBase); gl.uniform1f(pr.u.uNightEnv, sc.nightEnv); gl.uniform1f(pr.u.uNightFloor, BGL.nightFloor);
     gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
     quad(); RT.bgFresh = false;
     RT.bgA = dst; RT.bgB = src;

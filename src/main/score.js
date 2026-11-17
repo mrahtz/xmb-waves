@@ -29,19 +29,21 @@ function render(opts) {
   const o = resolveOpts(opts);
   const scene = sceneParams(o.timeParts, o.theme);
   const cam = cameraFor(scene.mood.camPitch, o.w / o.h);
+  // without the wave and the sparkles the frame does not depend on the simulation, which is then not run
+  const needSim = o.layers.wave || o.layers.sparkles;
   const key = [o.seed, o.theme, o.timeParts.join(','), o.w / o.h].join('|');
-  if (!scoreSim || scoreSim.key !== key || scoreSim.frames > o.frames) {
+  if (needSim && (!scoreSim || scoreSim.key !== key || scoreSim.frames > o.frames)) {
     const sim = SIMM.createSim(o.seed);
     sim.setMood(simMoodParams(scene.mood, cam));
     sim.warm(sim.warmSteps);
     scoreSim = { key, sim, frames: 0 };
   }
-  while (scoreSim.frames < o.frames) { scoreSim.sim.step(); scoreSim.frames++; }
-  const sim = scoreSim.sim;
-  const n = sim.packSparks(sparkPack);
+  if (needSim) while (scoreSim.frames < o.frames) { scoreSim.sim.step(); scoreSim.frames++; }
+  const sim = needSim ? scoreSim.sim : null;
+  const n = sim ? sim.packSparks(sparkPack) : 0;
   ensureTargets(o.w, o.h, o.w, o.h, 2);
   RT.bgFresh = true;
-  renderFrame({ scene, cam, net0: sim.netCur, net1: sim.netCur, alpha: 1, sparks: sparkPack, nSparks: n,
+  renderFrame({ scene, cam, net0: sim && sim.netCur, net1: sim && sim.netCur, alpha: 1, sparks: sparkPack, nSparks: n,
     layers: o.layers, frameNo: o.frames, ease: 1 }, RT.out);
   const px = new Uint8Array(o.w * o.h * 4);
   bindTarget(RT.out); gl.readPixels(0, 0, o.w, o.h, gl.RGBA, gl.UNSIGNED_BYTE, px);
@@ -52,6 +54,7 @@ function render(opts) {
   return { width: o.w, height: o.h, data };
 }
 
-window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, moodAt, nightWeight, sceneParams } };
+window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, moodAt, nightWeight, sceneParams,
+  bg: { BGL, BGW, PALETTES, grid: [BG_GRID_W, BG_GRID_H, BG_NGRID_H], remake: remakeBackgroundImages, colorAt: bgColorAt } } };
 if (SCORE) { canvas.style.display = 'none'; return; }
 
