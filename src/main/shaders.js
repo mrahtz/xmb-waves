@@ -246,7 +246,10 @@ void main(){
   // the disc's plane (spec 21): its own facing from the spin, turned towards the camera only in so far as it is near and
   // looks large on screen: no turn below an apparent radius of uTurn0 px (at 1080 lines), a full turn from uTurn1 px. The
   // many far, small discs keep their tumbling orientation and pass through edge-on.
-  float pxRef = Rw * uF * 540.0 / max(z, 0.05);
+  // the turn follows how near the sparkle is, measured as the apparent radius its disc would have in focus (spec 21: the
+  // turn grows with nearness and apparent size and falls away with distance), so a far disc blurred wide by the far side
+  // of the focus range is not pulled round
+  float pxRef = uSizeW * uF * 540.0 / max(z, 0.05);
   vec3 N = aF * sign(dot(aF, V) + 1e-6);
   N = normalize(mix(N, V, smoothstep(uTurn0, uTurn1, pxRef)));
   float c = dot(N, V);
@@ -279,14 +282,16 @@ void main(){
 }`;
 const FS_SPARK = `#version 300 es
 precision highp float;
-in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt, uEdge;
+in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt, uEdge, uGlintCore, uGlintFall;
 out vec4 o;
 void main(){
   float r = length(vQ); // 1 at the disc's edge; the patch reaches uExt, so the disc is zero well inside it
   float k;
-  if (uExt > 1.5) { // glint pass: a soft round halo, zero before the patch's edge
-    float q = r / uExt;
-    k = 0.45 * exp(-q * q * 6.0) * smoothstep(1.0, 0.8, q);
+  if (uExt > 1.5) { // glint pass (spec 25): the patch is wide while the light is gathered near the middle, so a bright
+    // sparkle shows a narrow core and a faint skirt reaching well out from it: light falls away as a power of the
+    // distance (core radius uGlintCore disc radii, power uGlintFall), and is tapered to nothing at the patch's edge
+    float q = r / uExt, u = r / uGlintCore;
+    k = pow(1.0 + u * u, -uGlintFall) * smoothstep(1.0, 0.85, q);
   } else { // a flat disc: in focus a crisp edge uEdge pixels wide (0: a hard edge, each pixel in or out), softening out of
     // focus until it fills its patch
     float e = max(fwidth(r) * uEdge, 0.6 * vSoft), e1 = max(0.5 * fwidth(r) * uEdge, 0.2 * vSoft);

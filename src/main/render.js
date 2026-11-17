@@ -139,6 +139,7 @@ function sparkUniforms(pr, m, cam, st) {
   gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofDim, SPARKR.dofDim);
   gl.uniform1f(pr.u.uTurn0, SPARKR.turn0); gl.uniform1f(pr.u.uTurn1, SPARKR.turn1);
   gl.uniform1f(pr.u.uMinPx, SPARKR.minPx); if (pr.u.uEdge) gl.uniform1f(pr.u.uEdge, SPARKR.edge);
+  if (pr.u.uGlintCore) { gl.uniform1f(pr.u.uGlintCore, SPARKR.glintCore); gl.uniform1f(pr.u.uGlintFall, SPARKR.glintFall); }
   gl.uniform3fv(pr.u.uLight, SPARKR.light); gl.uniform3fv(pr.u.uRight, cam.right); gl.uniform3fv(pr.u.uUp, cam.up);
   gl.uniform1f(pr.u.uKd, SPARKR.kd); gl.uniform1f(pr.u.uKs, SPARKR.ks); gl.uniform1f(pr.u.uShin, SPARKR.shin);
   gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uMapStr, SPARKR.mapStr); gl.uniform1f(pr.u.uMapR, SPARKR.mapR);

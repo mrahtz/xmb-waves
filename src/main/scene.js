@@ -40,19 +40,19 @@ const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
     black: 0.02, exposure: 1.5, white: 1.0, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
-    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
+    focusFar: 4.32, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
     black: 0.02, exposure: 1.1, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 1.3,
-    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
     black: 0.02, exposure: 1.0, white: 0.9, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
-    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.20, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
     black: 0.02, exposure: 1.25, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
-    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.10, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -174,20 +174,25 @@ const BGL = { base: 0.8, spot: 0.35, glow: 0.25, nightBase: 0.6, pale: 0.25, dus
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
-  // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
-  size: 0.0062, blur: 1.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
-  // turn towards the camera (spec 21): none for a disc whose apparent radius is below turn0 px (at 1080 lines), complete
+  // by up to blur times its size and dims a little (dofDim). Spec 25: the focus range sits so that the near side hardly
+  // reaches the field (focusNear is nearer than all but a few sparkles) while the far side, which the mood shifts, lies
+  // inside the field's far end, blurring the farthest sparkles only part of the way along its transition
+  size: 0.0062, blur: 12.0, dofDim: 0.3, nearSoft: 0.72, farSoft: 0.95, focusNear: 2.0,
+  // turn towards the camera (spec 21): none for a disc whose in-focus apparent radius is below turn0 px (at 1080 lines), complete
   // from turn1 px, so only the few near, large discs face the viewer and the rest pass through edge-on
-  turn0: 3.5, turn1: 8.0,
+  turn0: 2.0, turn1: 2.6,
   // in focus a crisp edge edge px wide (0: hard, spec 21's hard-edged discs); a disc below minPx px radius is drawn at that
   // radius, dimmed by its area (0: never, so a disc smaller than a pixel shows only where it covers a pixel's centre)
   edge: 0, minPx: 0.7,
-  bright: 1.035, glintSize: 4.5, glintBright: 0.10,
+  // the glint halo (spec 25): a wide patch (glintSize disc radii) with the light gathered near the middle, falling away
+  // as a power of the distance (core radius glintCore disc radii, power glintFall), so a bright sparkle keeps a narrow
+  // core and carries a faint skirt well out from it
+  bright: 1.035, glintSize: 14.0, glintCore: 1.5, glintFall: 1.05, glintBright: 0.21,
   // lighting (spec 16, 17 and 21): one point light in the scene in front of the camera, diffuse kd and specular ks with
   // exponent shin, the highlight tinted at full strength by the iridescent map (below; mapStr scales every lobe's strength,
   // mapR their radii; exponent mapExp = 1 leaves it unchanged), the sum through 1 - exp(-satGain x); opacity falls as a disc
   // turns towards edge-on, with the power tiltPow of one minus the cosine
-  light: [1.3, 0.7, -1.5], kd: 0.204, ks: 1.509, shin: 30, mapExp: 1.0, mapStr: 1.20, mapR: 1.0, satGain: 0.629, tiltPow: 4.0,
+  light: [1.3, 0.7, -1.5], kd: 0.204, ks: 1.509, shin: 30, mapExp: 1.0, mapStr: 1.20, mapR: 1.0, satGain: 0.629, tiltPow: 6.0,
 };
 // The iridescent map's lobes (spec 21, original design): position in the map (the facing direction's right and up
 // components), radius, strength, and colour at full strength (its brightness included). Between them the map is near-neutral

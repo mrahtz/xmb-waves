@@ -34,7 +34,7 @@ const { chromium } = require('playwright'); const path = require('path'); const 
         const Rw = SP.size * m.sparkSize * (1 + SP.blur * out_), Iv = SP.bright * m.sparkBright * buf[o + 9] / (1 + SP.dofDim * out_);
         const V = nrm(d.map(v => -v)), aF = [buf[o + 6], buf[o + 7], buf[o + 8]];
         let N = dot(aF, V) >= 0 ? aF : aF.map(v => -v);
-        const px = Rw * f * 540 / Math.max(z, 0.05), t = sm(SP.turn0, SP.turn1, px);
+        const px = SP.size * m.sparkSize * f * 540 / Math.max(z, 0.05), t = sm(SP.turn0, SP.turn1, px);  // in focus (spec 21: nearness)
         N = nrm(N.map((v, i) => v + (V[i] - v) * t));
         const c = dot(N, V), L = nrm(SP.light.map((v, i) => v - P[i])), H = nrm(L.map((v, i) => v + V[i]));
         rows.push([+dot(aF, right).toFixed(4), +dot(aF, up).toFixed(4), +Math.abs(dot(N, L)).toFixed(4), +Math.abs(dot(N, H)).toFixed(5),
