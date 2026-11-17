@@ -117,10 +117,17 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 - The net is passed through a free-form deformation lattice laid out
   unevenly along the length, with enough cells across the width for the
   twist and held at the sheet's ends: a swell rolling from the shaken end to
-  the free end and growing along it (21 s), a large bump sliding back and
-  forth (113 s), a slow bob of the whole sheet (70 s) and a small twist
-  across the width (22 s). Their rates and phases are fitted to the
-  recordings. The deformed net is the control net of a bicubic B-spline
+  the free end and growing along it (22 s, a little under one and a half
+  wavelengths along the sheet, so its crest crosses the screen in 10.6 s), a
+  large bump sliding back and forth (562 s), a slow bob of the whole sheet
+  (100 s) and a small twist across the width (22 s). Their rates, their
+  sizes and the ceiling of the one clock they read are fitted together
+  against the band's whole course over times since the start, rather than
+  each part being given a free phase. The clock runs to that ceiling (2400 s)
+  and restarts, which all four parts follow at once: the band's height steps
+  by a quarter of the frame in one frame, and the driven end, which reads the
+  same clock through the drive's easing, sweeps back along its own path over
+  about a second and throws a disturbance into the sheet. The deformed net is the control net of a bicubic B-spline
   surface. The control points are projected first, so the surface and its
   normals live in the projected space, as the spec asks. The camera's
   placement (below the sheet, which runs out past the left edge of the
@@ -216,38 +223,63 @@ README).
 
 ## Status
 
-Built to spec version 28 (the background's clock curves, its shaping down the frame and its night image; the
-composite's floor, the wave tint's ramp and the glare's locality to version 27, the sheet and its motion to
-version 26, the sparkles to version 25) and tuned against the
+Built to spec version 30 (the sheet and its motion; the background's clock curves, its shaping down the frame
+and its night image to version 28; the composite's floor, the wave tint's ramp and the glare's locality to
+version 27; the sparkles to version 25) and tuned against the
 original's footage - the 19 recordings in `comparison/original/`, the 19 lossless
 reference renders of the footage index and the 48 noise clips from 40 s to 30 minutes after the start - measured with
 the same tools as my renders and with the fixed battery (see `docs/references/tuning-log.md`). The sheet's width is
-folded slack over the whole length: the path the net follows across its width is 6.2 times the straight line between
+folded slack over the whole length: the path the net follows across its width is 6.1 times the straight line between
 its edges (1.04 along the length), the width turns over four times down a screen column, and down that column the
-distance to the sheet changes about five times as much as from the left of the screen to the right. The start state is
+distance to the sheet changes about three times as much as from the left of the screen to the right. The start state is
 settled over eight decay times, so the picture no longer runs fast in the first minutes. The camera's placement and
-aim are separate settings, with only a trace of turn, and the aim is fitted to the band's typical height over many
-times since the start. Measured on the merged build with the fixed battery (three seeds over the 19 recording and
-render conditions; the medians below, the original's beside them), 46 of the 50 motion measures lie inside the
-original's range at every seed, where before this merge the count swung with the seed (43, 49 and 46) because the wave
-still depended on it; pooling the three seeds gives 48 of 50 either way. Matched: where the band sits (centre 0.484 H,
-original 0.427, range 0.388-0.505), its thickness (0.166 H; 0.155), strands per column (3.71; 3.71) and the stronger
-peaks at 25 % and 40 % of the column maximum (2.41 and 1.83; 2.55 and 1.95), partings per column (0.70; 0.63), the
-band's mean light over the background (42.6; 41.2), its centre speed (0.021 H/s; 0.019), how differently neighbouring
-strands move (7.7 px/s; 8.5), the kymograph's vertical speed (11.3; 11.1), the optical flow's speed and spread, the
-picture's correlation after one second (0.29; 0.15, range 0.003-0.356) and after five (-0.36; -0.28), the arch, the
-tilt and the swell's speed; the band keeps its substance over 30 minutes. The band's topmost lit row stays about 0.09
-H from the top of the frame (the original's 0.12, over a range of 0 to 0.21), and the sheet's own surface never rises
-above 0.29 H of the frame in any mood. Like the original, every start is the same, so at a given time since the start
-the wave no longer depends on the seed. The geometry checks of 4.4d (framing, depth, camera below the sheet) and 4.5
-(where the sheet sits on the shading curves) pass in every mood, as do version 26's folded-slack checks. Still short
-of the original: the picture one second on is still too much like the picture now (0.29 against 0.15, at the top of
-the original's range) and its spectrum sits a little low (centroid 0.28 Hz against 0.34); the free-end third of the
-screen does not travel faster than the shaken-end third (22.6 against 24.2 px/s, the original 28.0 and 20.7, and the
-left third is the one measure of the fifty that is outside by more than a trace); the band never pinches below 0.08 H
-where the original's columns do so 14 % of the time; and at 40 s after the start, the moment nearly all the footage
-shows, the band sits lower than the original's (the fitted warp phases follow the original's wandering to 0.065 H rms
-over twelve times since the start, but not that particular moment).
+aim are separate settings, with only a trace of turn.
+
+Version 30's own points, in the order it puts them. The band's thickness, its pinching and its height are read as
+series against time since the start, from the twelve times the noise clips cover (the original's band is at the same
+height at a given time since the start whatever the date, its spread over the four conditions being 0.008-0.021 H, so
+the four give one course). The band's course over those times ran 0.459-0.604 H against the original's 0.412-0.697:
+the right shape with too little reach, which is the slow parts' size and not the aim. The warp's two slow sizes, their
+two rates, the ceiling of the one clock they read and the five phases were therefore fitted together against the whole
+course (`tools/measure/coursefit.js`) and the aim only after them; the fit was held to candidates whose amplitude times
+rate is no larger than before in either part, because without that it bought the reach with a bob three times as quick
+and swung the band out of the top of the frame. The course now runs 0.437-0.669 H with its mean at 0.5646 against the
+original's 0.5644, 0.062 H rms from it against 0.085 before. The clock runs to a 2400 s ceiling and restarts: the band's
+height then steps 0.24 H within one frame against a median step of 0.0002 H, and the driven end, which reads the same
+clock through the drive's easing, sweeps back along its own path over about a second (`tools/measure/restart.js`); the
+disturbance it leaves is mild, the net's typical point speed rising by about 4 %. The swell's rate and wavelength are
+fitted against two observables and not one (`tools/measure/swelllag.py`, the same code on footage and on renders): the
+original's crest crosses the screen in 11.0 and 11.5 s on the two 30 s recordings with the outer bands of columns
+correlating -0.54 and -0.82 at no lag, where this build crossed in 7.9-8.2 s at -0.37 to -0.39 - too long a wavelength,
+not too fast a clock - and now crosses in 10.6 s at -0.68. The uneven layout is read on the screen rather than in the
+sheet's own coordinates: one step of the sheet's material covers 265 px at the shaken-end edge of the frame and 362 px
+at the free-end edge (ratio 1.36 in every mood). That check passed before this round too, so the free-end third's
+slower travel was the framing and not the layout: the free end lay 0.26 of the frame's width past the right edge, and
+the band left the picture at full strength. The sheet now sits so that its free end reaches screen x 1.12, and the band
+thins and dims as it goes: over the same twelve clips the band's mean light in the free-end tenth of the width is 0.48
+of its light in the middle third, where the footage's is 0.58 and this build's was 1.27 (`tools/measure/freeend.py`).
+
+Measured on this build with the fixed battery (seed 1 over the 19 recording and render conditions; the medians below,
+the original's beside them), 49 of the 50 motion measures lie inside the original's range, against 46 before this
+round. Matched: where the band sits (centre 0.451 H, original 0.427, range 0.388-0.505), how high and low it goes
+(0.328 and 0.672; 0.300 and 0.622), its thickness (0.176 H; 0.155), the band's centre speed (0.015 H/s; 0.019), how
+differently neighbouring strands move (7.8 px/s; 8.5), the peak speed (14.9; 15.3), the kymograph's vertical speed
+(10.6; 11.1), the optical flow's speed and spread (21.4 and 40.0; 23.0 and 44.4), the spectrum's three bands and its
+centroid (0.314 Hz; 0.338), the arch and the tilt; the band keeps its substance over 30 minutes. The free-end third of
+the screen now travels faster than the shaken-end third, as the original's does (23.0 against 19.6 px/s, the original
+28.0 and 20.7), where before this round the two were the wrong way round (22.8 against 24.2). The band's topmost lit
+row stays 0.11 H from the top of the frame (the original's 0.12, over a range of 0 to 0.21), and the sheet's own
+surface never rises above 0.31 H of the frame in any mood. Like the original, every start is the same, so at a given
+time since the start the wave does not depend on the seed. The geometry checks of 4.4d (framing, depth, camera below
+the sheet) and 4.5 (where the sheet sits on the shading curves) pass in every mood, as do version 26's folded-slack
+checks. Still short of the original: the picture one second on is too much like the picture now (0.41 against 0.15,
+inside the noise clips' range but outside the recordings' 0.003-0.356), and matching the crest's crossing time has made
+that worse rather than better, which by 4.4b is the band's structure and its shading to answer for and not the clocks;
+the surface's detail travels a little too fast where the flow finds texture (11.4 px/s against 9.66, the one measure of
+the fifty outside the range); the free-end third is still slower than the original's; the band never pinches below
+0.08 H where the original's columns do so 14 % of the time at 40 s after the start (and not at all at most other times
+since the start); and the band is a tenth too thick and far too even in thickness along the screen (thickest over
+thinnest 3.45 against 7.07).
 
 Matched over all 16 reference conditions: the sparkles' in-focus size, brightness range, colour (share and strength of
 the coloured minority, its tie to brightness, its hues), twinkle and motion. The sparkles yield slightly fewer

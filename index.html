@@ -157,29 +157,62 @@ function XMBW_SIM() {
     // a wave rolling from the shaken end to the free end, growing along the length, whose strength swells and fades.
     // It is the swell: its crest crossing the screen is the band's slow left-to-right rise and fall
     // (spec 26: its strength changes appreciably within the time one crest takes to cross the screen. The crest advances
-    // rollW / (2 pi rollWaves) = 0.042 of the length a second and the screen spans about 0.46 of it, so a crossing takes
-    // 11 s; the strength's own period is 31 s, so no two crossings are alike. At the earlier 102 s the strength only crept
-    // while a crest travelled and the picture 5 s on was too exactly the reverse of the picture now)
-    rollAmp: 0.05, rollGrow: 2.664, rollWaves: 1.141, rollW: 0.3, rollMod: 0.35, rollModW: 0.2,
+    // rollW / (2 pi rollWaves) = 0.032 of the length a second; the strength's own period is 31 s, so no two crossings are
+    // alike. At the earlier 102 s the strength only crept while a crest travelled and the picture 5 s on was too exactly
+    // the reverse of the picture now.)
+    // Spec 30 fits the rate and the wavelength against two observables, not one, measured the same way on the footage
+    // and on renders (tools/measure/swelllag.py: the band's height in six bands of columns, the lag that lines the two
+    // outer bands up, and their correlation at no lag). On the original's two 30 s recordings the crest crosses in 11.0
+    // and 11.5 s with the no-lag correlation -0.54 and -0.82; at rollWaves 1.141 and rollW 0.3 this build crossed in
+    // 7.9-8.2 s with -0.37 to -0.39, which is the wavelength too long and not the clock too fast. At 1.40 and 0.285 it
+    // crosses in 10.6 s with -0.68
+    rollAmp: 0.05, rollGrow: 2.664, rollWaves: 1.40, rollW: 0.285, rollMod: 0.35, rollModW: 0.2,
     // one soft hump sliding back and forth along the length (centre and travel as fractions of the length; part of
     // its travel lies beyond the shaken end, and over the rest it passes over every part of the sheet, including the
     // part at the right of the screen, which the free end reaches (spec 26))
-    bumpAmp: 0.10, bumpWidth: 0.25, bumpCentre: 0.3, bumpTravel: 0.72, bumpW: 0.0555,
+    bumpAmp: 0.10754, bumpWidth: 0.25, bumpCentre: 0.3, bumpTravel: 0.72, bumpW: 0.01118,
     // the whole sheet rising and falling together, much more slowly than the swell. Spec 26: the bob is the main carrier
-    // of the band's slow wandering over minutes, so it moves the band by more than the bump does (over 10 minutes, by
-    // tools/measure/slowparts.js: bob 0.033 H rms, bump 0.022; with the earlier amplitudes the bump led, 0.026 to 0.020)
-    bobAmp: 0.045, bobW: 0.09,
+    // of the band's slow wandering over minutes, so it moves the band by more than the bump does.
+    // Spec 30: the band's course over times since the start had the right shape with too little reach (0.46 to 0.60 H
+    // over the twelve times the footage covers, against the original's 0.41 to 0.70), which is the slow parts' size and
+    // not the camera's aim, so the two sizes and the two rates were fitted with the ceiling below and the phases, all
+    // together, against the whole course (tools/measure/coursefit.js), and the aim only afterwards. A slow part's share
+    // of how fast the band moves is its amplitude times its rate, and that was already right, so the fit was held to
+    // candidates no quicker than the old values in either part: the bob is half as large again and half as slow again,
+    // the bump a tenth larger and five times slower. The ordering of 4.4b holds and is wider than before: swell 21 s,
+    // twist 21.7 s, bob 100 s, bump 612 s, the bob well inside 4.6's "over minutes"
+    bobAmp: 0.06863, bobW: 0.06301,
     twistAmp: 0.04, twistW: 0.29,  // a gentle ripple, one cycle across the width, travelling across it
     // the four parts' phases at clock 0 (spec 18: fixed, the same at every start, never drawn per run): swell strength, bump,
-    // bob, swell, twist. Fitted with tools/measure/phasefit.js (random search and refinement over the five phases) to the
-    // band's height at the twelve times since the start the footage covers, 40 s to 30 minutes, at 12:00 and at 00:00 (the
-    // original's band is at the same height at a given time since the start whatever the date, so those 24 clips are 24
-    // targets). Against them the fitted phases are 0.065 H rms with a correlation of 0.76, where the phases fitted to 40 s
-    // and 240 s alone were 0.154 H rms and anti-correlated
-    ph: [5.7882, 3.4151, 3.7714, 0.1551, 2.2657],
+    // bob, swell, twist. Spec 30 says not to fit these on their own to bring single moments into line, so they are no
+    // longer fitted after the rates: they are searched together with the two slow sizes, the two slow rates and the
+    // clock's ceiling against the band's whole course (the twelve times since the start the footage covers, 40 s to 30
+    // minutes; the original's band is at the same height at a given time since the start whatever the date, so the four
+    // noise conditions give one course, their spread per time being 0.008 to 0.021 H). Against it the joint fit is
+    // 0.054 H rms where the old values were 0.085
+    ph: [1.36874, 5.49293, 6.01757, 6.26961, 2.85385],
+    // The clock every part of the warp reads is not unbounded (spec 30): it runs up to this ceiling, in seconds, and
+    // restarts from its starting value, and because all four parts read it directly they jump together. The driven end
+    // reads the same clock through the easing of NET.driveEase, so it is not set down at a new place: it is swept along
+    // its usual path over about a second (the easing's time constant), which throws a real disturbance into the sheet
+    // that then travels and dies away like any other. The ceiling is fitted with the rates and the sizes against the
+    // band's height over times since the start (tools/measure/coursefit.js)
+    // (2400 s: of 900, 1200, 1800, 2400 and no restart inside the footage's window at all, each with its own joint fit
+    // of the rates, the sizes and the phases, 2400 s fitted the course best, 0.059 H rms before the aim and 0.040 after
+    // it, against 0.080 for both 900 and 1800. It puts the restart 1326 s after a start, so a 10 s clip contains one
+    // about once in 240.)
+    clockMax: 2400,
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
-  const SCENE = { len: 15, x0: 1.9, wid: 6.0, height: 3.5, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  const SCENE = { len: 15, x0: 0.9, wid: 6.0, height: 3.5, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
+  // x0: where the sheet sits along its own length in the scene, which is what sets the framing of 4.4d. Spec 30: the
+  // band must thin, pinch and dim as it leaves the picture at the free-end edge, because the sheet's own end is there
+  // and the fade it carries (4.4c) is already biting inside the picture. At 1.9 the free end lay 0.26 of the frame's
+  // width beyond the right edge and the band left the picture at full strength: over the 38 recordings and renders the
+  // band's mean light in the free-end tenth of the width was 1.27 times its light in the middle third, where the
+  // footage's is 0.59 (tools/measure/freeend.py). At 0.9 the free end reaches screen x 1.12 and the ratio is 0.63; at
+  // 0.4 (screen x 1.04) it fell to 0.42, past the original's. The band's thickness in that tenth is 1.01 of the middle
+  // third's against the footage's 1.05
   // wid, height (spec 22, refitted for spec 26): the scales of the net's gathered width and of its height into the scene. The net
   // is bunched across its width (one shared driven path), so at wid 4.7 the visible surface spanned less depth down a screen
   // column than from left to right: a strip. At 6 the depth across the band is many times the change along the screen and the
@@ -302,10 +335,15 @@ function XMBW_SIM() {
     const latPh = LAT.ph;
 
     let simTime = CLOCK0, driveT = simTime, steps = 0;
+    // the one clock of the warp (spec 30): it advances by the fixed step and restarts from its starting value at the
+    // ceiling. driveT is not wrapped with it: it goes on easing towards the clock, so at a restart the driven end sweeps
+    // rapidly back along its own path instead of being set down at a new place
+    function tick() { simTime += DT; if (simTime - CLOCK0 >= LAT.clockMax) simTime = CLOCK0; }
     const stored = !fresh && START && START.n === N && START.key === netKey();
     if (stored) {
       for (let k = 0; k < NP * 3; k++) { pos[k] = START.pos[k]; vel[k] = START.vel[k]; }
-      simTime = START.t; driveT = START.dt;
+      // the stored state's clock, brought inside the ceiling, with the drive's lag behind it kept
+      simTime = CLOCK0 + ((START.t - CLOCK0) % LAT.clockMax); driveT = simTime - (START.t - START.dt);
     }
     const mood = { envCross: 0.55, latScale: [1, 1, 1], camFwd: [-0.34, -0.12, 0.93] };
 
@@ -512,7 +550,7 @@ function XMBW_SIM() {
     }
 
     function step() {
-      simTime += DT; steps++;
+      tick(); steps++;
       lattice();
       stepNet();
       const t = netPrev; netPrev = netCur; netCur = t;
@@ -557,6 +595,7 @@ function XMBW_SIM() {
       step, setMood, packSparks, surf,
       get netPrev() { return netPrev; }, get netCur() { return netCur; },
       get steps() { return steps; },
+      get clock() { return simTime; },   // the warp's one clock, for the measuring tools (spec 30: it runs to a ceiling)
       // Warm-up, the same length at every start (spec 18). From the stored state: the net alone for warmNet steps, then
       // the full step for the last 15 s so the sparkles are populated as in a running state. From the flat start: the net
       // alone, heavily damped at first to clear the flat start, then for warmDecays decay times at its own damping, then
@@ -567,7 +606,7 @@ function XMBW_SIM() {
         else n = Math.max(n, NET.warmSettle + Math.ceil(NET.warmDecays / Math.max(d, 1e-5)) + 900);
         for (let i = 0; i < n; i++) {
           NET.damping = !stored && i < NET.warmSettle ? Math.max(d, 0.02) : d;
-          if (i < n - 900) { simTime += DT; lattice(); stepNet(); } else step();
+          if (i < n - 900) { tick(); lattice(); stepNet(); } else step();
         }
         NET.damping = d; steps = 0;
       },
@@ -859,19 +898,19 @@ let TONE_BLACK = 0.03;
 // 81, dawn 89 against 97) - the per-mood waveBright above, which has not been refitted to the spec-26 sheet.
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -7.7, camLift: 0.2745,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -10.0, camLift: 0.2745,
     exposure: 1.385, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -12.7, camLift: 0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -15.0, camLift: 0,
     exposure: 1.220, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -12.7, camLift: 0,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -15.0, camLift: 0,
     exposure: 1.128, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.20, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -12.7, camLift: 0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -15.0, camLift: 0,
     exposure: 1.343, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.22, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
@@ -983,10 +1022,13 @@ function partsOf(d) {
 // negative = looking up); it sets where the band falls on the screen. A turn about the vertical axis (yaw) is at most a
 // trace (2.5 degrees, which with the placement keeps the shaken left side slightly nearer), and there is no roll. dist is only the reference distance of the size factor (4.5), not where the camera stands.
 // The aim (spec 26) is fitted against the band's typical height over many times since the start, not one moment: over the twelve
-// times the footage covers (40 s to 30 minutes, at 12:00 and at 00:00) the original's band centre runs from 0.39 to 0.71 H with a
-// median of 0.567, which is also 4.6's median of about 0.57. At camPitch -8 this build's own spread matched (0.24 against 0.29 H)
-// but its median sat 0.066 H too high, so every mood's aim was lowered by 4.7 degrees (0.0141 H a degree, measured); the band's
-// centre over the same clips is then 0.529 against the footage's 0.533, with nothing else in the picture moved.
+// times the footage covers (40 s to 30 minutes) the original's band centre runs from 0.41 to 0.70 H with a mean of 0.564, which
+// is also 4.6's median of about 0.57. Spec 30: the sizes of the warp's slow parts are fitted first and the aim only after them,
+// because a course of the right typical height with too little reach is their business and not the aim's. After that fit the
+// build's course had the original's reach but sat 0.042 H high in the mean, so every mood's aim went 3.0 degrees more negative
+// (0.0141 H a degree, measured: more negative puts the band lower on the screen), and 1.0 degree more again when the swell's
+// wavelength was fitted. The band's centre over the twelve times is then 0.5646 against the footage's 0.5644, with nothing else
+// in the picture moved; the battery's rendered centre over the 19 recording and render conditions is 0.451 against 0.427.
 // ---------------------------------------------------------------------------
 const CAMERA = { fovY: 64.4, px: 0.8, py: -0.5399, pz: -3.1131, yaw: 2.5, dist: 3.161, near: 0.1, far: 40 };
 function cameraFor(pitchDeg, aspect, lift) {
