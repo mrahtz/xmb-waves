@@ -281,7 +281,8 @@ background pixels away from the band differ by about 1.5 levels per channel on a
 background's colour as the original's do, though less (R share 0.29 against 0.24 in July), and months whose night
 palette is more coloured than the original's lean where the original's stay neutral. The wave's own light cannot
 drive the picture to white in any mood (spec 27): rendered alone it reaches 61 of 255 by day, 84 at dawn, 110 at dusk
-and 137 at night, and on the finished frames the share of pixels at 255 is 0.000075 against the footage's 0.0001.
+and 137 at night, and on the finished frames the share of pixels at 255 is 0.000075 against the footage's 0.0001
+(measured at the larger floor the look lane fitted, and not re-measured since the floor was held at 0.03).
 The wave tint's left-to-right ramp is fitted on the slope of the band's added light taken as a profile across the
 whole width (`tools/measure/rampprof.py`, version 27, replacing version 20's ratio of the brightest places), but the
 value in the build was fitted before the spec-26 sheet and is now the wrong way: pooled over the 19 conditions the
