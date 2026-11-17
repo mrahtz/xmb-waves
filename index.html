@@ -775,47 +775,53 @@ function nightWeight(hour) {
   if (h < 20.5) return ease((h - 18.5) / 2);
   return 1;
 }
-// Background clock (spec 19, 23). The warped hour advances slowly around midday and quickly around midnight; one angle of
-// it (0 at the warp's midday, +-pi at its midnight) drives the day image's two lights, its daylight factor and its shaping
-// down the frame. BGW: warp strength, the hour the warp centres on, the daylight factor's floor, its morning step (mornAt:
-// how far after the warped midnight the rise begins, mornW: its width) and its evening step (eveAt: how far before the
-// warped midnight the fall has finished, eveW: its width), the widths of the two turns of the shaping down the frame
-// (topMornW, topEveW: the same two places, steepnesses of their own), and the night envelope's exponent.
-const BGW = { warp: 0.900, noon: 11.901, dayFloor: 0.037, mornAt: 0.058, mornW: 3.100, eveAt: 0.000, eveW: 3.100,
-  topMornW: 1.256, topEveW: 1.890, envPow: 1.453 };
+// Background clock (spec 19, 23, 28). The warped hour advances slowly around midday and quickly around midnight; one angle
+// of it (0 at the warp's midday, +-pi at its midnight) drives the day image's two lights and all of its curves of the
+// clock. BGW: warp strength, the hour the warp centres on, and the one pair of steps every curve is made of (stepW: the
+// gentler step's width in warped radians; stepRatio: the sharper step's width as a fraction of it, the one fixed
+// proportion of spec 28, so there are two rates in the whole build and no width of its own for any curve).
+const BGW = { warp: 0.900, noon: 11.901, stepW: 0.550, stepRatio: 0.450 };
 function wrapPi(a) { return a - TAU * Math.floor((a + Math.PI) / TAU); }
 function dayAngle(hour) {
   const p = wrapPi(((hour - BGW.noon) / 24) * TAU);
   return p - BGW.warp * Math.sin(p);
 }
-// A smooth step of the warped angle, rising from 0 to 1 over the width w about the angle c.
-function angStep(a, c, w) { return ease((a - c) / w + 0.5); }
-// Where the two steps turn: the morning one a mornW/2 past the start of its rise, the evening one an eveW/2 before the end
-// of its fall. Both steps are flat at the warped midnight, so the day's curves meet there with no jump.
-function mornTurn() { return -Math.PI + BGW.mornAt + BGW.mornW / 2; }
-function eveTurn() { return Math.PI - BGW.eveAt - BGW.eveW / 2; }
-// The day image's daylight factor (spec 23): the product of a morning step and an evening step of the warped angle, each
-// with its own steepness. The evening fall is the steeper side, so the factor peaks in the later afternoon rather than at
-// midday. It is lowest (close to nothing) at midnight and rises from there without turning back; the picture's minimum
-// after midnight comes from the mix with the night image.
-function daylightOf(a) {
-  const d = angStep(a, mornTurn(), BGW.mornW) * (1 - angStep(a, eveTurn(), BGW.eveW));
-  return BGW.dayFloor + (1 - BGW.dayFloor) * d;
+// Where the pair of steps sits (spec 28): not fitted on its own, but the two angles at which the travelling spot's centre
+// crosses the bottom edge of the picture (centre height 1 - ovalY (1 - cos a), 0 at the bottom edge), so the oval and the
+// clock's curves turn at the same two moments.
+function stepTurn() { return Math.acos(Math.min(1, Math.max(-1, 1 - 1 / Math.max(BGL.ovalY, 1e-3)))); }
+// One smooth step (spec 28): it leaves one value and approaches the other closely but never exactly, and goes on
+// approaching for as long as the clock runs, so there is no stretch of the clock over which it is flat and no floor is
+// added back to stand in for a missing tail.
+function step(x) { return 1 / (1 + Math.exp(-x)); }
+// A curve of the clock: the morning step of width wm rising at -c times the evening step of width we falling at +c. The
+// neighbouring days' copies are added in, so the two tails meet at the clock's midnight and the curve is smooth and
+// periodic there (each copy's far tail is negligible by then).
+function stepPair(a, c, wm, we) {
+  let s = 0;
+  for (let n = -1; n <= 1; n++) { const x = a + n * TAU; s += step((x + c) / wm) * step((c - x) / we); }
+  return Math.min(1, s);
 }
-// Strength of the clock's shaping of the day image down the frame: nothing from early morning until late evening, full
-// through the late evening and the small hours. It turns at the same two places as the daylight factor, with widths of its
-// own (held to the room each turn has, so the shaping too is flat at the warped midnight).
-function topShape(a) {
-  const cm = mornTurn(), ce = eveTurn();
-  const m = angStep(a, cm, Math.min(BGW.topMornW, 2 * (cm + Math.PI)));
-  const e = 1 - angStep(a, ce, Math.min(BGW.topEveW, 2 * (Math.PI - ce)));
-  return 1 - m * e;
-}
+// The three curves the day image needs (spec 28), from that one pair at its two rates:
+//   daylight: the gentler morning step times the sharper evening step, so it rises the gradual way, holds near its full
+//     height from the middle of the morning well into the evening and then falls the fast way (its peak in the later
+//     afternoon). It is lowest at midnight, where it is close to nothing but never nothing.
+//   the value shaping's clock: the gentler step at both ends, so it is symmetric about midday and acts over the widest
+//     stretch of the clock (the top loses the day image earliest in the evening).
+//   the saturation shaping's clock: the sharper step at both ends, the narrowest stretch (the colour low in the frame
+//     deepens last in the evening). The two therefore do not turn together.
+function daylightOf(a) { return stepPair(a, stepTurn(), BGW.stepW, BGW.stepW * BGW.stepRatio); }
+function shapeVal(a) { return 1 - stepPair(a, stepTurn(), BGW.stepW, BGW.stepW); }
+function shapeSat(a) { const w = BGW.stepW * BGW.stepRatio; return 1 - stepPair(a, stepTurn(), w, w); }
 // The night images' clock: not warped, one steady turn a day counted from midday (0 at midnight, -pi/2 at 18:00 with the
 // light at the left edge, +pi/2 at 06:00 at the right edge, +-pi at midday below the picture).
 function nightAngle(hour) { return wrapPi(((hour - 12) / 24) * TAU - Math.PI); }
-// The night images' time envelope: highest in the middle of the night, lowest at dusk and dawn (and by day).
-function nightEnvelope(a) { return Math.pow(0.5 + 0.5 * Math.cos(a), BGW.envPow); }
+// The night image's two curves are two of the same products read on that unwarped clock (spec 28): its envelope across the
+// night is the gentler step as the evening comes on times the sharper one at dawn (so it comes up gradually and gives way
+// quickly), and its shaping down the frame is driven by the gentler step at both ends (nothing at the dead of night, a
+// great deal at either end of the night).
+function nightEnvelope(a) { return stepPair(a, stepTurn(), BGW.stepW, BGW.stepW * BGW.stepRatio); }
+function nightShape(a) { return 1 - stepPair(a, stepTurn(), BGW.stepW, BGW.stepW); }
 // Next month's images rising from the bottom (N7): the centre of the S-shaped step (in screen heights, 0 = bottom) and its
 // half-width for the month's progress p (whole days): nothing before about the 6th, about half and half over the whole
 // screen in the middle (a very broad step), next month's complete at the bottom by about the 22nd and the top by the 26th.
@@ -831,11 +837,12 @@ function sceneParams(tp, theme) {
   if (theme >= 1 && theme <= 12) { // month n's palette at midday at the start of month n, day mood
     const a = dayAngle(BGW.noon);
     return { monA: theme - 1, monB: theme % 12, monC: -5, monW: 0.15, mid: 0, night: 0, aday: a, daylight: daylightOf(a),
-      top: topShape(a), anight: nightAngle(12), nightEnv: 0, mood: { ...MOODS.day } };
+      topV: shapeVal(a), topS: shapeSat(a), anight: nightAngle(12), nightEnv: 0, nightTop: 0, mood: { ...MOODS.day } };
   }
   const p = (day - 1) / daysInMonth(y, mon), [monC, monW] = monthStep(p), a = dayAngle(hour), an = nightAngle(hour);
   return { monA: mon - 1, monB: mon % 12, monC, monW, mid: Math.exp(-Math.pow((p - 0.5) / 0.15, 2)), night: nightWeight(hour),
-    aday: a, daylight: daylightOf(a), top: topShape(a), anight: an, nightEnv: nightEnvelope(an), mood: moodAt(hour) };
+    aday: a, daylight: daylightOf(a), topV: shapeVal(a), topS: shapeSat(a), anight: an, nightEnv: nightEnvelope(an),
+    nightTop: nightShape(an), mood: moodAt(hour) };
 }
 function parseTime(s) {
   const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2})(?::(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))?)?)?/.exec(s || '');
@@ -886,20 +893,23 @@ const WAVE = {
   tintL: [0.875, 0.875, 0.875], tintR: [1.067, 1.067, 1.067],
 };
 // (these scalars are let, not const, only so the settings menu can change them live)
-// background (spec 19, 23; original design). The picture starts from a fixed share of the image's own value and each light
-// adds its own lift on top of that; the two lifts add, and base + spot + glow <= 1 keeps the total from carrying the
+// background (spec 19, 23, 28; original design). The picture starts from a fixed share of the image's own value and each
+// light adds its own lift on top of that; the two lifts add, and base + spot + glow <= 1 keeps the total from carrying the
 // picture past the image's own colour. Day images: base: the fixed share; spot: the sun-like spot's lift, oval (centre x
 // amplitude, centre y amplitude: the centre is on the top edge at midday, crosses the bottom edge towards either end of the
 // warped daylight hours and is 1 - 2 ovalY below the bottom at midnight) and radii; band: the bottom glow's lift, centre x
-// amplitude (mirrored from the spot), half-width, centre height and half-height; bandWide, bandWidePow: how much the glow
-// broadens around the middle of the day (its half-width x (1 + bandWide x cos(angle)^bandWidePow)); pale: how much paler lit
-// areas get; midSat: the mid-month saturation drop; topDark, topSat, topPow: the clock's shaping down the frame (value
-// reduced, and saturation raised, by strength x height^topPow). Night images: nightMix: their share at full night weight;
-// nightBase: their fixed share; nightFloor: the floor under the lit, enveloped level.
+// amplitude (mirrored from the spot), half-width, centre height (a little above the bottom edge, spec 28) and half-height;
+// bandWide, bandWideW: how much the glow broadens about the middle of the day and how narrow that window of the clock is
+// (its half-width x (1 + bandWide x exp(-(angle / bandWideW)^2)), the same once more at the dead of night on the night
+// clock); pale: how much paler lit areas get; midSat: the mid-month saturation drop; topDark, topSat: the clock's shaping
+// down the frame, proportional in the height (value x exp(-topDark x clock x height), saturation x exp(+topSat x clock x
+// height), each clock its own, spec 28). Night images: nightMix: their share at full night weight; nightBase: their fixed
+// share; nightFloor: the floor under the lit, enveloped level; nightTop: their level's own proportional shaping up the
+// frame, strong at either end of the night.
 const BGL = { base: 0.556, spot: 0.243, ovalX: 0.887, ovalY: 0.981, spotW: 0.425, spotH: 0.326,
-  glow: 0.199, bandX: 0.365, bandW: 0.437, bandY: 0.000, bandH: 0.312, bandWide: 0.373, bandWidePow: 4.647,
-  pale: 0.993, midSat: 0.300, topDark: 1.333, topSat: 4.571, topPow: 0.300,
-  nightMix: 0.322, nightBase: 0.556, nightFloor: 0.550 };
+  glow: 0.199, bandX: 0.365, bandW: 0.437, bandY: 0.060, bandH: 0.312, bandWide: 0.373, bandWideW: 0.100,
+  pale: 0.993, midSat: 0.300, topDark: 2.500, topSat: 3.000,
+  nightMix: 0.322, nightBase: 0.556, nightFloor: 0.550, nightTop: 0.400 };
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
@@ -970,25 +980,27 @@ const VS_QUAD = `#version 300 es
 out vec2 vUv;
 void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2); vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
 
-// Background gradient for this frame, into a small target (spec 19). Day images: each month's image on its own is
+// Background gradient for this frame, into a small target (spec 19, 28). Day images: each month's image on its own is
 // converted to hue, saturation and value; the value is scaled by the daylight factor, by the two lights (a sun-like spot
 // whose centre goes round an oval larger than the frame, and a band along the bottom edge whose centre is the spot's
 // mirrored, both driven by one angle of the warped hour) and by the clock's shaping down the frame (late evening and small
-// hours: the top blacked out, the colour deepened towards the top); lit areas are paler and the middle of the month less
-// saturated. The two months' processed images are then mixed (next month's rising from the bottom). Night images: mixed
-// for the month, then scaled in brightness only, lit by the same two lights on an unwarped clock, under a time envelope
-// and above a floor. Even at full night weight the picture is a mix of the night image and the day image.
+// hours: the day image fading away up the frame, its colour deepening towards the top on a clock of its own); lit areas are
+// paler and the middle of the month less saturated. The two months' processed images are then mixed (next month's rising
+// from the bottom). Night images: mixed for the month, then scaled in brightness only, lit by the same two lights on an
+// unwarped clock, under a time envelope, above a floor and shaped up the frame by their own clock. Even at full night
+// weight the picture is a mix of the night image and the day image.
 const GLSL_BGLIGHT = `
 uniform vec4 uOval;   // spot: centre x amplitude, centre y amplitude (its centre is on the top edge at angle 0), radii x, y
-uniform vec4 uBand;   // bottom glow: centre x amplitude, half-width, centre height (at or below the bottom edge), half-height
+uniform vec4 uBand;   // bottom glow: centre x amplitude, half-width, centre height (a little above the bottom edge), half-height
 uniform vec2 uLStr;   // the lifts of the spot and the bottom glow (a light lifts its area towards the image's own value)
-uniform vec2 uBandWide; // how much the glow's half-width broadens around the middle of the light's day, and its exponent
+uniform vec2 uBandWide; // how much the glow's half-width broadens about the middle of the light's day, and how narrow that window is
 // the total lift of the two soft lights for angle a (0: the spot's centre on the top edge, the glow at mid-width): the two
 // lifts add, with nothing taken off where they overlap (spec 23)
 float lights(vec2 uv, float a){
   vec2 s = vec2(0.5 + uOval.x * sin(a), 1.0 - uOval.y * (1.0 - cos(a)));
   vec2 ds = (uv - s) / uOval.zw;
-  float bw = uBand.y * (1.0 + uBandWide.x * pow(max(0.0, cos(a)), uBandWide.y));
+  float aw = a / uBandWide.y;
+  float bw = uBand.y * (1.0 + uBandWide.x * exp(-aw * aw));   // a narrow window about the middle of the day (spec 28)
   float gx = (uv.x - (0.5 - uBand.x * sin(a))) / bw, gy = (uv.y - uBand.z) / uBand.w;
   return uLStr.x * exp(-dot(ds, ds)) + uLStr.y * exp(-gx * gx - gy * gy);
 }`;
@@ -996,7 +1008,7 @@ const FS_BGGEN = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
 uniform sampler2D uImg, uPrev; uniform float uTiles, uA, uB, uMc, uMw, uNight, uNightMix, uDaylight, uEase;
-uniform float uAday, uAnight, uBase, uPale, uMidSat, uTop, uTopDark, uTopSat, uTopPow, uNightBase, uNightEnv, uNightFloor;
+uniform float uAday, uAnight, uBase, uPale, uMidSat, uTopDark, uTopSat, uNightBase, uNightEnv, uNightFloor, uNightTop;
 ${GLSL_BGLIGHT}
 vec3 img(float idx, vec2 uv){
   vec2 q = vec2(uv.x, (idx + clamp(uv.y, 0.5 / ${BG_H}.0, 1.0 - 0.5 / ${BG_H}.0)) / uTiles);
@@ -1010,22 +1022,27 @@ vec3 rgb2hsv(vec3 c){
   return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
 }
 vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0); return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
-// one month's day image, processed on its own (L: the lights here; g: the clock's shaping at this height)
-vec3 processDay(vec3 c, float L, float g){
+// one month's day image, processed on its own (L: the lights here; y: the height up the frame). The shaping down the frame
+// is proportional in the height (spec 28): every further step up takes away the same share of the value, so what survives
+// falls off geometrically and the bottom row is never touched; the saturation is raised by the same law mirrored, driven by
+// its own clock, and is not held back at the pure end - past a pure hue the colour swings to the strongest primary (the
+// negative channels hsv2rgb then gives are cut at zero), so the hue itself turns as the shaping deepens.
+vec3 processDay(vec3 c, float L, float y){
   vec3 h = rgb2hsv(c);
-  h.z *= uDaylight * min(1.0, uBase + L) * max(0.0, 1.0 - uTopDark * g);
-  h.y = min(1.0, max(0.0, h.y * (1.0 - uPale * L)) * (1.0 - uMidSat) * (1.0 + uTopSat * g));
-  return hsv2rgb(h);
+  h.z *= uDaylight * min(1.0, uBase + L) * exp(-uTopDark * y);
+  h.y = max(0.0, h.y * (1.0 - uPale * L)) * (1.0 - uMidSat) * exp(uTopSat * y);
+  return max(hsv2rgb(h), vec3(0.0));
 }
 void main(){
   vec2 uv = vUv; // y = 0 at the bottom
   vec2 iu = vec2(uv.x, 1.0 - uv.y); // image rows are stored top first
   // next month's images rise from the bottom: a soft S-shaped step down the screen, centre uMc, half-width uMw
   float f = smoothstep(-1.0, 1.0, (uMc - uv.y) / uMw);
-  float L = lights(uv, uAday), g = uTop * pow(uv.y, uTopPow);
-  vec3 day = mix(processDay(img(uA * 2.0, iu), L, g), processDay(img(uB * 2.0, iu), L, g), f);
+  float L = lights(uv, uAday);
+  vec3 day = mix(processDay(img(uA * 2.0, iu), L, uv.y), processDay(img(uB * 2.0, iu), L, uv.y), f);
   float Ln = lights(uv, uAnight);
-  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f) * max(uNightFloor, uNightEnv * min(1.0, uNightBase + Ln));
+  vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f)
+    * max(uNightFloor, uNightEnv * min(1.0, uNightBase + Ln)) * exp(-uNightTop * uv.y);
   vec3 c = mix(day, night, uNight * uNightMix);
   vec3 prev = texture(uPrev, vUv).rgb;
   o = vec4(mix(prev, c, uEase), 1.0);
@@ -1403,9 +1420,11 @@ function gridColour(G, gw, gh, u, v) {
   }
   return o;
 }
-// Background images: day and night for each month, stacked in one texture.
+// Background images: day and night for each month, stacked in one texture. The pixels are kept as well, for the
+// background's colour read on the processor (bgColorAt, used by the tuning tools).
+let bgImageData = null;
 function makeBackgroundImages() {
-  const tiles = 24, data = new Float32Array(BG_W * BG_H * tiles * 4);
+  const tiles = 24, data = bgImageData = new Float32Array(BG_W * BG_H * tiles * 4);
   const put = (tile, x, y, c) => { const o = ((tile * BG_H + y) * BG_W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 1; };
   PALETTES.forEach((P, m) => {
     for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
@@ -1442,21 +1461,23 @@ function bgImageAt(tile, u, v) {
 // (spec 23). The bottom glow's half-width broadens around the middle of the light's day.
 function bgLightsJS(u, v, a) {
   const sx = (u - 0.5 - BGL.ovalX * Math.sin(a)) / BGL.spotW, sy = (v - 1 + BGL.ovalY * (1 - Math.cos(a))) / BGL.spotH;
-  const bw = BGL.bandW * (1 + BGL.bandWide * Math.pow(Math.max(0, Math.cos(a)), BGL.bandWidePow));
+  const aw = a / BGL.bandWideW;
+  const bw = BGL.bandW * (1 + BGL.bandWide * Math.exp(-aw * aw));
   const gx = (u - 0.5 + BGL.bandX * Math.sin(a)) / bw, gy = (v - BGL.bandY) / BGL.bandH;
   return BGL.spot * Math.exp(-sx * sx - sy * sy) + BGL.glow * Math.exp(-gx * gx - gy * gy);
 }
 function bgColorAt(sc, u, v) {
-  const f = ease(((sc.monC - v) / sc.monW + 1) / 2), L = bgLightsJS(u, v, sc.aday), g = sc.top * Math.pow(v, BGL.topPow);
+  const f = ease(((sc.monC - v) / sc.monW + 1) / 2), L = bgLightsJS(u, v, sc.aday);
   const proc = (c) => {
     const h = rgb2hsvJS(c[0], c[1], c[2]);
-    const val = h[2] * sc.daylight * Math.min(1, BGL.base + L) * Math.max(0, 1 - BGL.topDark * g);
-    const sat = Math.min(1, Math.max(0, h[1] * (1 - BGL.pale * L)) * (1 - BGL.midSat * sc.mid) * (1 + BGL.topSat * g));
-    return hsv2rgbJS(h[0], sat, val);
+    const val = h[2] * sc.daylight * Math.min(1, BGL.base + L) * Math.exp(-BGL.topDark * sc.topV * v);
+    const sat = Math.max(0, h[1] * (1 - BGL.pale * L)) * (1 - BGL.midSat * sc.mid) * Math.exp(BGL.topSat * sc.topS * v);
+    return hsv2rgbJS(h[0], sat, val).map(x => Math.max(0, x));
   };
   const da = proc(bgImageAt(sc.monA * 2, u, v)), db = proc(bgImageAt(sc.monB * 2, u, v));
   const na = bgImageAt(sc.monA * 2 + 1, u, v), nb = bgImageAt(sc.monB * 2 + 1, u, v);
-  const nl = Math.max(BGL.nightFloor, sc.nightEnv * Math.min(1, BGL.nightBase + bgLightsJS(u, v, sc.anight)));
+  const nl = Math.max(BGL.nightFloor, sc.nightEnv * Math.min(1, BGL.nightBase + bgLightsJS(u, v, sc.anight)))
+    * Math.exp(-BGL.nightTop * sc.nightTop * v);
   const k = sc.night * BGL.nightMix;
   return [0, 1, 2].map(c => (da[c] + (db[c] - da[c]) * f) * (1 - k) + (na[c] + (nb[c] - na[c]) * f) * nl * k);
 }
@@ -1522,7 +1543,7 @@ function setTone(pr, m) { gl.uniform1f(pr.u.uBlack, TONE_BLACK); gl.uniform1f(pr
 function setBgLights(pr) {
   gl.uniform4f(pr.u.uOval, BGL.ovalX, BGL.ovalY, BGL.spotW, BGL.spotH);
   gl.uniform4f(pr.u.uBand, BGL.bandX, BGL.bandW, BGL.bandY, BGL.bandH); gl.uniform2f(pr.u.uLStr, BGL.spot, BGL.glow);
-  gl.uniform2f(pr.u.uBandWide, BGL.bandWide, BGL.bandWidePow);
+  gl.uniform2f(pr.u.uBandWide, BGL.bandWide, BGL.bandWideW);
 }
 
 // st: { scene, cam, net0, net1, alpha, sparks, nSparks, layers, frameNo, ease }
@@ -1549,10 +1570,12 @@ function renderFrame(st, outTarget) {
     gl.uniform1f(pr.u.uMc, sc.monC); gl.uniform1f(pr.u.uMw, sc.monW); gl.uniform1f(pr.u.uNight, sc.night);
     setBgLights(pr);
     gl.uniform1f(pr.u.uDaylight, sc.daylight); gl.uniform1f(pr.u.uAday, sc.aday); gl.uniform1f(pr.u.uAnight, sc.anight);
-    gl.uniform1f(pr.u.uTop, sc.top); gl.uniform1f(pr.u.uTopDark, BGL.topDark); gl.uniform1f(pr.u.uTopSat, BGL.topSat);
-    gl.uniform1f(pr.u.uTopPow, BGL.topPow); gl.uniform1f(pr.u.uMidSat, BGL.midSat * sc.mid);
+    // the shapings down the frame: each strength times its own clock (spec 28), per unit height up the frame
+    gl.uniform1f(pr.u.uTopDark, BGL.topDark * sc.topV); gl.uniform1f(pr.u.uTopSat, BGL.topSat * sc.topS);
+    gl.uniform1f(pr.u.uMidSat, BGL.midSat * sc.mid);
     gl.uniform1f(pr.u.uNightMix, BGL.nightMix); gl.uniform1f(pr.u.uBase, BGL.base); gl.uniform1f(pr.u.uPale, BGL.pale);
     gl.uniform1f(pr.u.uNightBase, BGL.nightBase); gl.uniform1f(pr.u.uNightEnv, sc.nightEnv); gl.uniform1f(pr.u.uNightFloor, BGL.nightFloor);
+    gl.uniform1f(pr.u.uNightTop, BGL.nightTop * sc.nightTop);
     gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
     quad(); RT.bgFresh = false;
     RT.bgA = dst; RT.bgB = src;
@@ -1969,22 +1992,19 @@ group('Background', [
   field('BGL', BGL, 'ovalX', 'sun spot oval: width', 0, 1.5, 0.01), field('BGL', BGL, 'ovalY', 'sun spot oval: height', 0, 1.5, 0.01),
   field('BGL', BGL, 'spotW', 'sun spot radius x', 0.1, 2, 0.01), field('BGL', BGL, 'spotH', 'sun spot radius y', 0.1, 2, 0.01),
   field('BGL', BGL, 'glow', 'bottom glow strength', 0, 1, 0.01), field('BGL', BGL, 'bandX', 'bottom glow travel', 0, 0.5, 0.01),
-  field('BGL', BGL, 'bandW', 'bottom glow half-width', 0.1, 2, 0.01), field('BGL', BGL, 'bandY', 'bottom glow centre height', -0.5, 0, 0.01),
+  field('BGL', BGL, 'bandW', 'bottom glow half-width', 0.1, 2, 0.01), field('BGL', BGL, 'bandY', 'bottom glow centre height', -0.2, 0.5, 0.01),
   field('BGL', BGL, 'bandH', 'bottom glow half-height', 0.05, 1.5, 0.01),
   field('BGL', BGL, 'bandWide', 'bottom glow: midday broadening', 0, 2, 0.01),
-  field('BGL', BGL, 'bandWidePow', 'bottom glow: broadening shape', 0.2, 8, 0.05),
+  field('BGL', BGL, 'bandWideW', 'bottom glow: broadening window', 0.02, 1.5, 0.01),
   field('BGL', BGL, 'pale', 'lit areas paler', 0, 2.5, 0.01),
-  field('BGL', BGL, 'midSat', 'mid-month desaturation', 0, 1, 0.01), field('BGL', BGL, 'topDark', 'late hours: top darker', 0, 4, 0.01),
-  field('BGL', BGL, 'topSat', 'late hours: top deeper', 0, 8, 0.05), field('BGL', BGL, 'topPow', 'late hours: shape up the frame', 0.2, 4, 0.01),
+  field('BGL', BGL, 'midSat', 'mid-month desaturation', 0, 1, 0.01), field('BGL', BGL, 'topDark', 'late hours: fade up the frame', 0, 8, 0.01),
+  field('BGL', BGL, 'topSat', 'late hours: colour deeper up the frame', 0, 8, 0.05),
   field('BGL', BGL, 'nightMix', 'night image share', 0, 1, 0.01), field('BGL', BGL, 'nightBase', 'night: level away from the lights', 0, 1, 0.01),
   field('BGL', BGL, 'nightFloor', 'night: floor', 0, 1, 0.01),
+  field('BGL', BGL, 'nightTop', 'night: fade up the frame at the ends of the night', 0, 4, 0.01),
   field('BGW', BGW, 'warp', 'clock warp', 0, 0.95, 0.01), field('BGW', BGW, 'noon', 'clock warp: midday', 10, 14, 0.05),
-  field('BGW', BGW, 'dayFloor', 'daylight: floor', 0, 0.3, 0.005),
-  field('BGW', BGW, 'mornAt', 'daylight: morning rise begins', 0, 2.5, 0.01), field('BGW', BGW, 'mornW', 'daylight: morning width', 0.1, 3.1, 0.01),
-  field('BGW', BGW, 'eveAt', 'daylight: evening fall ends', 0, 2.5, 0.01), field('BGW', BGW, 'eveW', 'daylight: evening width', 0.1, 3.1, 0.01),
-  field('BGW', BGW, 'topMornW', 'late hours: morning turn width', 0.05, 3.1, 0.01),
-  field('BGW', BGW, 'topEveW', 'late hours: evening turn width', 0.05, 3.1, 0.01),
-  field('BGW', BGW, 'envPow', 'night envelope exponent', 0, 4, 0.05),
+  field('BGW', BGW, 'stepW', 'clock steps: the gentler rate', 0.05, 2, 0.01),
+  field('BGW', BGW, 'stepRatio', 'clock steps: the sharper rate (proportion)', 0.1, 1, 0.01),
   live('BG_EASE', 'frame easing', () => BG_EASE, v => { BG_EASE = v; }, 0.005, 1, 0.005),
   live('DITHER', 'dither amplitude', () => DITHER, v => { DITHER = v; }, 0, 3, 0.05),
 ]);

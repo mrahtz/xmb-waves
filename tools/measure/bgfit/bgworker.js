@@ -28,7 +28,7 @@ const D = require('path').join(__dirname, '..', 'work', 'bgfit'), meta = JSON.pa
           if (j <= 1) { bot += l; nb++; satLow += sat; if (i <= 2) bl += l; if (i >= 6) br += l; }
           if (mx > 0.05 && sat > satMax) satMax = sat;
         }
-        out.push({ h, asym: (br - bl) / (br + bl + 1e-6), all: all / n, top: top / nt, bot: bot / nb, satLow: satLow / nb, satMax, night: sc.night, day: sc.daylight, top_: sc.top, env: sc.nightEnv });
+        out.push({ h, asym: (br - bl) / (br + bl + 1e-6), all: all / n, top: top / nt, bot: bot / nb, satLow: satLow / nb, satMax, night: sc.night, day: sc.daylight, top_: sc.topV, tops: sc.topS, env: sc.nightEnv, ntop: sc.nightTop });
       }
       return out;
     };

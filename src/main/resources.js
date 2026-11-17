@@ -54,9 +54,11 @@ function gridColour(G, gw, gh, u, v) {
   }
   return o;
 }
-// Background images: day and night for each month, stacked in one texture.
+// Background images: day and night for each month, stacked in one texture. The pixels are kept as well, for the
+// background's colour read on the processor (bgColorAt, used by the tuning tools).
+let bgImageData = null;
 function makeBackgroundImages() {
-  const tiles = 24, data = new Float32Array(BG_W * BG_H * tiles * 4);
+  const tiles = 24, data = bgImageData = new Float32Array(BG_W * BG_H * tiles * 4);
   const put = (tile, x, y, c) => { const o = ((tile * BG_H + y) * BG_W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 1; };
   PALETTES.forEach((P, m) => {
     for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
@@ -93,21 +95,23 @@ function bgImageAt(tile, u, v) {
 // (spec 23). The bottom glow's half-width broadens around the middle of the light's day.
 function bgLightsJS(u, v, a) {
   const sx = (u - 0.5 - BGL.ovalX * Math.sin(a)) / BGL.spotW, sy = (v - 1 + BGL.ovalY * (1 - Math.cos(a))) / BGL.spotH;
-  const bw = BGL.bandW * (1 + BGL.bandWide * Math.pow(Math.max(0, Math.cos(a)), BGL.bandWidePow));
+  const aw = a / BGL.bandWideW;
+  const bw = BGL.bandW * (1 + BGL.bandWide * Math.exp(-aw * aw));
   const gx = (u - 0.5 + BGL.bandX * Math.sin(a)) / bw, gy = (v - BGL.bandY) / BGL.bandH;
   return BGL.spot * Math.exp(-sx * sx - sy * sy) + BGL.glow * Math.exp(-gx * gx - gy * gy);
 }
 function bgColorAt(sc, u, v) {
-  const f = ease(((sc.monC - v) / sc.monW + 1) / 2), L = bgLightsJS(u, v, sc.aday), g = sc.top * Math.pow(v, BGL.topPow);
+  const f = ease(((sc.monC - v) / sc.monW + 1) / 2), L = bgLightsJS(u, v, sc.aday);
   const proc = (c) => {
     const h = rgb2hsvJS(c[0], c[1], c[2]);
-    const val = h[2] * sc.daylight * Math.min(1, BGL.base + L) * Math.max(0, 1 - BGL.topDark * g);
-    const sat = Math.min(1, Math.max(0, h[1] * (1 - BGL.pale * L)) * (1 - BGL.midSat * sc.mid) * (1 + BGL.topSat * g));
-    return hsv2rgbJS(h[0], sat, val);
+    const val = h[2] * sc.daylight * Math.min(1, BGL.base + L) * Math.exp(-BGL.topDark * sc.topV * v);
+    const sat = Math.max(0, h[1] * (1 - BGL.pale * L)) * (1 - BGL.midSat * sc.mid) * Math.exp(BGL.topSat * sc.topS * v);
+    return hsv2rgbJS(h[0], sat, val).map(x => Math.max(0, x));
   };
   const da = proc(bgImageAt(sc.monA * 2, u, v)), db = proc(bgImageAt(sc.monB * 2, u, v));
   const na = bgImageAt(sc.monA * 2 + 1, u, v), nb = bgImageAt(sc.monB * 2 + 1, u, v);
-  const nl = Math.max(BGL.nightFloor, sc.nightEnv * Math.min(1, BGL.nightBase + bgLightsJS(u, v, sc.anight)));
+  const nl = Math.max(BGL.nightFloor, sc.nightEnv * Math.min(1, BGL.nightBase + bgLightsJS(u, v, sc.anight)))
+    * Math.exp(-BGL.nightTop * sc.nightTop * v);
   const k = sc.night * BGL.nightMix;
   return [0, 1, 2].map(c => (da[c] + (db[c] - da[c]) * f) * (1 - k) + (na[c] + (nb[c] - na[c]) * f) * nl * k);
 }

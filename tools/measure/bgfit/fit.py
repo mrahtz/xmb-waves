@@ -29,14 +29,17 @@ WS = [Worker() for _ in range(NW)]
 DEF = WS[0].ready['def']
 GW, GH, NGH = DEF['grid']          # the grids' shape (columns, day rows, night rows)
 NDAY, NNIGHT = GW * GH * 3, GW * NGH * 3
+# spec 28: the clock's curves are all products of one pair of steps at two rates in fixed proportion (BGW.stepW and
+# BGW.stepRatio), placed where the spot's centre crosses the bottom edge (so BGL.ovalY places them too); the glow's
+# broadening now has a window (bandWideW) instead of an exponent; the shapings down the frame are proportional in the
+# height (no topPow); the night image has its own shaping (nightTop); and no floor stands in for a step's tail (no dayFloor)
 LIGHT = [('BGL', 'base', .25, .9), ('BGL', 'spot', 0, .75), ('BGL', 'ovalX', .55, 1.5), ('BGL', 'ovalY', .5, 1.6),
          ('BGL', 'spotW', .35, 1.5), ('BGL', 'spotH', .3, 1.4), ('BGL', 'glow', 0, .75), ('BGL', 'bandX', 0, .45),
-         ('BGL', 'bandW', .35, 1.5), ('BGL', 'bandY', -.3, 0), ('BGL', 'bandH', .2, 1.2), ('BGL', 'bandWide', 0, 2),
-         ('BGL', 'bandWidePow', .5, 8), ('BGL', 'pale', 0, 2.2), ('BGL', 'midSat', .3, .8), ('BGL', 'topDark', 1, 4),
-         ('BGL', 'topSat', .5, 8), ('BGL', 'topPow', .3, 3), ('BGL', 'nightMix', .3, .8), ('BGL', 'nightBase', 0, .9),
-         ('BGL', 'nightFloor', .3, .8), ('BGW', 'warp', .2, .9), ('BGW', 'noon', 11.5, 12.5), ('BGW', 'dayFloor', 0, .05),
-         ('BGW', 'mornAt', 0, 2.4), ('BGW', 'mornW', .3, 3.1), ('BGW', 'eveAt', 0, 2.4), ('BGW', 'eveW', .3, 3.1),
-         ('BGW', 'topMornW', .05, 3.1), ('BGW', 'topEveW', .05, 3.1), ('BGW', 'envPow', .3, 8)]
+         ('BGL', 'bandW', .35, 1.5), ('BGL', 'bandY', 0, .25), ('BGL', 'bandH', .2, 1.2), ('BGL', 'bandWide', 0, 2),
+         ('BGL', 'bandWideW', .03, .6), ('BGL', 'pale', 0, 2.2), ('BGL', 'midSat', .3, .8), ('BGL', 'topDark', .5, 8),
+         ('BGL', 'topSat', .5, 8), ('BGL', 'nightMix', .3, .8), ('BGL', 'nightBase', 0, .9),
+         ('BGL', 'nightFloor', .3, .8), ('BGL', 'nightTop', 0, 2), ('BGW', 'warp', .2, .9), ('BGW', 'noon', 11.5, 12.5),
+         ('BGW', 'stepW', .15, 1.2), ('BGW', 'stepRatio', .15, .95)]
 def palspec(months):
     out = []
     for mo in months:
@@ -80,14 +83,12 @@ def build(x):
 
 def light_pen(b):
     """what the spec asks of the lights themselves (23): the two lifts add and their total cannot carry the picture past
-    the image's own colour; the spot's centre crosses the bottom edge towards the warped end of the daylight hours and is
-    far below the picture at midnight; the evening fall of the daylight factor is the steeper side"""
-    L, W = b['BGL'], b['BGW']; pen = 0
+    the image's own colour; the spot's centre rises past the top edge and is far below the picture at midnight. (Spec 28:
+    the crossing of the bottom edge is where the clock's steps are placed, so it no longer needs asking for; which end of
+    the day is the sharp one is in the structure, not in the fit.)"""
+    L = b['BGL']; pen = 0
     pen += 50 * max(0, L['base'] + L['spot'] + L['glow'] - 1) + 50 * max(0, L['nightBase'] + L['spot'] + L['glow'] - 1)
-    ce = math.pi - W['eveAt'] - W['eveW'] / 2                     # the evening turn of the daylight factor
-    pen += 30 * max(0, 1 - L['ovalY'] * (1 - math.cos(ce)))       # crosses the bottom edge by then
     pen += 30 * max(0, 0.75 - L['ovalY'])                         # far below the picture at midnight
-    pen += 10 * max(0, W['eveW'] - W['mornW'])                    # the evening fall the steeper of the two
     return pen
 
 def spec_pen(cv, b):
@@ -110,6 +111,11 @@ def spec_pen(cv, b):
     # night is in the model's own clock)
     hp = max(cv, key=lambda c: c['day'])['h']                         # the daylight factor peaks in the later afternoon
     pen += 5 * (max(0, 13.0 - hp) + max(0, hp - 18.0))
+    # spec 28: the day's own light holds up - at nearly its full height from the middle of the morning right through to
+    # the early evening - and its lowest point is local midnight
+    dm = max(c['day'] for c in cv)
+    for h in (9.0, 18.0): pen += 20 * max(0, 0.85 - A[h]['day'] / dm)
+    pen += 20 * max(0, A[0.0]['day'] - min(c['day'] for c in cv) * 1.02)
     return pen
 
 import colorsys
