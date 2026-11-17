@@ -8,10 +8,12 @@
 #   exposure: each mood's hold hour (night 00, dawn 06, day 12, dusk 18). The composite's gain scales the background and the
 #     wave alike, so its ratio is the geometric mean of the background's ratio (all regions and channels, over the months)
 #     and the band peak's ratio. Each mood's exposure is multiplied by that ratio ** STEP.
-#   palettes: what is left of the background's ratio after the exposure, per month, row and channel: the day images' top and
-#     bottom colours (mid: their mean; glow: as top) from the day hours 06, 12 and 18; the night colour from the bottom row at
-#     00 h. Months without footage get the mean of the four months' factors. Each factor ** STEP, kept to 0.8-1.25 (near-black
-#     channels give unstable ratios).
+#   palettes: what is left of the background's ratio after the exposure, per month, row and channel: a top and a bottom factor
+#     for the day image from the day hours 06, 12 and 18, and a night factor from the bottom row at 00 h. The images are the
+#     painted grids of spec 23, so the day grid's rows are scaled between the two factors by their height and the night grid
+#     by the night factor: the grid's shape (fitted with bgfit/) stays, its level per row and channel moves. Months without
+#     footage get the mean of the four months' factors. Each factor ** STEP, kept to 0.8-1.25 (near-black channels give
+#     unstable ratios).
 # Rewrites src/main/scene.js in place (not with --dry) and prints the factors. STEP defaults to 0.7. --exposure-only rewrites
 # only the moods' exposures and leaves the palettes as they are (the palettes' factors are still printed).
 import sys, os, re, json, numpy as np
@@ -45,19 +47,29 @@ for mo in months:
     bot = np.array([np.mean([lr[(mo, h, 'bottom', ch)] - np.log(exp_f[m][0]) / step for m, h in MOOD_HOUR.items() if m != 'night']) for ch in 'RGB'])
     nig = np.array([lr[(mo, '00', 'bottom', ch)] - np.log(exp_f['night'][0]) / step for ch in 'RGB'])
     pal[mo] = tuple(np.clip(np.exp(step * x), 0.8, 1.25) for x in (top, bot, nig))   # one step never moves a colour by more
+# The palettes are the painted grids of spec 23 (src/main/scene.js: day BG_GRID_W x BG_GRID_H nodes, night BG_GRID_W x
+# BG_NGRID_H, three numbers each, rows from the top of the image). A battery run only sees the top and the bottom of the
+# frame, so a factor is applied per grid row: the day grid's rows are scaled between the top and the bottom factor
+# (geometrically, by the row's height), and every node of the night grid by the night factor. The grid's own shape, fitted
+# against the footage with bgfit/, is therefore kept; only its level per row and channel moves.
+PAL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src', 'main', 'scene.js')
+src_txt = open(PAL_PATH, encoding='utf-8').read()
+GW, GH, NGH = (int(re.search(r'\b%s = (\d+)' % k, src_txt).group(1)) for k in ('BG_GRID_W', 'BG_GRID_H', 'BG_NGRID_H'))
+PAL_HI = 1.5   # the grids' upper bound (bgfit/fit.py)
+def grids(txt):   # {month number: {'day': array, 'night': array}} from a scene.js text
+    out = {}
+    for m in re.finditer(r'  /\*\s*(\d+) [^*]*\*/ \{ day: \[([-0-9.,\s]+)\], night: \[([-0-9.,\s]+)\] \}', txt):
+        out[int(m.group(1))] = {k: np.array([float(x) for x in m.group(i).split(',')])
+                                for i, k in ((2, 'day'), (3, 'night'))}
+    return out
+cur = grids(src_txt)
+if len(cur) != 12: sys.exit('jointfit: found %d of 12 palettes in %s' % (len(cur), PAL_PATH))
 # months without footage: the mean of the four months' factors, leaving out channels that are (near) zero in a month's palette,
 # whose ratio that palette cannot change and which would only drag the others
-src_txt = open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src', 'main', 'scene.js'), encoding='utf-8').read()
-cur = {}
-for line in src_txt.split('\n'):
-    mm = re.match(r'  /\*\s*(\d+) ', line)
-    if mm and 'top:' in line:
-        g = lambda k: np.array([float(x) for x in re.search(k + r'\[([-0-9., ]+)\]', line).group(1).split(',')])
-        cur[int(mm.group(1))] = (g(r'\btop: '), g(r'\bbottom: '), g(r'night: \['))
 def mean_f(i):
-    out = np.ones(3)
+    key, out = ('day', 'day', 'night')[i], np.ones(3)
     for ch in range(3):
-        v = [np.log(pal[m][i][ch]) for m in pal if cur[m][i][ch] >= 0.01]
+        v = [np.log(pal[m][i][ch]) for m in pal if cur[m][key][ch::3].mean() >= 0.01]
         out[ch] = np.exp(np.mean(v)) if v else 1.0
     return out
 mean = tuple(mean_f(i) for i in range(3))
@@ -65,26 +77,24 @@ for mood, (f, b, p) in exp_f.items(): print('exposure %-5s x %.3f   (background 
 for mo in months: print('month %2d top %s bottom %s night %s' % (mo, np.round(pal[mo][0], 3), np.round(pal[mo][1], 3), np.round(pal[mo][2], 3)))
 print('other months: top %s bottom %s night %s' % tuple(np.round(x, 3) for x in mean))
 if dry: sys.exit(0)
-p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'src', 'main', 'scene.js')
+p = PAL_PATH
 s = open(p, encoding='utf-8').read()
-def scale(txt, key, f, hi=1.0):
-    m = re.search(r'\b' + key + r': \[([-0-9., ]+)\]', txt)
-    if not m: return txt
-    v = [min(hi, max(0.0, float(x) * f[i])) for i, x in enumerate(m.group(1).split(','))]
-    return txt.replace(m.group(0), key + ': [' + ', '.join('%.3f' % x for x in v) + ']', 1)
-out = []
-for line in s.split('\n'):
-    m = re.match(r'  /\*\s*(\d+) ', line)
-    if m and 'top:' in line and not exp_only:
-        top, bot, nig = pal.get(int(m.group(1)), mean)
-        line = scale(line, 'top', top); line = scale(line, 'bottom', bot); line = scale(line, 'mid', (top + bot) / 2)
-        line = scale(line, 'glow', top)
-        nm = re.search(r'night: \[\[([-0-9., ]+)\]', line)
-        if nm:
-            v = [min(1.0, float(x) * nig[i]) for i, x in enumerate(nm.group(1).split(','))]
-            line = line.replace(nm.group(0), 'night: [[' + ', '.join('%.3f' % x for x in v) + ']', 1)
-    out.append(line)
-s = '\n'.join(out)
+def row_factors(top, bot, nrows):   # the day grid's rows, from the top of the image to the bottom
+    return [np.exp(np.log(top) * (1 - t) + np.log(bot) * t) for t in (np.arange(nrows) / (nrows - 1))]
+def emit(v, nrows):                 # the grid's numbers as scene.js holds them: one line per row, nodes two spaces apart
+    rows = []
+    for j in range(nrows):
+        r = v[j * GW * 3:(j + 1) * GW * 3]
+        rows.append('    ' + ',  '.join(', '.join('%.3f' % x for x in r[i * 3:i * 3 + 3]) for i in range(GW)))
+    return '[\n' + ',\n'.join(rows) + '\n  ]'
+if not exp_only:
+    for mo, g in sorted(grids(s).items()):
+        top, bot, nig = pal.get(mo, mean)
+        day = np.concatenate([np.clip(g['day'][j * GW * 3:(j + 1) * GW * 3] * np.tile(f, GW), 0, PAL_HI)
+                              for j, f in enumerate(row_factors(top, bot, GH))])
+        night = np.clip(g['night'] * np.tile(nig, GW * NGH), 0, PAL_HI)
+        m = re.search(r'(  /\*\s*%d [^*]*\*/ \{ day: )\[[-0-9.,\s]+\](, night: )\[[-0-9.,\s]+\]( \})' % mo, s)
+        s = s[:m.start()] + m.group(1) + emit(day, GH) + m.group(2) + emit(night, NGH) + m.group(3) + s[m.end():]
 def block(s, mood):
     a = s.index('  ' + mood + ': {'); return a, s.index('focusFar', a)
 new = {}
