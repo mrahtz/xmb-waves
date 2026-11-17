@@ -185,21 +185,27 @@ shading curves) pass in every mood. Still short of the original: the picture
 changes faster (0.08 correlation after one second against 0.15-0.36), the swell
 crosses a little quickly (20 s against 25-107 s), the band arches less and is
 thinner, its lines stand out more over the band, and the brightest sparkles
-are a little dim. The composite's black offset is fitted on the colour the band's light takes over the dark parts of a night frame
-(spec 24; twelve months of the original's renders): July's and October's night bands now lean towards the background's colour
-as the original's do, though less (R share 0.28 against 0.24 in July), and months whose night palette is more coloured than the
-original's lean where the original's stay neutral. The night picture's black top now reaches 0.36-0.38 H (the original 0.29-0.35 H).
+are a little dim. The composite's black offset, each mood's exposure and the twelve month palettes are fitted
+together to the original's renders and recordings at four months (January, April, July, October) and four hours
+(`tools/measure/jointfit.py`, with the offset swept around the fit). The offset is a three-way trade:
+the colour the band's light takes over the dark parts of a night frame (spec 24) wants it large, the depth of the
+night picture's black top wants it near 0.03, and the background away from the band wants it small, because the
+offset cuts the dark end where the palettes can only scale colours. At the chosen 0.03 the night band's colour is
+within 0.032 RMS of the original's channel shares (0.038 at offset 0.02, 0.017 at 0.09), the black top reaches
+0.349 H against the original's 0.29-0.35 H, and background pixels away from the band differ by about 9.5 levels
+per channel on average. July's and October's night bands lean towards the background's colour as the original's
+do, though less (R share 0.31 against 0.24 in July), and months whose night palette is more coloured than the
+original's lean where the original's stay neutral.
 The band's brightest places compare left to right as the original's do.
 Each mood's bright-pass threshold sits inside the bracket measured on the original's footage (spec 24), and the night runs
-the same glare chain without any halo. But my brightest day background is the sun spot at the top, about 0.1 brighter than the
-original's brightest part, so by day my background glares by itself in ten months instead of only around the turn of the year,
-as a visible blob over the spot in June and August (see the tuning log). The palettes and each mood's exposure are fitted together to the
-original's renders and recordings at four months (January, April, July, October) and four hours
-(`tools/measure/jointfit.py`). After the offset change of spec 24 each mood's exposure was re-fitted but the palettes
-were not, so the background away from the band now reads darker than the original's (6-44 % by mood) while the band reads slightly
-bright; the palettes want re-fitting to the new offset. Still short: at dawn the background is darkest relative to the original, because the
+the same glare chain without any halo (at most one output level). But my brightest day background is the sun spot at the top,
+about 0.1 brighter than the original's brightest part, so by day my background glares by itself in nine months instead of only
+around the turn of the year, as a visible blob over the spot; with the thresholds inside the measured brackets the daytime glare
+is now eight times what it was (see the tuning log). Spec 5 puts dusk's glare first, and mine still puts day's first.
+Still short: at dawn the background is darkest relative to the original, because the
 exposure keeps the spec's order of the moods (dawn only slightly above day); by day the sun spot at the top
-is too bright and the bottom too dark.
+is too bright and the bottom too dark; and the background's residual is worst at the bottom right and middle
+right, around the glow spot, which the joint fit scales by the top row's factor rather than its own.
 
 Not verifiable from the references available so far: the palettes for
 the eight months without footage, the look in
