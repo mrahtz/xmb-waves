@@ -1,4 +1,4 @@
-# usage: python3 jointfit.py BATTERY_DIR [STEP] [--dry] [--exposure-only]
+# usage: python3 jointfit.py BATTERY_DIR [STEP] [--dry] [--exposure-only] [--weight=W]
 # One joint fitting step of the shared settings (each mood's exposure, the month palettes) from a battery run (battery.py
 # --seeds ..., the seed<N>/clips.json files): the original's recordings and renders against the clean renders at the same
 # conditions (the 16 conditions at months 1, 4, 7, 10 and 00, 06, 12, 18 h, 40 s after the start).
@@ -7,7 +7,11 @@
 # and cycle.py's band peak over the background. Ratios are original / clean with 4 levels added to both (as palfit.py).
 #   exposure: each mood's hold hour (night 00, dawn 06, day 12, dusk 18). The composite's gain scales the background and the
 #     wave alike, so its ratio is the geometric mean of the background's ratio (all regions and channels, over the months)
-#     and the band peak's ratio. Each mood's exposure is multiplied by that ratio ** STEP.
+#     and the band peak's ratio. Each mood's exposure is multiplied by that ratio ** STEP. --weight W moves that mean
+#     towards the background (W of the log ratio from the background, 1 - W from the band peak; 0.5, the geometric mean,
+#     is the default). Use it when the band's own brightness, not the gain, is what is out: the gain scales the background
+#     and the band together, so a band that is short of the original at one hour and not at another cannot be reached by
+#     it, and letting the band pull on the gain then moves the background away from the footage for nothing.
 #   palettes: what is left of the background's ratio after the exposure, per month, row and channel: a top and a bottom factor
 #     for the day image from the day hours 06, 12 and 18, and a night factor from the bottom row at 00 h. The images are the
 #     painted grids of spec 23, so the day grid's rows are scaled between the two factors by their height and the night grid
@@ -19,6 +23,7 @@
 import sys, os, re, json, numpy as np
 from collections import defaultdict
 args = [a for a in sys.argv[1:] if not a.startswith('--')]; dry = '--dry' in sys.argv; exp_only = '--exposure-only' in sys.argv
+wt = next((float(a.split('=')[1]) if '=' in a else 0.5 for a in sys.argv[1:] if a.startswith('--weight')), 0.5)
 d = args[0]; step = float(args[1]) if len(args) > 1 else 0.7
 seeds = [s for s in sorted(os.listdir(d)) if s.startswith('seed')]
 ROWS = {'top': ('top_left', 'top_right'), 'bottom': ('bottom_left', 'bottom_right')}
@@ -40,7 +45,7 @@ exp_f = {}
 for mood, hr in MOOD_HOUR.items():
     bg = np.mean([v for k, v in lr.items() if k[1] == hr and k[2] != 'band'])
     band = np.mean([v for k, v in lr.items() if k[1] == hr and k[2] == 'band'])
-    exp_f[mood] = (np.exp(step * (bg + band) / 2), np.exp(bg), np.exp(band))
+    exp_f[mood] = (np.exp(step * (wt * bg + (1 - wt) * band)), np.exp(bg), np.exp(band))
 pal = {}
 for mo in months:
     top = np.array([np.mean([lr[(mo, h, 'top', ch)] - np.log(exp_f[m][0]) / step for m, h in MOOD_HOUR.items() if m != 'night']) for ch in 'RGB'])
