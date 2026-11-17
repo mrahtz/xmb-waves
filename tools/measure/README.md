@@ -259,7 +259,7 @@ from the middle of the morning to the early evening and its lowest point at loca
 lights' lifts adding to no more than the image's own value and the spot's centre lying far below the picture at
 midnight (version 23; where the pair of steps turns is now the bottom-edge crossing itself, so it is no longer asked
 for); how high the night glow climbs at the dead of night, read from the footage month by month (version 28,
-`--rows W`, off by default at weight 20); each month kept in its colour family (spec 7: January silver, near neutral; the others within 20 degrees
+`--rows W`, on at weight 20 unless another weight is given; the version-28 fit used 100); each month kept in its colour family (spec 7: January silver, near neutral; the others within 20 degrees
 of hue of their starting colours and within a factor 1.5 in value); and each image kept a picture of one palette - its
 hue within 30 degrees of the image's own mean hue and its variation across the width gentle beside the one down the
 image - without which the fit paints two consecutive months in complementary colours that cancel in the mid-month mix,
