@@ -211,19 +211,19 @@ let TONE_BLACK = 0.03;
 // band's brightest folds, so the night is free of halo on the screen.
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -7.7, camLift: 0.2745,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -9.0, camLift: 0.2745,
     exposure: 1.385, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -12.7, camLift: 0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -14.0, camLift: 0,
     exposure: 1.208, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -12.7, camLift: 0,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -14.0, camLift: 0,
     exposure: 1.098, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.20, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -12.7, camLift: 0,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -14.0, camLift: 0,
     exposure: 1.372, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.22, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };

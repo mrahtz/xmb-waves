@@ -2,6 +2,8 @@
 // build, sampled over 50 s:
 //   4.4d framing: the share of the sheet's length (from the shaken end) beyond the left edge of the screen, and where
 //        the free end lies on screen (1 = the right edge); a share of the surface outside the frame
+//   4.4b layout on screen (version 30): how many screen pixels one step of the sheet's material (one control-point
+//        spacing along the length) covers at the two edges of the frame; the free-end edge should be the larger
 //   4.4d depth: the distance to the sheet at the left and at the right edge of the screen (the left should be nearer,
 //        and the growth slight)
 //   4.4d from below: the camera's height relative to the sheet's mean plane (negative = below), and whether the far
@@ -36,12 +38,24 @@ const len = a => Math.hypot(a[0], a[1], a[2]), sub = (a, b) => [a[0] - b[0], a[1
 const ev = (s, t) => { const o = [0, 0, 0]; sim.surf(sim.netCur, s, t, o); return o.slice(); };
 const S = N - 3, n = 160, m = 32, h = 1e-3;
 const acc = { farY: [], colD: [], colY: [], ally: [], left: [], free: [], outside: [], dl: [], dr: [], below: [], farLower: [], prod: [], cut: [], cos: [],
-  slackW: [], slackL: [], turns: [], depthUse: [], top: [] };
+  slackW: [], slackL: [], turns: [], depthUse: [], top: [], pxLeft: [], pxRight: [] };
 for (let f = 0; f < 5; f++) {
   for (let k = 0; k < 600; k++) sim.step();
   // framing: the along-length fraction (at mid-width) where the sheet first enters the screen; the free end's screen x
   let first = null; for (let a = 0; a <= 400; a++) { const x = scr(view(ev(a / 400 * S, S / 2)))[0]; if (x >= 0 && first === null) first = a / 400; }
   acc.left.push(first === null ? 1 : first); acc.free.push(scr(view(ev(S, S / 2)))[0]);
+  // 4.4b (version 30): the uneven layout read on the screen, not in the sheet's own coordinates. How many screen pixels
+  // one step of the sheet's material (one control-point spacing along the length) covers at the two edges of the frame:
+  // the free-end edge should be the larger, perspective having already shrunk it.
+  { const px = [null, null];
+    for (let a = 0; a <= 800; a++) {
+      const s = a / 800 * S, x = scr(view(ev(s, S / 2)))[0];
+      if (x < 0 || x > 1) continue;
+      const d = Math.abs(scr(view(ev(Math.min(s + 1, S), S / 2)))[0] - scr(view(ev(Math.max(s - 1, 0), S / 2)))[0])
+        / ((Math.min(s + 1, S) - Math.max(s - 1, 0))) * W;   // screen px per one control-point step along the length
+      if (px[0] === null) px[0] = d; px[1] = d;
+    }
+    if (px[0] !== null) { acc.pxLeft.push(px[0]); acc.pxRight.push(px[1]); } }
   // depth: distance to the sheet's points nearest the left and right edges (mid-width); camera height vs mean plane
   let L = null, R = null, ys = 0, yc = 0, inF = 0, all = 0, wsum = 0, hist = [], pr = 0, cu = 0, co = [];
   const nearF = [], farF = [], cols = Array.from({ length: 24 }, () => [[], []]);
@@ -107,6 +121,8 @@ const wq = (arr, q) => { const a = arr.slice().sort((x, y) => x[0] - y[0]), tot 
 console.log('mood %s (pitch %s), seed %d', moodName, pitch, seed);
 console.log('4.4d framing: sheet length beyond the left edge %s (from the shaken end); free end at screen x %s (1 = right edge); surface outside the frame %s',
   avg(acc.left).toFixed(2), avg(acc.free).toFixed(2), avg(acc.outside).toFixed(2));
+console.log('4.4b layout on screen: one step of the material covers %s px at the shaken-end edge of the frame and %s px at the free-end edge (ratio %s; the free end should be the larger)',
+  avg(acc.pxLeft).toFixed(1), avg(acc.pxRight).toFixed(1), (avg(acc.pxRight) / avg(acc.pxLeft)).toFixed(2));
 console.log('4.4d depth: distance to the sheet at the left edge %s, at the right edge %s (ratio %s)', avg(acc.dl).toFixed(2), avg(acc.dr).toFixed(2), (avg(acc.dr) / avg(acc.dl)).toFixed(2));
 const med = a => { const b = a.slice().sort((x, y) => x - y); return b[b.length >> 1]; };
 console.log('4.4d depth across the band: distance spread down a column (p10-p90), median over columns %s (left-to-right change %s, ratio %s); height on screen of the visible sheet down a column %s',
