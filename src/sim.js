@@ -74,14 +74,20 @@ function XMBW_SIM() {
     // a wave rolling from the shaken end to the free end, growing along the length, whose strength swells and fades.
     // It is the swell: its crest crossing the screen is the band's slow left-to-right rise and fall
     // (spec 26: its strength changes appreciably within the time one crest takes to cross the screen. The crest advances
-    // rollW / (2 pi rollWaves) = 0.042 of the length a second and the screen spans about 0.46 of it, so a crossing takes
-    // 11 s; the strength's own period is 31 s, so no two crossings are alike. At the earlier 102 s the strength only crept
-    // while a crest travelled and the picture 5 s on was too exactly the reverse of the picture now)
-    rollAmp: 0.05, rollGrow: 2.664, rollWaves: 1.141, rollW: 0.3, rollMod: 0.35, rollModW: 0.2,
+    // rollW / (2 pi rollWaves) = 0.032 of the length a second; the strength's own period is 31 s, so no two crossings are
+    // alike. At the earlier 102 s the strength only crept while a crest travelled and the picture 5 s on was too exactly
+    // the reverse of the picture now.)
+    // Spec 30 fits the rate and the wavelength against two observables, not one, measured the same way on the footage
+    // and on renders (tools/measure/swelllag.py: the band's height in six bands of columns, the lag that lines the two
+    // outer bands up, and their correlation at no lag). On the original's two 30 s recordings the crest crosses in 11.0
+    // and 11.5 s with the no-lag correlation -0.54 and -0.82; at rollWaves 1.141 and rollW 0.3 this build crossed in
+    // 7.9-8.2 s with -0.37 to -0.39, which is the wavelength too long and not the clock too fast. At 1.40 and 0.285 it
+    // crosses in 10.6 s with -0.68
+    rollAmp: 0.05, rollGrow: 2.664, rollWaves: 1.40, rollW: 0.285, rollMod: 0.35, rollModW: 0.2,
     // one soft hump sliding back and forth along the length (centre and travel as fractions of the length; part of
     // its travel lies beyond the shaken end, and over the rest it passes over every part of the sheet, including the
     // part at the right of the screen, which the free end reaches (spec 26))
-    bumpAmp: 0.11047, bumpWidth: 0.25, bumpCentre: 0.3, bumpTravel: 0.72, bumpW: 0.01027,
+    bumpAmp: 0.10754, bumpWidth: 0.25, bumpCentre: 0.3, bumpTravel: 0.72, bumpW: 0.01118,
     // the whole sheet rising and falling together, much more slowly than the swell. Spec 26: the bob is the main carrier
     // of the band's slow wandering over minutes, so it moves the band by more than the bump does.
     // Spec 30: the band's course over times since the start had the right shape with too little reach (0.46 to 0.60 H
@@ -92,7 +98,7 @@ function XMBW_SIM() {
     // candidates no quicker than the old values in either part: the bob is half as large again and half as slow again,
     // the bump a tenth larger and five times slower. The ordering of 4.4b holds and is wider than before: swell 21 s,
     // twist 21.7 s, bob 100 s, bump 612 s, the bob well inside 4.6's "over minutes"
-    bobAmp: 0.0655, bobW: 0.06301,
+    bobAmp: 0.06863, bobW: 0.06301,
     twistAmp: 0.04, twistW: 0.29,  // a gentle ripple, one cycle across the width, travelling across it
     // the four parts' phases at clock 0 (spec 18: fixed, the same at every start, never drawn per run): swell strength, bump,
     // bob, swell, twist. Spec 30 says not to fit these on their own to bring single moments into line, so they are no
@@ -101,7 +107,7 @@ function XMBW_SIM() {
     // minutes; the original's band is at the same height at a given time since the start whatever the date, so the four
     // noise conditions give one course, their spread per time being 0.008 to 0.021 H). Against it the joint fit is
     // 0.054 H rms where the old values were 0.085
-    ph: [1.27744, 5.42093, 5.92774, 6.19384, 2.87612],
+    ph: [1.36874, 5.49293, 6.01757, 6.26961, 2.85385],
     // The clock every part of the warp reads is not unbounded (spec 30): it runs up to this ceiling, in seconds, and
     // restarts from its starting value, and because all four parts read it directly they jump together. The driven end
     // reads the same clock through the easing of NET.driveEase, so it is not set down at a new place: it is swept along

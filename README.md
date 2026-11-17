@@ -117,10 +117,17 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 - The net is passed through a free-form deformation lattice laid out
   unevenly along the length, with enough cells across the width for the
   twist and held at the sheet's ends: a swell rolling from the shaken end to
-  the free end and growing along it (21 s), a large bump sliding back and
-  forth (113 s), a slow bob of the whole sheet (70 s) and a small twist
-  across the width (22 s). Their rates and phases are fitted to the
-  recordings. The deformed net is the control net of a bicubic B-spline
+  the free end and growing along it (22 s, a little under one and a half
+  wavelengths along the sheet, so its crest crosses the screen in 10.6 s), a
+  large bump sliding back and forth (562 s), a slow bob of the whole sheet
+  (100 s) and a small twist across the width (22 s). Their rates, their
+  sizes and the ceiling of the one clock they read are fitted together
+  against the band's whole course over times since the start, rather than
+  each part being given a free phase. The clock runs to that ceiling (2400 s)
+  and restarts, which all four parts follow at once: the band's height steps
+  by a quarter of the frame in one frame, and the driven end, which reads the
+  same clock through the drive's easing, sweeps back along its own path over
+  about a second and throws a disturbance into the sheet. The deformed net is the control net of a bicubic B-spline
   surface. The control points are projected first, so the surface and its
   normals live in the projected space, as the spec asks. The camera's
   placement (below the sheet, which runs out past the left edge of the
