@@ -5,7 +5,8 @@ import numpy as np
 OPT = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(os.path.dirname(os.path.dirname(OPT)))
 SP = os.environ.get('MEASURE_WORK', os.path.join(ROOT, 'tools', 'measure', 'work'))
 PAGE = os.environ.get('BASE_PAGE', os.path.join(ROOT, 'index.html'))   # the build whose code is used; its tunables are the defaults
-SEEDS = [11, 12, 13, 14, 15]; STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count': 150, 'step': 12, 'fps': 5}
+SEEDS = [11, 12, 13, 14, 15]  # spec 18: the wave does not depend on the seed; fw_worker.js starts each seed's samples 80 s later
+STILLS = [600, 1200, 1800]; MOTION = {'from': 600, 'count': 150, 'step': 12, 'fps': 5}
 
 # ---- parameters: (name, kind, lo, hi, x0) ; kind 'log' or 'lin'. 'delta' is drivePhase2 - drivePhase1 (> 0: depth offset larger)
 PARAMS = [
@@ -17,7 +18,7 @@ PARAMS = [
     ('NET.drivePhase1', 'lin', 0.36, 1.3, 0.4472), ('delta', 'lin', 0.02, 0.9, 0.694),
     ('NET.kStruct', 'log', 0.05, 1.5, 0.3119), ('bendRatio', 'log', 6.0, 15.0, 7.204), ('NET.acrossK', 'log', 0.75, 1.33, 0.8382),
     ('SCENE.wid', 'lin', 3.0, 8.0, 4.682), ('SCENE.height', 'log', 0.8, 5.5, 3.8),
-    ('LAT.rollAmp', 'log', 0.005, 0.2, 0.06), ('LAT.rollW', 'log', 0.08, 0.6, 0.2), ('LAT.rollGrow', 'lin', 1.0, 5.0, 2.664),
+    ('LAT.rollAmp', 'log', 0.005, 0.2, 0.04), ('LAT.rollW', 'log', 0.08, 0.6, 0.4), ('LAT.rollGrow', 'lin', 1.0, 5.0, 2.664),
     ('LAT.rollWaves', 'lin', 1.02, 1.6, 1.141), ('LAT.bumpAmp', 'log', 0.015, 0.25, 0.12), ('LAT.bobAmp', 'log', 0.015, 0.12, 0.02617),
     ('LAT.twistAmp', 'log', 0.003, 0.1, 0.04), ('twistRatio', 'lin', 0.2, 0.98, 0.95), ('LAT.spread', 'log', 1.5, 15.0, 5.614),
     # spec 16/17 shading (day mood): sheen level, the Fresnel-like strength as a multiple of it (by day clearly the stronger),

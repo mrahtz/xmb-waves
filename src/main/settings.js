@@ -132,10 +132,10 @@ group('Wave look', [
   field('WAVE', WAVE, 'samplesAlong', 'samples along', 4, 96, 1), field('WAVE', WAVE, 'samplesAcross', 'samples across', 1, 16, 1),
 ]);
 group('Camera', [
-  mood('camPitch', 'pitch', -10, 30, 0.1), field('CAMERA', CAMERA, 'yaw', 'yaw', -60, 60, 0.5),
-  field('CAMERA', CAMERA, 'fovY', 'field of view', 5, 60, 0.5), field('CAMERA', CAMERA, 'dist', 'distance', 3, 30, 0.1),
-  index('CAMERA.target', CAMERA.target, 0, 'target x', -5, 5, 0.05), index('CAMERA.target', CAMERA.target, 1, 'target y', -3, 3, 0.05),
-  index('CAMERA.target', CAMERA.target, 2, 'target z', -5, 5, 0.05),
+  mood('camPitch', 'aim (pitch)', -30, 30, 0.1), mood('camLift', 'placement: lift', -3, 3, 0.01),
+  field('CAMERA', CAMERA, 'yaw', 'yaw (a trace at most)', -10, 10, 0.1), field('CAMERA', CAMERA, 'fovY', 'field of view', 5, 90, 0.5),
+  field('CAMERA', CAMERA, 'px', 'placement x', -5, 5, 0.01), field('CAMERA', CAMERA, 'py', 'placement y', -5, 5, 0.01),
+  field('CAMERA', CAMERA, 'pz', 'placement z', -10, 5, 0.01), field('CAMERA', CAMERA, 'dist', 'size reference distance', 1, 30, 0.1),
 ]);
 group('Background', [
   field('BGL', BGL, 'base', 'day: level away from the lights', 0, 1, 0.01), field('BGL', BGL, 'spot', 'sun spot strength', 0, 1, 0.01),
@@ -283,7 +283,7 @@ const seed = params.has('seed') ? (parseInt(params.get('seed'), 10) || 0) : (Dat
 let lastMoodSent = '';
 {
   const sc0 = currentScene(performance.now());
-  worker.postMessage({ type: 'init', seed, mood: simMoodParams(sc0.mood, cameraFor(sc0.mood.camPitch, 16 / 9)), tune: simTuneMap(), speed: S.waveSpeed });
+  worker.postMessage({ type: 'init', seed, mood: simMoodParams(sc0.mood, cameraFor(sc0.mood.camPitch, 16 / 9, sc0.mood.camLift)), tune: simTuneMap(), speed: S.waveSpeed });
   worker.postMessage({ type: 'run', on: !paused });
 }
 function setPaused(p) { paused = p; worker.postMessage({ type: 'run', on: !paused && !document.hidden }); syncPanel(); }

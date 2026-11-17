@@ -192,7 +192,7 @@ const BG_W = 32, BG_H = 18; // size of each generated background image
 // ---------------------------------------------------------------------------
 const MOOD_KEYS = [
   'waveBright', 'base', 'fres', 'sizeK',
-  'latX', 'latY', 'latZ', 'envCross', 'camPitch',
+  'latX', 'latY', 'latZ', 'envCross', 'camPitch', 'camLift',
   'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
@@ -211,19 +211,19 @@ let TONE_BLACK = 0.03;
 // band's brightest folds, so the night is free of halo on the screen.
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
-    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
+    latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -7.7, camLift: 0.2745,
     exposure: 1.380, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -12.7, camLift: 0,
     exposure: 1.209, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
-    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
+    latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -12.7, camLift: 0,
     exposure: 1.120, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.20, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
-    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
+    latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -12.7, camLift: 0,
     exposure: 1.323, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.22, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
@@ -322,17 +322,24 @@ function partsOf(d) {
 }
 
 // ---------------------------------------------------------------------------
-// Camera (original design): looks across the sheet from in front, very nearly at right angles to its length (a slight
-// yaw puts the shaken left side nearer), from slightly below it, looking up (negative pitch); the pitch follows the mood
-// (flatter at night).
+// Camera (original design; spec 22): where the camera stands (its placement) and where it points (its aim) are two
+// separate choices. The placement is CAMERA's px, py, pz, raised or lowered per mood by camLift; it sets the angles the sheet is
+// seen at. The aim is one rotation of the view about the horizontal axis along the sheet's length (camPitch, degrees,
+// negative = looking up); it sets where the band falls on the screen. A turn about the vertical axis (yaw) is at most a
+// trace (2.5 degrees, which with the placement keeps the shaken left side slightly nearer), and there is no roll. dist is only the reference distance of the size factor (4.5), not where the camera stands.
+// The aim (spec 26) is fitted against the band's typical height over many times since the start, not one moment: over the twelve
+// times the footage covers (40 s to 30 minutes, at 12:00 and at 00:00) the original's band centre runs from 0.39 to 0.71 H with a
+// median of 0.567, which is also 4.6's median of about 0.57. At camPitch -8 this build's own spread matched (0.24 against 0.29 H)
+// but its median sat 0.066 H too high, so every mood's aim was lowered by 4.7 degrees (0.0141 H a degree, measured); the band's
+// centre over the same clips is then 0.529 against the footage's 0.533, with nothing else in the picture moved.
 // ---------------------------------------------------------------------------
-const CAMERA = { fovY: 64.4, yaw: 6, dist: 3.161, target: [0.8, -0.1, 0.0], near: 0.1, far: 40 }; // a moderate field of view, close; the sheet seen from slightly below (spec 17)
-function cameraFor(pitchDeg, aspect) {
+const CAMERA = { fovY: 64.4, px: 0.8, py: -0.5399, pz: -3.1131, yaw: 2.5, dist: 3.161, near: 0.1, far: 40 };
+function cameraFor(pitchDeg, aspect, lift) {
   const d2r = Math.PI / 180, p = pitchDeg * d2r, yw = CAMERA.yaw * d2r;
   const fwd = [Math.sin(yw) * Math.cos(p), -Math.sin(p), Math.cos(yw) * Math.cos(p)];
   const right = [Math.cos(yw), 0, -Math.sin(yw)];
   const up = [fwd[1] * right[2] - fwd[2] * right[1], fwd[2] * right[0] - fwd[0] * right[2], fwd[0] * right[1] - fwd[1] * right[0]];
-  const pos = CAMERA.target.map((t, i) => t - CAMERA.dist * fwd[i]);
+  const pos = [CAMERA.px, CAMERA.py + (lift || 0), CAMERA.pz];
   const f = 1 / Math.tan(CAMERA.fovY * d2r / 2), n = CAMERA.near, fa = CAMERA.far;
   // view: rows right, up, -fwd (right-handed clip convention); column-major for GL
   const tx = -(right[0] * pos[0] + right[1] * pos[1] + right[2] * pos[2]);
@@ -349,7 +356,12 @@ function cameraFor(pitchDeg, aspect) {
 // Wave, glare, sparkle and output settings (original design)
 // ---------------------------------------------------------------------------
 const WAVE = {
-  samplesAlong: 64, samplesAcross: 6,   // per patch (16 x 16 patches)
+  // per patch (16 x 16 patches), comparably fine across the ribbon and along it (spec 26, 4.4c): the folds and the turns
+  // where the sheet goes edge-on are as fine across the width as anything along the length. At the earlier 64 along and 6
+  // across the whole width carried 96 samples; the band's statistics come out the same at 16, 24 and 64 samples across
+  // (thickness, peaks per column and fill identical to two figures), so the across direction was not short of structure,
+  // but it was sampled an order more coarsely than the length. 24 x 24 is 1.5 times the cells of 64 x 6
+  samplesAlong: 24, samplesAcross: 24,
   sheenCut0: 0.2179, sheenCut1: 0.599, // the sheen falls linearly between these size factors (the fused thread profile)
   // the Fresnel-like peak: where it sits in cosine x size factor; zero below fresZero of that; the tail's length above it
   fresPeak: 0.12, fresZero: 0.5961, fresTail: 0.1403,

@@ -186,6 +186,8 @@ camera, the wave settings and literal replacements. `apply.py` takes the same ke
 | `shot.js`, `seq.js` | Deterministic renders through the page's score mode: single frames, or sequences. `XMBW_GPU=1` renders on the GPU (ANGLE on Direct3D 11; also `tools/render.js --gpu`); the default stays SwiftShader for `shot.js` and Chromium's own choice for `seq.js` and `render.js`. |
 | `wvar.sh`, `mvar.sh`, `tseq.sh`, `cycle.sh` | Render a variant and measure it, as above. |
 | `sbs.py`, `plotprof.py`, `yt.py`, `xt.py` | Same-zoom side-by-side crops, column brightness profiles, and column-versus-time and row-versus-time plots. |
+| `slow.py` | The band's slow motion over a clip (spec 18, 4.4b), the same on footage and on clean renders: mean height and its range, the tilt's spread and period (from its autocorrelation), the share of the height's variance at periods over 20 s, the swing of the centre at the middle of the screen. |
+| `phasefit.js` | Fits the warp's phases at clock 0 (spec 18: the start is the same every time) so that the band's height, tilt and centre speed at given times since the start match the footage. Geometry only (the page's simulation and camera, no rendering); its centre agrees with full renders to about 0.01 H at most moments and its centre speed correlates 0.99 with theirs (ratio 1.32). |
 | `xsec.js`, `meany.js`, `soak60.js` | Simulation only (no rendering): cross-sections of the net, its mean height along the length, and a 60-minute bounds check. |
 | `big.js`, `menucheck.js` | Page checks: 4K and 5K renders, and the settings panel with console errors. |
 | `mkprof.py`, `prof.js` | Per-pass frame-time profile: builds a timing-instrumented page and measures it. |

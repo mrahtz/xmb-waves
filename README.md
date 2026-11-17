@@ -94,20 +94,43 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
 - A 19 x 19 mass-spring net, shaken at one end and gently pushed at the free
   end, is simulated at 60 fixed steps per second in a Web Worker. Every row's
   shaken point follows one shared slow path in height and depth (two
-  frequencies, 60 s and 40 s, with the phase drifting from row to row), so
-  that end is gathered and twists. The bending springs are much stiffer
+  frequencies, 60 s and 40 s, with the phase drifting from row to row, a
+  little faster in depth than in height), so that end is gathered and twists.
+  The net is square, so it carries as much cloth across its width as along
+  its length, and nothing pulls the width flat: it hangs in folds the whole
+  way along, over six times longer than the straight line between its edges,
+  where the length runs nearly straight. That folding is what the band is
+  made of. The bending springs are much stiffer
   than the stretching ones, and small random kicks keep the net moving and
   set how many strands the band shows. A stored, settled start state means
-  the first frame already looks like a running one.
+  the first frame already looks like a running one, and every start is the
+  same: the clock, the warp's phases, the warm-up and the kicks' generator
+  are fixed, so the wave at a given time since the start does not depend on
+  the seed (only the sparkles do). The state is settled over eight decay
+  times (about 1000 s of simulation), which is where the net's own motion
+  stops easing off; a shorter warm-up leaves the whole picture running fast.
+  An envelope along the length scales the
+  net's height and depth about one fixed axis, fullest at the shaken end.
+  The gathered width is spread over enough depth in the scene that, down a
+  column of the screen, the distance to the sheet changes several times more
+  than it does from left to right.
 - The net is passed through a free-form deformation lattice laid out
-  unevenly along the length: a swell rolling from the shaken end to the free
-  end and growing along it, a large bump sliding back and forth, a slow bob of
-  the whole sheet and a small twist across the width (the swell fastest, the
-  bump slowest). The deformed net is the control net of a bicubic B-spline
+  unevenly along the length, with enough cells across the width for the
+  twist and held at the sheet's ends: a swell rolling from the shaken end to
+  the free end and growing along it (21 s), a large bump sliding back and
+  forth (113 s), a slow bob of the whole sheet (70 s) and a small twist
+  across the width (22 s). Their rates and phases are fitted to the
+  recordings. The deformed net is the control net of a bicubic B-spline
   surface. The control points are projected first, so the surface and its
-  normals live in the projected space, as the spec asks. The camera sits
-  slightly below the sheet, which runs out past the left edge of the
-  picture.
+  normals live in the projected space, as the spec asks. The camera's
+  placement (below the sheet, which runs out past the left edge of the
+  picture; raised at night) and its aim (one pitch about the axis along the
+  sheet's length, with only a trace of turn) are separate settings. The aim
+  is fitted against the band's typical height over many times since the
+  start, from tens of seconds to tens of minutes, rather than one moment.
+- Each patch of the B-spline surface is sampled 24 by 24, comparably finely
+  across the ribbon and along it, because the folds across the width are as
+  fine as anything along the length.
 - Shading is computed per vertex from two terms, each scaled by a size factor
   that falls with the first power of distance: a sheen that stays flat and
   then fades where the size factor is large, and a Fresnel-like glow indexed
@@ -189,66 +212,70 @@ README).
 
 ## Status
 
-Built to spec version 25 (section 3, the background, to version 23) and tuned
-against the original's recordings in `comparison/original/` and the lossless
-reference renders of the footage index, measured with the same tools as my
-renders (see `docs/references/tuning-log.md`). Matched: the band's centre speed and
-height change over time, the sideways drift of the dark partings, the number
-of strands per column, the band's brightness at night, and the sparkles'
-in-focus size, brightness range, colour (share and strength of the coloured
-minority, its tie to brightness, its hues), twinkle and motion over all 16
-reference conditions. The sparkles yield slightly fewer separate points per
-frame than the original (about 847 against 886 at full size over four hours of
-15 October, after the bounding box was drawn in so that 0.62-0.65 of the full
-pool is inside the picture rather than 0.49; in the fixed battery's own measure
-777 against 801, inside the original's range, with 20 of its 22 sparkle measures
-within range at seed 1 and at seeds 2 and 3), and slightly too many of them move upwards. The out-of-focus discs now come from the far side of the focus range
-(14-22 a frame at 00, 06 and 12 h against the original's 11-24, but only 5 at
-18 h against 13, and all of them about 10 px wide against 12-22); a bright
-core's halo matches the original's profile from 3 px out to 15 px; and a
-sparkle's path bends and wanders as the original's does. The brightest tenth of
-the sparkles is still too bright (peak 55-72 levels against 46-51), which goes
-with the faint end being too thin (11-14 % of the points in the lowest band
-against 16 %). The geometry checks of 4.4d
-(framing, depth, camera below the sheet) and 4.5 (where the sheet sits on the
-shading curves) pass in every mood. Still short of the original: the picture
-changes faster (0.08 correlation after one second against 0.15-0.36), the swell
-crosses a little quickly (20 s against 25-107 s), the band arches less and is
-thinner, and its lines stand out more over the band. The background is fitted to the original's 19 recordings
-and renders (15 January, April, July and October at four hours, 15 and 29
-October 21:30): each month's day and night image is a painted picture held as
-a coarse grid of colours (version 23), fitted together with the lighting over
-all of them. Where the wave does not cover it, the mean absolute difference
-per channel is about 2.3 levels, against 3.1 before the latest joint re-tune,
-9.5 before this background and
-10.5-12.3 before the version-19 one; by hour it is 1.2 at midnight, 1.5 at
-dawn, 3.3 at noon, 3.8 at dusk and 0.7 at 21:30.
-The composite's black offset, each mood's exposure and the twelve month palettes are fitted
-together to the original's renders and recordings at four months (January, April, July, October) and four hours
-(`tools/measure/jointfit.py`, with the offset swept around the fit). The offset is a three-way trade:
-the colour the band's light takes over the dark parts of a night frame (spec 24) wants it large, the depth of the
-night picture's black top wants it near 0.03, and the background away from the band wants it small, because the
-offset cuts the dark end where the palettes can only scale colours. At the chosen 0.03 the night band's colour is
-within 0.023 RMS of the original's channel shares, the black top is 0.0195 H from the original's on average
-(0.29-0.35 H there), the band's added light by day is within 0.002 of the original's channel shares, and
-background pixels away from the band differ by about 2.3 levels per channel on average (the three band-colour
-and black-top figures were measured before the latest joint re-tune moved each mood's exposure and have not
-been measured again since). July's and October's
-night bands lean towards the background's colour as the original's do, though less (R share 0.29 against 0.24
-in July), and months whose night palette is more coloured than the original's lean where the original's stay neutral.
-The band's brightest places compare left to right as the original's do.
-Each mood's bright-pass threshold sits inside the bracket measured on the original's footage (spec 24), and the night runs
-the same glare chain without any halo (at most one output level). But my brightest day background is the sun spot at the top,
-brighter than the original's brightest part, so by day my background glares by itself in eight months instead of only
-around the turn of the year, as a visible blob over the spot. Spec 5 puts dusk's glare first, and mine still puts day's first.
-Still short: the background's remaining error is hour structure that neither the exposure nor the palettes' level
-can reach - at noon the picture is about 3 levels out, in every month, which
-is the day image's hour curve (the daylight factor and the two lights); and the band carries about 9 levels more
-mean light over the background than the original's (50 against 41), though its peak is within 5.
-At night that excess is the sparkles rather than the band: at 00:00 the brightest point of a band column is now a
-sparkle, not a fold (130 levels over the background against the original's 105), and the band's mean over the
-background is 68 against 43, which is the sparkle lane's own open gap (its brightest points are too bright,
-worst at night). The composite's exposure cannot reach it: sparkles are drawn after the final pass.
+Built to spec version 26 (the sheet and its motion; the sparkles to version 25 and section 3, the background, to
+version 23) and tuned against the original's footage - the 19 recordings in `comparison/original/`, the 19 lossless
+reference renders of the footage index and the 48 noise clips from 40 s to 30 minutes after the start - measured with
+the same tools as my renders and with the fixed battery (see `docs/references/tuning-log.md`). The sheet's width is
+folded slack over the whole length: the path the net follows across its width is 6.2 times the straight line between
+its edges (1.04 along the length), the width turns over four times down a screen column, and down that column the
+distance to the sheet changes about five times as much as from the left of the screen to the right. The start state is
+settled over eight decay times, so the picture no longer runs fast in the first minutes. The camera's placement and
+aim are separate settings, with only a trace of turn, and the aim is fitted to the band's typical height over many
+times since the start. Matched within the original's range: strands per column (3.88, original 3.71) and the stronger
+peaks at 25 % and 40 % of the column maximum (2.52 and 1.86; 2.55 and 1.95), the fill of the band (35 % above 40 % of
+its peak; 34 %), the face level (0.28; 0.24), the band's brightness over the background (46; 41), partings per column
+(0.78; 0.63), the picture's correlation after five seconds (-0.28; -0.28), the kymograph's vertical speed (11.4; 11.1)
+and the band's thickness; the band keeps its substance over 30 minutes. The sheet's light never comes within 0.1 H of
+the top of the frame at any of 103 moments from 30 s to 30 minutes. Like the original, every start is the same. Still
+short of the original: the band's lines are thinner (4.5 px against 6.6) and stand less above the band (1.22 against
+1.63); away from noon the broad sheen is about twice the original's (44-50 px against 23-26, while at noon it is 23.9
+against 22.8), which wants the per-mood sheen strength re-fitting to this sheet; the picture one second on is still
+too much like the picture now (0.33 against 0.15); the free-end third of the screen does not travel faster than the
+shaken-end third (19.9 against 20.2 px/s, the original 28.0 and 20.7); and at 40 s after the start, the moment nearly
+all the footage shows, the band sits about 0.09 H lower than the original's (the fitted warp phases follow the
+original's wandering to 0.065 H rms over twelve times since the start, but not that particular moment). The geometry
+checks of 4.4d (framing, depth, camera below the sheet) and 4.5 (where the sheet sits on the shading curves) pass in
+every mood.
+
+Matched over all 16 reference conditions: the sparkles' in-focus size, brightness range, colour (share and strength of
+the coloured minority, its tie to brightness, its hues), twinkle and motion. The sparkles yield slightly fewer
+separate points per frame than the original (about 847 against 886 at full size over four hours of 15 October, after
+the bounding box was drawn in so that 0.62-0.65 of the full pool is inside the picture rather than 0.49; in the fixed
+battery's own measure 777 against 801, inside the original's range, with 20 of its 22 sparkle measures within range at
+seed 1 and at seeds 2 and 3), and slightly too many of them move upwards. The out-of-focus discs now come from the far
+side of the focus range (14-22 a frame at 00, 06 and 12 h against the original's 11-24, but only 5 at 18 h against 13,
+and all of them about 10 px wide against 12-22); a bright core's halo matches the original's profile from 3 px out to
+15 px; and a sparkle's path bends and wanders as the original's does. The brightest tenth of the sparkles is still too
+bright (peak 55-72 levels against 46-51), which goes with the faint end being too thin (11-14 % of the points in the
+lowest band against 16 %). The background is fitted to the original's 19 recordings and renders (15 January, April,
+July and October at four hours, 15 and 29 October 21:30): each month's day and night image is a painted picture held
+as a coarse grid of colours (version 23), fitted together with the lighting over all of them. Where the wave does not
+cover it, the mean absolute difference per channel is about 2.3 levels, against 3.1 before the latest joint re-tune,
+9.5 before this background and 10.5-12.3 before the version-19 one; by hour it is 1.2 at midnight, 1.5 at dawn, 3.3 at
+noon, 3.8 at dusk and 0.7 at 21:30. The composite's black offset, each mood's exposure and the twelve month palettes
+are fitted together to the original's renders and recordings at four months (January, April, July, October) and four
+hours (`tools/measure/jointfit.py`, with the offset swept around the fit). The offset is a three-way trade: the colour
+the band's light takes over the dark parts of a night frame (spec 24) wants it large, the depth of the night picture's
+black top wants it near 0.03, and the background away from the band wants it small, because the offset cuts the dark
+end where the palettes can only scale colours. At the chosen 0.03 the night band's colour is within 0.023 RMS of the
+original's channel shares, the black top is 0.0195 H from the original's on average (0.29-0.35 H there), the band's
+added light by day is within 0.002 of the original's channel shares, and background pixels away from the band differ
+by about 2.3 levels per channel on average (the three band-colour and black-top figures were measured before the
+latest joint re-tune moved each mood's exposure and have not been measured again since). July's and October's night
+bands lean towards the background's colour as the original's do, though less (R share 0.29 against 0.24 in July), and
+months whose night palette is more coloured than the original's lean where the original's stay neutral. The band's
+brightest places compare left to right as the original's do. Each mood's bright-pass threshold sits inside the bracket
+measured on the original's footage (spec 24), and the night runs the same glare chain without any halo (at most one
+output level). But my brightest day background is the sun spot at the top, brighter than the original's brightest
+part, so by day my background glares by itself in eight months instead of only around the turn of the year, as a
+visible blob over the spot. Spec 5 puts dusk's glare first, and mine still puts day's first. Still short: the
+background's remaining error is hour structure that neither the exposure nor the palettes' level can reach - at noon
+the picture is about 3 levels out, in every month, which is the day image's hour curve (the daylight factor and the
+two lights); and the band carries about 9 levels more mean light over the background than the original's (50 against
+41), though its peak is within 5. At night that excess is the sparkles rather than the band: at 00:00 the brightest
+point of a band column is now a sparkle, not a fold (130 levels over the background against the original's 105), and
+the band's mean over the background is 68 against 43, which is the sparkle lane's own open gap (its brightest points
+are too bright, worst at night). The composite's exposure cannot reach it: sparkles are drawn after the final pass.
 
 Not verifiable from the references available so far: each month's palette
 on its own (the footage shows two-month mixes on the 15th, and November nearly

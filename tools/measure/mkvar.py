@@ -5,4 +5,4 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from buildsrc import read_sources, apply_edits, assemble, WORK
 name = sys.argv[1]; texts, order = read_sources(); apply_edits(texts, sys.argv[2:])
 os.makedirs(WORK, exist_ok=True); out = os.path.join(WORK, 'var_%s.html' % name)
-open(out, 'w', encoding='utf-8').write(assemble(texts, order)); print('wrote', out)
+open(out, 'w', encoding='utf-8', newline='\n').write(assemble(texts, order)); print('wrote', out)

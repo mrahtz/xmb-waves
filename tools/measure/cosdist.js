@@ -5,7 +5,7 @@
 // distance = 1). Also how much the distance to the visible sheet changes across the screen (90th / 10th percentile).
 const src = require('fs').readFileSync(process.env.PAGE || require('path').resolve(__dirname, '../../index.html'), 'utf8');
 const XMBW_SIM = new Function(src.match(/function XMBW_SIM\(\) \{[\s\S]*?\n\}\n/)[0] + '; return XMBW_SIM;')();
-const camSrc = src.match(/const CAMERA = \{[^\n]*\n/)[0] + src.match(/function cameraFor\(pitchDeg, aspect\) \{[\s\S]*?\n\}\n/)[0];
+const camSrc = src.match(/const CAMERA = \{[^\n]*\n/)[0] + src.match(/function cameraFor\(pitchDeg, aspect[^)]*\) \{[\s\S]*?\n\}\n/)[0];
 const [cameraFor, CAMERA] = new Function(camSrc + '; return [cameraFor, CAMERA];')();
 const pitch = +(process.argv[2] || src.match(/\n  day: \{[\s\S]*?camPitch: ([-0-9.]+)/)[1]), seed = +(process.argv[3] || 5);
 const asp = 16 / 9, cam = cameraFor(pitch, asp), M = XMBW_SIM(), N = M.N, T = M.tunables.SCENE;

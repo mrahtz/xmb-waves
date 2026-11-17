@@ -17,7 +17,10 @@ function evaluate(c) {
   const per = {}; for (const k of STILL_KEYS) per[k] = [];
   const motion = {}; for (const k of MOTION_KEYS) motion[k] = [];
   let maxSpeed0 = 0, maxSpeed1 = 0, maxY = 0, maxZoff = 0, bad = 0, light = [];
-  for (const seed of seeds) {
+  // Spec 18: the sheet's motion and the warp do not depend on the seed, so each seed's run also starts its samples a
+  // different time after the start (momentStep frames apart, default 80 s); different seeds then sample different moments
+  for (const [si, seed] of seeds.entries()) {
+    const off = si * (c.momentStep || 4800);
     let sim, cam, mood;
     try { ({ sim, cam, mood } = fw.makeSim(page, seed, c.tune || {}, c.mood || {}, 16 / 9, !O.exact)); }
     catch (e) { return { id: c.id, error: e.message }; }
@@ -30,8 +33,8 @@ function evaluate(c) {
       if (!Number.isFinite(ms) || !Number.isFinite(my)) bad++;
     };
     let done = 0; const frames = []; const want = new Map();
-    for (const f of stillFrames) want.set(f, (want.get(f) || 0) | 1);
-    for (let i = 0; i < mo.count; i++) { const f = mo.from + i * mo.step; want.set(f, (want.get(f) || 0) | 2); }
+    for (const f0 of stillFrames) { const f = f0 + off; want.set(f, (want.get(f) || 0) | 1); }
+    for (let i = 0; i < mo.count; i++) { const f = off + mo.from + i * mo.step; want.set(f, (want.get(f) || 0) | 2); }
     const last = Math.max(...want.keys());
     for (let f = 1; f <= last; f++) {
       sim.step(); done = f;

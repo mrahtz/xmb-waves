@@ -28,7 +28,7 @@ let scoreSim = null; // { key, sim, frames }
 function render(opts) {
   const o = resolveOpts(opts);
   const scene = sceneParams(o.timeParts, o.theme);
-  const cam = cameraFor(scene.mood.camPitch, o.w / o.h);
+  const cam = cameraFor(scene.mood.camPitch, o.w / o.h, scene.mood.camLift);
   // without the wave and the sparkles the frame does not depend on the simulation, which is then not run
   const needSim = o.layers.wave || o.layers.sparkles;
   const key = [o.seed, o.theme, o.timeParts.join(','), o.w / o.h].join('|');
