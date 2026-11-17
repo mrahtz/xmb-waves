@@ -212,8 +212,9 @@ README).
 
 ## Status
 
-Built to spec version 26 (the sheet and its motion; the sparkles to version 25 and section 3, the background, to
-version 23) and tuned against the original's footage - the 19 recordings in `comparison/original/`, the 19 lossless
+Built to spec version 27 (the composite's floor, the wave tint's ramp and the glare's locality; the sheet and its
+motion to version 26, the sparkles to version 25 and section 3, the background, to version 23) and tuned against the
+original's footage - the 19 recordings in `comparison/original/`, the 19 lossless
 reference renders of the footage index and the 48 noise clips from 40 s to 30 minutes after the start - measured with
 the same tools as my renders and with the fixed battery (see `docs/references/tuning-log.md`). The sheet's width is
 folded slack over the whole length: the path the net follows across its width is 6.2 times the straight line between
@@ -263,21 +264,39 @@ at 21:30. The composite's black offset, each mood's exposure and the twelve mont
 original's renders and recordings at four months (January, April, July, October) and four hours
 (`tools/measure/jointfit.py`, with the offset swept around the fit; since the spec-26 sheet the gain is fitted on the
 background alone, `--weight=1.0`, because the band's shortfall by day is its own brightness and the gain cannot reach
-it without taking the background with it). The offset is a three-way trade: the colour the band's light takes over the
-dark parts of a night frame (spec 24) wants it large, the depth of the night picture's black top wants it near 0.03,
-and the background away from the band wants it small, because the offset cuts the dark end where the palettes can only
-scale colours. At the chosen 0.03 the night band's colour is within 0.023 RMS of the original's channel shares, the
-black top is 0.0195 H from the original's on average (0.29-0.35 H there), the band's added light by day is within
-0.002 of the original's channel shares, and background pixels away from the band differ by about 1.5 levels per
-channel on average (the three band-colour and black-top figures were measured before the latest joint re-tune moved
-each mood's exposure and have not been measured again since). July's and October's night bands lean towards the
+it without taking the background with it). The offset is a trade between the colour the band's light takes over the
+dark parts of a night frame, which wants it large, and the background away from the band, which wants it small,
+because the offset cuts the dark end where the palettes can only scale colours. Version 27 restates the first of
+those as the three channel shares taken separately at several clearly different band positions, in the months whose
+night background is coloured enough to speak (`tools/measure/bandpos.py`), and warns that a palette fit which may
+only scale cannot follow the floor and will therefore always prefer the value the build already has. Three builds
+were re-tuned to convergence at 0.03, 0.045 and 0.06 and both sides measured on each: the night band's colour
+improves slowly (mean absolute share error per channel over 30 moments 0.0258, 0.0214, 0.0199, against a per-moment
+error of 0.011-0.038) and the background away from the band gets worse quickly (1.73, 2.46, 3.46 levels per channel,
+against 1.56 at main's settings and a noise range of 0.09). The offset is therefore held at 0.03 until the background
+is re-fitted in the way version 27 itself prescribes - letting the dark end of the night images move, which
+`tools/measure/bgfit/` can do and scaling cannot. At 0.03 the night black top is 0.0195 H from the original's on
+average (0.29-0.35 H there), the band's added light by day is within 0.002 of the original's channel shares, and
+background pixels away from the band differ by about 1.5 levels per channel on average. July's and October's night bands lean towards the
 background's colour as the original's do, though less (R share 0.29 against 0.24 in July), and months whose night
-palette is more coloured than the original's lean where the original's stay neutral. The band's brightest places
-compare left to right as the original's do. Each mood's bright-pass threshold sits inside the bracket measured on the
+palette is more coloured than the original's lean where the original's stay neutral. The wave's own light cannot
+drive the picture to white in any mood (spec 27): rendered alone it reaches 61 of 255 by day, 84 at dawn, 110 at dusk
+and 137 at night, and on the finished frames the share of pixels at 255 is 0.000075 against the footage's 0.0001.
+The wave tint's left-to-right ramp is fitted on the slope of the band's added light taken as a profile across the
+whole width (`tools/measure/rampprof.py`, version 27, replacing version 20's ratio of the brightest places), but the
+value in the build was fitted before the spec-26 sheet and is now the wrong way: pooled over the 19 conditions the
+slope of the column peak is -0.44 against the footage's -0.035 +- 0.027 (the recordings +0.039, the lossless renders
+-0.106), where the tint this build had before the merge gives -0.30. The tint answers to this at about +0.006 per
+1 % of the left-to-right ratio, so closing the gap would need the left about 0.6 of the right - far outside the
+"brightening slightly" the spec asks for - which puts the remaining slope in the sheet's shape rather than the tint,
+the same place as the band's height profile. Each mood's bright-pass threshold sits inside the bracket measured on the
 original's footage (spec 24), and the night runs the same glare chain without any halo (at most one output level). But
 my brightest day background is the sun spot at the top, brighter than the original's brightest part, so by day my
-background glares by itself in eight months instead of only around the turn of the year, as a visible blob over the
-spot. Spec 5 puts dusk's glare first, and mine still puts day's first. Still short: the background's remaining error
+background glares by itself in nine months of twelve instead of only around the turn of the year, as a visible blob
+over the spot, and January, which spec 24 says should pass, falls 0.025 short. Where the background stays under the
+line the halo is local as version 27 asks (the glare changes a few per cent of a day frame by at most four levels);
+where it passes, it lifts a broad part of the frame, which version 27 says to read as a broad bright-pass feed and
+not as a mis-weighted pyramid. Spec 5 puts dusk's glare first, and mine still puts day's first. Still short: the background's remaining error
 is hour structure that neither the exposure nor the palettes' level can reach, though the spec-26 sheet and the
 re-tune after it have more than halved it at the two hours where it was largest. The band's light is now the open
 question, and it is the wave's own brightness by mood rather than the composite's gain, which scales the background
@@ -285,9 +304,11 @@ with it: at noon the band's peak over the background is 54 against the original'
 at dusk it is 109 and 60 against 104 and 44. The night, where the band used to carry 68 levels of mean light against
 the original's 43 because the brightest point of a column was a sparkle rather than a fold, now reads 42 against 43
 and 96 against 105 at the peak. On the sheet's own look, the lines are thinner than the original's (4.7 px against
-5.5-7.4) and stand less above the band (1.20 against 1.38-1.88), and the broad sheen and the brightest line are about
+5.5-7.4) and stand less above the band (1.21 against 1.38-1.88), and the broad sheen and the brightest line are about
 twice as wide (41 px against 21-26 and 52 against 15-27): the per-mood sheen and wave brightness have not been
-refitted to this sheet.
+refitted to this sheet, and neither has the wave tint. Of the fixed battery's 168 measures, 113, 114 and 111 at
+seeds 1, 2 and 3 lie inside the original's range (look 37 of 42 at every seed, motion 45 of 50, sparkles 18/19/16,
+background 13 of 54, where 42 of that lane's 54 are the pixel comparison whose original is zero by construction).
 
 Not verifiable from the references available so far: each month's palette
 on its own (the footage shows two-month mixes on the 15th, and November nearly
