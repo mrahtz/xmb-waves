@@ -222,25 +222,26 @@ distance to the sheet changes about five times as much as from the left of the s
 settled over eight decay times, so the picture no longer runs fast in the first minutes. The camera's placement and
 aim are separate settings, with only a trace of turn, and the aim is fitted to the band's typical height over many
 times since the start. Measured on the merged build with the fixed battery (three seeds over the 19 recording and
-render conditions; the medians below, the original's beside them), 48 of the 50 motion measures lie inside the
-original's range with the three seeds pooled, and 46 at each seed on its own, against 43, 49 and 46 before this merge.
-Matched: where the band sits (centre 0.484 H, original 0.427, range 0.388-0.505), its thickness (0.166 H; 0.155),
-strands per column (3.71; 3.71) and the stronger peaks at 25 % and 40 % of the column maximum (2.41 and 1.83; 2.55 and
-1.95), partings per column (0.70; 0.63), the band's mean light over the background (42.6; 41.2), its centre speed
-(0.021 H/s; 0.019), how differently neighbouring strands move (7.7 px/s; 8.5), the kymograph's vertical speed (11.3;
-11.1), the optical flow's speed and spread, the picture's correlation after one second (0.29; 0.15, range 0.003-0.356)
-and after five (-0.36; -0.28), the arch, the tilt and the swell's speed; the band keeps its substance over 30 minutes.
-The band's topmost lit row stays about 0.09 H from the top of the frame (the original's 0.12, over a range of 0 to
-0.21), and the sheet's own surface never rises above 0.29 H of the frame in any mood. Like the original, every start
-is the same, so at a given time since the start the wave no longer depends on the seed. The geometry checks of 4.4d
-(framing, depth, camera below the sheet) and 4.5 (where the sheet sits on the shading curves) pass in every mood, as
-do version 26's folded-slack checks. Still short of the original: the picture one second on is still too much like the
-picture now (0.29 against 0.15, at the top of the original's range) and its spectrum sits a little low (centroid 0.28
-Hz against 0.34); the free-end third of the screen does not travel faster than the shaken-end third (22.6 against 24.2
-px/s, the original 28.0 and 20.7, and the left third is the one measure of the fifty that is outside by more than a
-trace); the band never pinches below 0.08 H where the original's columns do so 14 % of the time; and at 40 s after the
-start, the moment nearly all the footage shows, the band sits lower than the original's (the fitted warp phases follow
-the original's wandering to 0.065 H rms over twelve times since the start, but not that particular moment).
+render conditions; the medians below, the original's beside them), 46 of the 50 motion measures lie inside the
+original's range at every seed, where before this merge the count swung with the seed (43, 49 and 46) because the wave
+still depended on it; pooling the three seeds gives 48 of 50 either way. Matched: where the band sits (centre 0.484 H,
+original 0.427, range 0.388-0.505), its thickness (0.166 H; 0.155), strands per column (3.71; 3.71) and the stronger
+peaks at 25 % and 40 % of the column maximum (2.41 and 1.83; 2.55 and 1.95), partings per column (0.70; 0.63), the
+band's mean light over the background (42.6; 41.2), its centre speed (0.021 H/s; 0.019), how differently neighbouring
+strands move (7.7 px/s; 8.5), the kymograph's vertical speed (11.3; 11.1), the optical flow's speed and spread, the
+picture's correlation after one second (0.29; 0.15, range 0.003-0.356) and after five (-0.36; -0.28), the arch, the
+tilt and the swell's speed; the band keeps its substance over 30 minutes. The band's topmost lit row stays about 0.09
+H from the top of the frame (the original's 0.12, over a range of 0 to 0.21), and the sheet's own surface never rises
+above 0.29 H of the frame in any mood. Like the original, every start is the same, so at a given time since the start
+the wave no longer depends on the seed. The geometry checks of 4.4d (framing, depth, camera below the sheet) and 4.5
+(where the sheet sits on the shading curves) pass in every mood, as do version 26's folded-slack checks. Still short
+of the original: the picture one second on is still too much like the picture now (0.29 against 0.15, at the top of
+the original's range) and its spectrum sits a little low (centroid 0.28 Hz against 0.34); the free-end third of the
+screen does not travel faster than the shaken-end third (22.6 against 24.2 px/s, the original 28.0 and 20.7, and the
+left third is the one measure of the fifty that is outside by more than a trace); the band never pinches below 0.08 H
+where the original's columns do so 14 % of the time; and at 40 s after the start, the moment nearly all the footage
+shows, the band sits lower than the original's (the fitted warp phases follow the original's wandering to 0.065 H rms
+over twelve times since the start, but not that particular moment).
 
 Matched over all 16 reference conditions: the sparkles' in-focus size, brightness range, colour (share and strength of
 the coloured minority, its tie to brightness, its hues), twinkle and motion. The sparkles yield slightly fewer
