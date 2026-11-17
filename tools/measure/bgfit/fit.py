@@ -170,10 +170,27 @@ def rough_pen(b):
             if nr > 2: d = G[:-2] - 2 * G[1:-1] + G[2:]; s += float((d * d).sum()); n += d.size
     return 20 * s / max(n, 1)
 
+# How high the night glow climbs (spec 28): read from the footage month by month at the dead of night as a property of
+# the night image - the share of the bottom band's level left at 0.1, 0.2, 0.3 and 0.5 of the height - and asked of the
+# build at the same conditions, because the lights move it very little and one painted fall has to serve the whole night.
+ROWH = [13, 27, 40, 67]
+ROWCONDS = [j for j, c in enumerate(META) if c['time'][11:13] == '00' and j in CONDS]
+def rowshare(A, keep):
+    a = (A.mean(2) * keep)[::-1].sum(1); n = keep[::-1].sum(1)
+    pr = np.where(n > 20, a / np.maximum(n, 1), np.nan)
+    return np.array([pr[y] for y in ROWH]) / max(np.nanmean(pr[:7]), 1e-6)
+if ROWCONDS:
+    _T = np.fromfile(os.path.join(D, '..', 'work', 'bgfit', 'targets.f32'), dtype=np.float32).reshape(len(META), 135, 240, 3)
+    _K = np.fromfile(os.path.join(D, '..', 'work', 'bgfit', 'keep.u8'), dtype=np.uint8).reshape(len(META), 135, 240).astype(np.float32)
+    ROWREF = {j: rowshare(_T[j], _K[j]) for j in ROWCONDS}
+    del _T, _K
+ROWW = float(opt.get('rows', 20))
+
 def loss(x, w):
     b = build(x)
     if HASLIGHT: b['curve'] = '2026-10-04'
     b['conds'] = CONDS
+    if ROWCONDS and ROWW: b['rows'] = ROWCONDS
     r = w.ev(b); e = np.array(r['err'])
     pen = light_pen(b) + family_pen(b) + pal_pen(b) + rough_pen(b) + (spec_pen(r['curve'], b) if HASLIGHT else 0)
     reg = 5 * np.mean((x[ispal] - pal0[ispal]) ** 2) if ispal.any() else 0
@@ -181,6 +198,9 @@ def loss(x, w):
     # its square to the objective with weight 2 was tried and dropped: it lowered the regional bias by 9 % and raised the
     # absolute difference by 6 %, see the tuning log)
     pen += float(opt.get('regions', 0)) * float(np.mean(np.asarray(r['regs']) ** 2))
+    if ROWCONDS and ROWW and 'rows' in r:
+        d = [np.asarray(r['rows'][str(j)], dtype=float) - ROWREF[j] for j in ROWCONDS]
+        pen += ROWW * float(np.nanmean(np.asarray(d) ** 2))
     return float(e.mean() + reg + pen), e
 
 def evalall(X):
@@ -202,11 +222,13 @@ def save(best):
 if 'explain' in opt:
     b = build(x0); b['conds'] = CONDS
     if HASLIGHT: b['curve'] = '2026-10-04'
+    if ROWCONDS: b['rows'] = ROWCONDS
     r = WS[0].ev(b)
-    print('err %.3f  light %.3f  spec %.3f  family %.3f  pal %.3f  rough %.3f  reg %.3f  | regional bias RMS %.3f' % (
+    rowd = np.asarray([np.asarray(r['rows'][str(j)], dtype=float) - ROWREF[j] for j in ROWCONDS]) if ROWCONDS else np.zeros(1)
+    print('err %.3f  light %.3f  spec %.3f  family %.3f  pal %.3f  rough %.3f  reg %.3f  | regional bias RMS %.3f  night climb RMS %.3f' % (
         np.mean(r['err']), light_pen(b), spec_pen(r['curve'], b) if HASLIGHT else 0, family_pen(b), pal_pen(b),
         rough_pen(b), 5 * np.mean((x0[ispal] - pal0[ispal]) ** 2) if ispal.any() else 0,
-        np.sqrt(np.mean(np.asarray(r['regs']) ** 2))))
+        np.sqrt(np.mean(np.asarray(r['regs']) ** 2)), np.sqrt(np.nanmean(rowd ** 2))))
     print('conditions', [META[j]['time'] for j in CONDS])
     print('per condition', np.round(r['err'], 2))
     for w in WS: w.p.stdin.write('{"quit":1}' + chr(10)); w.p.stdin.flush()
