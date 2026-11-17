@@ -40,7 +40,7 @@ const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
     black: 0.02, exposure: 1.5, white: 1.0, glareThr: 0.90, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
-    focusFar: 4.32, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
+    focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
     black: 0.02, exposure: 1.1, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 1.3,
@@ -52,7 +52,7 @@ const MOODS = {
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
     black: 0.02, exposure: 1.25, white: 1.0, glareThr: 0.70, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
-    focusFar: 4.10, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.22, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -187,7 +187,7 @@ const SPARKR = {
   // the glint halo (spec 25): a wide patch (glintSize disc radii) with the light gathered near the middle, falling away
   // as a power of the distance (core radius glintCore disc radii, power glintFall), so a bright sparkle keeps a narrow
   // core and carries a faint skirt well out from it
-  bright: 1.035, glintSize: 14.0, glintCore: 1.5, glintFall: 1.05, glintBright: 0.21,
+  bright: 1.00, glintSize: 14.0, glintCore: 1.5, glintFall: 1.05, glintBright: 0.15,
   // lighting (spec 16, 17 and 21): one point light in the scene in front of the camera, diffuse kd and specular ks with
   // exponent shin, the highlight tinted at full strength by the iridescent map (below; mapStr scales every lobe's strength,
   // mapR their radii; exponent mapExp = 1 leaves it unchanged), the sum through 1 - exp(-satGain x); opacity falls as a disc
