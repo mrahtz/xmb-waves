@@ -527,18 +527,18 @@ const TAU = Math.PI * 2;
 // Colours are display values (sRGB-encoded) in 0..1.
 // ---------------------------------------------------------------------------
 const PALETTES = [
-  /* 1 silver      */ { top: [0.458, 0.471, 0.452], bottom: [0.589, 0.556, 0.513], glow: [0.123, 0.121, 0.107], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.299, 0.212, 0.311], 0.35] },
-  /* 2 yellow      */ { top: [0.595, 0.567, 0.236], mid: [0.454, 0.397, 0.141], bottom: [0.684, 0.649, 0.396], glow: [0.107, 0.098, 0.054], glowPos: [0.30, 0.0], glowSize: 0.55, tilt: -0.10, night: [[0.115, 0.157, 0.028], 0.55] },
-  /* 3 light green */ { top: [0.404, 0.528, 0.149], bottom: [0.616, 0.784, 0.458], glow: [0.148, 0.177, 0.086], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.059, 0.157, 0.014], 0.35] },
-  /* 4 pink        */ { top: [0.482, 0.249, 0.327], mid: [0.579, 0.260, 0.376], bottom: [0.850, 0.336, 0.539], glow: [0.148, 0.074, 0.109], glowPos: [0.12, 0.25], glowSize: 0.55, tilt: -0.22, night: [[0.229, 0.035, 0.178], 0.35] },
-  /* 5 green       */ { top: [0.063, 0.411, 0.127], mid: [0.055, 0.462, 0.141], bottom: [0.089, 0.559, 0.214], glow: [0.063, 0.138, 0.064], glowPos: [0.35, 0.0], glowSize: 0.55, tilt: 0.04, night: [[0.017, 0.196, 0.021], 0.35] },
-  /* 6 lavender    */ { top: [0.445, 0.332, 0.661], bottom: [0.684, 0.615, 0.998], glow: [0.148, 0.118, 0.192], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.082, 0.079, 0.137], 0.35] },
-  /* 7 teal        */ { top: [0.097, 0.415, 0.427], bottom: [0.154, 0.560, 0.285], glow: [0.130, 0.165, 0.164], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.000, 0.171, 0.032], 0.35] },
-  /* 8 blue        */ { top: [0.256, 0.489, 0.598], bottom: [0.110, 0.223, 0.640], glow: [0.086, 0.098, 0.107], glowPos: [0.30, 0.0], glowSize: 0.55, tilt: 0.28, night: [[0.033, 0.059, 0.233], 0.15] },
-  /* 9 purple      */ { top: [0.233, 0.148, 0.385], bottom: [0.662, 0.427, 0.998], glow: [0.212, 0.157, 0.278], glowPos: [0.50, 0.0], glowSize: 0.42, tilt: 0.04, night: [[0.059, 0.068, 0.247], 0.15] },
-  /*10 gold        */ { top: [0.382, 0.345, 0.116], bottom: [0.584, 0.544, 0.226], glow: [0.159, 0.171, 0.155], glowPos: [0.45, 0.0], glowSize: 0.45, tilt: -0.04, night: [[0.277, 0.105, 0.000], 0.35] },
-  /*11 brown       */ { top: [0.466, 0.312, 0.127], bottom: [0.441, 0.268, 0.122], glow: [0.275, 0.243, 0.213], glowPos: [0.30, 0.0], glowSize: 0.40, tilt: -0.10, night: [[0.099, 0.068, 0.017], 0.35] },
-  /*12 red         */ { top: [0.553, 0.078, 0.086], bottom: [0.770, 0.246, 0.305], glow: [0.170, 0.078, 0.075], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.166, 0.023, 0.014], 0.35] },
+  /* 1 silver      */ { top: [0.489, 0.503, 0.491], bottom: [0.564, 0.582, 0.540], glow: [0.132, 0.129, 0.115], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.283, 0.203, 0.303], 0.35] },
+  /* 2 yellow      */ { top: [0.641, 0.611, 0.254], mid: [0.497, 0.426, 0.151], bottom: [0.758, 0.693, 0.419], glow: [0.116, 0.107, 0.058], glowPos: [0.30, 0.0], glowSize: 0.55, tilt: -0.10, night: [[0.111, 0.159, 0.024], 0.55] },
+  /* 3 light green */ { top: [0.435, 0.568, 0.162], bottom: [0.682, 0.841, 0.486], glow: [0.160, 0.190, 0.092], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.056, 0.159, 0.012], 0.35] },
+  /* 4 pink        */ { top: [0.515, 0.275, 0.355], mid: [0.647, 0.276, 0.411], bottom: [0.913, 0.341, 0.588], glow: [0.159, 0.083, 0.118], glowPos: [0.12, 0.25], glowSize: 0.55, tilt: -0.22, night: [[0.229, 0.033, 0.187], 0.35] },
+  /* 5 green       */ { top: [0.068, 0.442, 0.137], mid: [0.061, 0.495, 0.151], bottom: [0.098, 0.598, 0.225], glow: [0.068, 0.148, 0.070], glowPos: [0.35, 0.0], glowSize: 0.55, tilt: 0.04, night: [[0.016, 0.198, 0.018], 0.35] },
+  /* 6 lavender    */ { top: [0.480, 0.357, 0.716], bottom: [0.758, 0.659, 0.846], glow: [0.160, 0.125, 0.208], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.078, 0.079, 0.116], 0.35] },
+  /* 7 teal        */ { top: [0.107, 0.441, 0.458], bottom: [0.201, 0.624, 0.229], glow: [0.145, 0.175, 0.175], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.000, 0.177, 0.018], 0.35] },
+  /* 8 blue        */ { top: [0.276, 0.526, 0.647], bottom: [0.122, 0.240, 0.677], glow: [0.092, 0.107, 0.116], glowPos: [0.30, 0.0], glowSize: 0.55, tilt: 0.28, night: [[0.031, 0.059, 0.196], 0.15] },
+  /* 9 purple      */ { top: [0.251, 0.159, 0.416], bottom: [0.733, 0.457, 0.846], glow: [0.228, 0.171, 0.301], glowPos: [0.50, 0.0], glowSize: 0.42, tilt: 0.04, night: [[0.056, 0.067, 0.207], 0.15] },
+  /*10 gold        */ { top: [0.407, 0.369, 0.125], bottom: [0.605, 0.605, 0.308], glow: [0.171, 0.182, 0.169], glowPos: [0.45, 0.0], glowSize: 0.45, tilt: -0.04, night: [[0.261, 0.116, 0.000], 0.35] },
+  /*11 brown       */ { top: [0.502, 0.336, 0.137], bottom: [0.489, 0.286, 0.129], glow: [0.297, 0.262, 0.230], glowPos: [0.30, 0.0], glowSize: 0.40, tilt: -0.10, night: [[0.096, 0.067, 0.014], 0.35] },
+  /*12 red         */ { top: [0.596, 0.085, 0.092], bottom: [0.852, 0.264, 0.322], glow: [0.183, 0.085, 0.082], glowPos: [0.55, 0.10], glowSize: 0.55, tilt: 0.06, night: [[0.159, 0.023, 0.012], 0.35] },
 ];
 const BG_W = 32, BG_H = 18; // size of each generated background image
 
@@ -552,10 +552,13 @@ const MOOD_KEYS = [
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
 // The composite's black offset (spec 4.5, versions 20 and 24): the same in every mood (the moods set only the gain and the
-// white point). Fitted on the colour the band's added light takes over the dark parts of a night frame (the background's weak
-// channels are cut away, so the band carries its colour): the original's renders at 00:00 in all twelve months against mine
-// (tools/measure/bandcolour.py), with the daytime band checked to stay as near-neutral as the original's.
-let TONE_BLACK = 0.09;
+// white point). It is a shared setting with three observables pulling against each other, so it is fitted together with each
+// mood's gain and the palettes: the colour the band's added light takes over the dark parts of a night frame
+// (tools/measure/bandcolour.py, which wants it large), how far down a night frame the top stays flat
+// (tools/measure/blackfoot.py, best near 0.03) and the background away from the band (bgcompare, which wants it small,
+// because the offset cuts the dark end and the palettes can only scale colours). 0.03 is the joint best of the four values
+// tried, each with the gains and palettes refitted to convergence; the daytime band stays as near-neutral as the original's.
+let TONE_BLACK = 0.03;
 // Glare (spec 5, versions 20 and 24): each mood's bright-pass threshold is fixed, in the composite's output units after its
 // curve, and the same chain runs in every mood. Placed inside the brackets measured on the original's footage at the bright-pass's
 // resolution (tools/measure/brightfoot.py): by day between July's brightest background (which does not glare) and January's and
@@ -564,19 +567,19 @@ let TONE_BLACK = 0.09;
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
-    exposure: 2.495, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
+    exposure: 1.598, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
-    exposure: 1.326, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.101, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
-    exposure: 1.205, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.001, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
-    exposure: 1.422, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.147, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
