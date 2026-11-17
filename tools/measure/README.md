@@ -220,14 +220,15 @@ constraints it enforces.
 
 ## Background fit (`bgfit/`)
 
-The background's settings and the months' painted images (spec section 3, version 23) are fitted to the footage's
-backgrounds with real GPU renders.
+The background's settings and the months' painted images (spec section 3, versions 23 and 28) are fitted to the
+footage's backgrounds with real GPU renders.
 
     MEASURE_CACHE=DIR python3 battery.py --lanes background --footage-only   # the footage's bgest.npz files
-    python3 bgfit/prep.py DIR          # targets in work/bgfit/: per condition the mean of the recording's and the render's
-                                       # background estimate at 240 x 135, and where neither shows the wave
+    python3 bgfit/prep.py DIR [--index INDEX.json]   # targets in work/bgfit/: per condition the mean of the clips'
+                                       # background estimates at 240 x 135, and where none of them shows the wave;
+                                       # --index names the conditions to keep (a shared cache holds many more)
     python3 bgfit/fit.py PAGE OUT.json [GENS] [WORKERS] [--start OUT0.json] [--block light|all|MONTHS] [--sigma 0.06]
-                                       #   [--seed N] [--regions W] [--explain 1]
+                                       #   [--seed N] [--regions W] [--rows W] [--explain 1]
     python3 bgfit/unseen.py OUT.json FINAL.json   # the months the footage never shows: the fitted months' mean change
     python3 bgfit/applyfit.py FINAL.json           # writes BGL, BGW and the PALETTES block into src/main/scene.js
     python3 bgfit/regrid.py GW GH NGH              # changes how coarse the images' grids are, keeping the same pictures
@@ -236,6 +237,12 @@ backgrounds with real GPU renders.
     python3 bgfit/steady.py PAGE [sheet.png]       # the part of the error that does not move with the hour, per month
     python3 bgfit/profiles.py PAGE [OUT.json]      # the bottom edge left to right, and the middle of the frame row by row
     python3 bgfit/smooth.py PAGE                   # how far the picture departs from a quadratic over 3 x 3 windows
+    python3 bgfit/rowfall.py PAGE [OUT.json] [--hours 00,20,04]   # how far up the frame the picture survives: the share
+                                       # of the bottom band left at each height and where it halves (spec 28: the night
+                                       # glow's climb at the dead of night, and the law of the shaping in the shoulders)
+    python3 bgfit/lifts.py PAGE [OUT.json] [--date D] [--hours 09,15]   # spec 28: the largest channel at a place a light
+                                       # passes over, compared between the hour it is over it and the hour it is away
+                                       # (the two lifts and the fixed share), and the smallest over the largest (the paling)
 
 `bgworker.js` keeps one headless Chromium on the GPU per worker. Each candidate sets the settings through
 `XMBW._internals.bg`, remakes the images and renders the background only (score mode, `layers=bg`: the composite's
@@ -246,17 +253,19 @@ difference over a 3 x 3 grid of regions, as the battery's `bgpixel` measures tak
 `fit.py` is a CMA-ES over the lighting terms (`BGL`, `BGW`) and the images of the eight months the footage shows
 (January, February, April, May, July, August, October and November; the 15th of a month shows it mixed with the next).
 Each image is a grid of colours (`BG_GRID_W` x `BG_GRID_H`, the night image `BG_NGRID_H` rows), so a month's pair is
-`3 x 6 + 3 x 5` colours = 99 numbers and the whole fit is 31 + 8 x 99 = 823 values. At that size one CMA-ES over
-everything at once never leaves its start (every candidate moves all 823 values), so the fit runs in blocks that are
-alternated to convergence: `--block light` over all 19 conditions, then `--block 0,1`, `3,4`, `6,7`, `9,10`, each over
+`3 x 6 + 3 x 7` colours = 117 numbers and the whole fit is 25 + 8 x 117 = 961 values. At that size one CMA-ES over
+everything at once never leaves its start (every candidate moves all 961 values), so the fit runs in blocks that are
+alternated to convergence: `--block light` over every condition, then `--block 0,1`, `3,4`, `6,7`, `9,10`, each over
 the conditions that show those months only. `bgfit/chain.sh` runs rounds of the five blocks.
 
 The objective adds soft penalties for what the spec asks and the footage cannot show: N8's brightness over the day
 (darkest about 02:00 and darker than at midnight, steep rise 03:00-06:00, fading 19:00-22:00); the night image at its
-floor near dusk and dawn and clear of it at midnight; the daylight factor's peak in the afternoon and its evening fall
-no shallower than its morning rise; the two lights' lifts adding to no more than the image's own value, and the spot's
-centre crossing the bottom edge by the warped end of the daylight hours and lying far below the picture at midnight
-(version 23); each month kept in its colour family (spec 7: January silver, near neutral; the others within 20 degrees
+floor near dusk and dawn and clear of it at midnight; the daylight factor's peak in the afternoon, its full height
+from the middle of the morning to the early evening and its lowest point at local midnight (version 28); the two
+lights' lifts adding to no more than the image's own value and the spot's centre lying far below the picture at
+midnight (version 23; where the pair of steps turns is now the bottom-edge crossing itself, so it is no longer asked
+for); how high the night glow climbs at the dead of night, read from the footage month by month (version 28,
+`--rows W`, on at weight 20 unless another weight is given; the version-28 fit used 100); each month kept in its colour family (spec 7: January silver, near neutral; the others within 20 degrees
 of hue of their starting colours and within a factor 1.5 in value); and each image kept a picture of one palette - its
 hue within 30 degrees of the image's own mean hue and its variation across the width gentle beside the one down the
 image - without which the fit paints two consecutive months in complementary colours that cancel in the mid-month mix,

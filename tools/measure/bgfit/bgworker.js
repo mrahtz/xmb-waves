@@ -28,7 +28,7 @@ const D = require('path').join(__dirname, '..', 'work', 'bgfit'), meta = JSON.pa
           if (j <= 1) { bot += l; nb++; satLow += sat; if (i <= 2) bl += l; if (i >= 6) br += l; }
           if (mx > 0.05 && sat > satMax) satMax = sat;
         }
-        out.push({ h, asym: (br - bl) / (br + bl + 1e-6), all: all / n, top: top / nt, bot: bot / nb, satLow: satLow / nb, satMax, night: sc.night, day: sc.daylight, top_: sc.top, env: sc.nightEnv });
+        out.push({ h, asym: (br - bl) / (br + bl + 1e-6), all: all / n, top: top / nt, bot: bot / nb, satLow: satLow / nb, satMax, night: sc.night, day: sc.daylight, top_: sc.topV, tops: sc.topS, env: sc.nightEnv, ntop: sc.nightTop });
       }
       return out;
     };
@@ -38,8 +38,9 @@ const D = require('path').join(__dirname, '..', 'work', 'bgfit'), meta = JSON.pa
       d.PAL.forEach((P, m) => { const Q = I.PALETTES[m]; for (const k in P) Q[k] = JSON.parse(JSON.stringify(P[k])); });
       for (const m in (p.PAL || {})) Object.assign(I.PALETTES[m], p.PAL[m]);
       I.remake();
-      const n = 240 * 135, out = [], imgs = [], regs = [];
+      const n = 240 * 135, out = [], imgs = [], regs = [], rows = {};
       const want_ = p.conds ? new Set(p.conds) : null;   // only the conditions this block needs
+      const rowc = p.rows ? new Set(p.rows) : null;      // conditions whose fall up the frame is wanted (spec 28)
       meta.forEach((c, j) => {
         if (want_ && !want_.has(j)) return;
         const r = window.XMBW.render({ time: c.time, theme: 0, seed: 1, frames: 0, w: 240, h: 135, layers: 'bg' }).data;
@@ -57,9 +58,23 @@ const D = require('path').join(__dirname, '..', 'work', 'bgfit'), meta = JSON.pa
         }
         out.push(s / cnt);
         regs.push(Array.from(rs, (v, q) => rn[q / 3 | 0] > 50 ? v / rn[q / 3 | 0] : 0));
+        // how far up the frame the picture's level survives (spec 28): the mean level per row over the kept pixels,
+        // bottom first, as a share of the lowest rows' mean
+        if (rowc && rowc.has(j)) {
+          const pr = new Float64Array(135), pn = new Float64Array(135);
+          for (let i = 0; i < n; i++) if (window.__K[j * n + i]) {
+            const row = 134 - ((i / 240) | 0);
+            pr[row] += (r[i * 4] + r[i * 4 + 1] + r[i * 4 + 2]) / 3; pn[row]++;
+          }
+          let b = 0, bn = 0;
+          for (let y = 0; y < 7; y++) if (pn[y] > 20) { b += pr[y] / pn[y]; bn++; }
+          b = bn ? b / bn : 1e-6;
+          rows[j] = [13, 27, 40, 67].map(y => (pn[y] > 20 ? pr[y] / pn[y] : NaN) / Math.max(b, 1e-6));
+        }
         if (want) imgs.push(Array.from(r));
       });
       const res = want ? { err: out, regs, imgs } : { err: out, regs };
+      if (rowc) res.rows = rows;
       if (p.curve) res.curve = window.__curve(p.curve);
       return res;
     };

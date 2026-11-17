@@ -144,14 +144,18 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   saturation and value and the two months are then mixed (next month's
   rising from the bottom). One angle of a warped hour drives a sun-like spot
   whose centre goes round an oval larger than the frame and a mirrored band
-  of light along the bottom edge, which broadens around midday; the two
-  lights' lifts add on top of a fixed share of the image's own colour, and
-  lit areas are brighter and paler. The same
-  angle sets the day image's daylight factor (a morning step times an evening
-  step, each with its own steepness) and, late in the evening and in the small
-  hours, blacks out its top and deepens its colour lower down. The
+  of light along the bottom edge, which broadens in a narrow window about
+  midday; the two lights' lifts add on top of a fixed share of the image's own
+  colour, and lit areas are brighter and paler. Every curve of the clock is a
+  product of one pair of smooth steps, placed where the spot crosses the
+  bottom edge and taken at a gentler or a sharper rate in fixed proportion:
+  the day image's daylight factor (gentle in the morning, sharp in the
+  evening), the fading of the day image up the frame late in the evening and
+  in the small hours (gentle at both ends) and the deepening of its colour up
+  the frame (sharp at both ends), both proportional in the height. The
   night images are only scaled in brightness: lit by the same two lights on
-  an unwarped clock, under an envelope across the night and above a floor.
+  an unwarped clock, under an envelope across the night (two of the same
+  steps), above a floor, and faded up the frame at either end of the night.
 - The composite of background and wave goes through each mood's exposure and
   an extended Reinhard tone curve with a white point. The glare is a bloom
   pyramid read from that composite through a colour-keeping bright-pass
@@ -316,11 +320,13 @@ on its own (the footage shows two-month mixes on the 15th, and November nearly
 alone on 29 October), so the split between a month and the next, the palettes
 of March, June, September and December and the size of the mid-month
 saturation drop are design choices that follow the spec; likewise the look
-between 01:00 and 05:00 and between 18:00 and 21:30, which follows the spec's
-description (section 3, N8). The daylight factor's evening fall is built as its own fitted step (version 23), but
-the footage at 06:00 and 18:00 makes it as shallow as the morning rise rather than steeper, so the asymmetry
-version 23 describes is in the structure and not in the fitted values; the hours that would settle it, between
-18:00 and 21:30, are not in the footage.
+between 01:00 and 03:00 and between 22:00 and 23:30, which follows the spec's
+description (section 3, N8). The day's own light is built as spec 28 says - a
+gentler morning step times a sharper evening one, the two rates in fixed
+proportion - and the footage now reaches into both shoulders (04:00 and
+20:00), but it asks for only a mild difference between the two rates (the
+sharper is 0.81 of the gentler); which end of the day is the sharp one is
+taken from the specification and not fitted.
 
 Performance has been checked only in a software renderer (headless Chromium
 with SwiftShader), where the frame time goes to drawing rather than to the
