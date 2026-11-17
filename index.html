@@ -177,6 +177,13 @@ function XMBW_SIM() {
     // targets). Against them the fitted phases are 0.065 H rms with a correlation of 0.76, where the phases fitted to 40 s
     // and 240 s alone were 0.154 H rms and anti-correlated
     ph: [5.7882, 3.4151, 3.7714, 0.1551, 2.2657],
+    // The clock every part of the warp reads is not unbounded (spec 30): it runs up to this ceiling, in seconds, and
+    // restarts from its starting value, and because all four parts read it directly they jump together. The driven end
+    // reads the same clock through the easing of NET.driveEase, so it is not set down at a new place: it is swept along
+    // its usual path over about a second (the easing's time constant), which throws a real disturbance into the sheet
+    // that then travels and dies away like any other. The ceiling is fitted with the rates and the sizes against the
+    // band's height over times since the start (tools/measure/coursefit.js)
+    clockMax: 1800,
   };
   // Scene mapping of the deformed net (scene units; x along the length, y up, z away).
   const SCENE = { len: 15, x0: 1.9, wid: 6.0, height: 3.5, y0: 0.05, z0: 0.0, tilt: 0.0 }; // tilt: rise per unit length towards the near end
@@ -302,10 +309,15 @@ function XMBW_SIM() {
     const latPh = LAT.ph;
 
     let simTime = CLOCK0, driveT = simTime, steps = 0;
+    // the one clock of the warp (spec 30): it advances by the fixed step and restarts from its starting value at the
+    // ceiling. driveT is not wrapped with it: it goes on easing towards the clock, so at a restart the driven end sweeps
+    // rapidly back along its own path instead of being set down at a new place
+    function tick() { simTime += DT; if (simTime - CLOCK0 >= LAT.clockMax) simTime = CLOCK0; }
     const stored = !fresh && START && START.n === N && START.key === netKey();
     if (stored) {
       for (let k = 0; k < NP * 3; k++) { pos[k] = START.pos[k]; vel[k] = START.vel[k]; }
-      simTime = START.t; driveT = START.dt;
+      // the stored state's clock, brought inside the ceiling, with the drive's lag behind it kept
+      simTime = CLOCK0 + ((START.t - CLOCK0) % LAT.clockMax); driveT = simTime - (START.t - START.dt);
     }
     const mood = { envCross: 0.55, latScale: [1, 1, 1], camFwd: [-0.34, -0.12, 0.93] };
 
@@ -512,7 +524,7 @@ function XMBW_SIM() {
     }
 
     function step() {
-      simTime += DT; steps++;
+      tick(); steps++;
       lattice();
       stepNet();
       const t = netPrev; netPrev = netCur; netCur = t;
@@ -557,6 +569,7 @@ function XMBW_SIM() {
       step, setMood, packSparks, surf,
       get netPrev() { return netPrev; }, get netCur() { return netCur; },
       get steps() { return steps; },
+      get clock() { return simTime; },   // the warp's one clock, for the measuring tools (spec 30: it runs to a ceiling)
       // Warm-up, the same length at every start (spec 18). From the stored state: the net alone for warmNet steps, then
       // the full step for the last 15 s so the sparkles are populated as in a running state. From the flat start: the net
       // alone, heavily damped at first to clear the flat start, then for warmDecays decay times at its own damping, then
@@ -567,7 +580,7 @@ function XMBW_SIM() {
         else n = Math.max(n, NET.warmSettle + Math.ceil(NET.warmDecays / Math.max(d, 1e-5)) + 900);
         for (let i = 0; i < n; i++) {
           NET.damping = !stored && i < NET.warmSettle ? Math.max(d, 0.02) : d;
-          if (i < n - 900) { simTime += DT; lattice(); stepNet(); } else step();
+          if (i < n - 900) { tick(); lattice(); stepNet(); } else step();
         }
         NET.damping = d; steps = 0;
       },
