@@ -38,20 +38,28 @@ const D = require('path').join(__dirname, '..', 'work', 'bgfit'), meta = JSON.pa
       d.PAL.forEach((P, m) => { const Q = I.PALETTES[m]; for (const k in P) Q[k] = JSON.parse(JSON.stringify(P[k])); });
       for (const m in (p.PAL || {})) Object.assign(I.PALETTES[m], p.PAL[m]);
       I.remake();
-      const n = 240 * 135, out = [], imgs = [];
+      const n = 240 * 135, out = [], imgs = [], regs = [];
       const want_ = p.conds ? new Set(p.conds) : null;   // only the conditions this block needs
       meta.forEach((c, j) => {
         if (want_ && !want_.has(j)) return;
         const r = window.XMBW.render({ time: c.time, theme: 0, seed: 1, frames: 0, w: 240, h: 135, layers: 'bg' }).data;
         let s = 0, cnt = 0; const t0 = j * n * 3;
+        // also the signed mean difference over a 3 x 3 grid of regions, as the battery's bgpixel measures take it
+        const rs = new Float64Array(27), rn = new Float64Array(9);
         for (let i = 0; i < n; i++) if (window.__K[j * n + i]) {
-          for (let ch = 0; ch < 3; ch++) s += Math.abs(r[i * 4 + ch] - window.__T[t0 + i * 3 + ch]);
+          const reg = Math.min(2, Math.floor((i / 240) / 45)) * 3 + Math.min(2, Math.floor((i % 240) / 80));
+          rn[reg]++;
+          for (let ch = 0; ch < 3; ch++) {
+            const d = r[i * 4 + ch] - window.__T[t0 + i * 3 + ch];
+            s += Math.abs(d); rs[reg * 3 + ch] += d;
+          }
           cnt += 3;
         }
         out.push(s / cnt);
+        regs.push(Array.from(rs, (v, q) => rn[q / 3 | 0] > 50 ? v / rn[q / 3 | 0] : 0));
         if (want) imgs.push(Array.from(r));
       });
-      const res = want ? { err: out, imgs } : { err: out };
+      const res = want ? { err: out, regs, imgs } : { err: out, regs };
       if (p.curve) res.curve = window.__curve(p.curve);
       return res;
     };

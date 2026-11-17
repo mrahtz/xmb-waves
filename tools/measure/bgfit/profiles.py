@@ -1,14 +1,15 @@
 # The two profiles spec 23 says to read from footage, for every condition: the bottom edge's left-to-right profile (the
 # glow's width around the middle of the day) and the row-by-row profile across the middle of the frame (how far the
 # spot's centre rises and falls). Footage beside the build, in levels (the mean of the three channels).
-# usage: python profiles.py PAGE [--csv OUT.csv]
+# usage: python profiles.py PAGE [FIT.json]   (FIT.json: a fit result to render instead of the page's own values)
 import json, subprocess, numpy as np, os, sys
 H = os.path.dirname(os.path.abspath(__file__)); D = os.path.join(H, '..', 'work', 'bgfit')
 meta = json.load(open(os.path.join(D, 'meta.json')))
 T = np.fromfile(os.path.join(D, 'targets.f32'), dtype=np.float32).reshape(len(meta), 135, 240, 3)
 K = np.fromfile(os.path.join(D, 'keep.u8'), dtype=np.uint8).reshape(len(meta), 135, 240)
 w = subprocess.Popen(['node', os.path.join(H, 'bgworker.js'), sys.argv[1]], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-w.stdout.readline(); w.stdin.write(json.dumps({'id': 0, 'p': {}, 'imgs': True}) + '\n{"quit":1}\n'); w.stdin.flush()
+p = json.load(open(sys.argv[2]))['p'] if len(sys.argv) > 2 else {}
+w.stdout.readline(); w.stdin.write(json.dumps({'id': 0, 'p': p, 'imgs': True}) + '\n{"quit":1}\n'); w.stdin.flush()
 r = json.loads(w.stdout.readline())
 def prof(A, keep, rows, axis):
     """mean level over a band, as a profile along the other axis (8 bins), ignoring the masked pixels"""

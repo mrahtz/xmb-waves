@@ -171,6 +171,10 @@ def loss(x, w):
     r = w.ev(b); e = np.array(r['err'])
     pen = light_pen(b) + family_pen(b) + pal_pen(b) + rough_pen(b) + (spec_pen(r['curve'], b) if HASLIGHT else 0)
     reg = 5 * np.mean((x[ispal] - pal0[ispal]) ** 2) if ispal.any() else 0
+    # (the worker also returns the signed mean difference per region, as the battery's bgpixel measures take it; adding
+    # its square to the objective with weight 2 was tried and dropped: it lowered the regional bias by 9 % and raised the
+    # absolute difference by 6 %, see the tuning log)
+    pen += float(opt.get('regions', 0)) * float(np.mean(np.asarray(r['regs']) ** 2))
     return float(e.mean() + reg + pen), e
 
 def evalall(X):
@@ -193,9 +197,10 @@ if 'explain' in opt:
     b = build(x0); b['conds'] = CONDS
     if HASLIGHT: b['curve'] = '2026-10-04'
     r = WS[0].ev(b)
-    print('err %.3f  light %.3f  spec %.3f  family %.3f  pal %.3f  rough %.3f  reg %.3f' % (
+    print('err %.3f  light %.3f  spec %.3f  family %.3f  pal %.3f  rough %.3f  reg %.3f  | regional bias RMS %.3f' % (
         np.mean(r['err']), light_pen(b), spec_pen(r['curve'], b) if HASLIGHT else 0, family_pen(b), pal_pen(b),
-        rough_pen(b), 5 * np.mean((x0[ispal] - pal0[ispal]) ** 2) if ispal.any() else 0))
+        rough_pen(b), 5 * np.mean((x0[ispal] - pal0[ispal]) ** 2) if ispal.any() else 0,
+        np.sqrt(np.mean(np.asarray(r['regs']) ** 2))))
     print('conditions', [META[j]['time'] for j in CONDS])
     print('per condition', np.round(r['err'], 2))
     for w in WS: w.p.stdin.write('{"quit":1}' + chr(10)); w.p.stdin.flush()
