@@ -1,4 +1,4 @@
-# usage: python3 jointfit.py BATTERY_DIR [STEP] [--dry] [--exposure-only] [--weight=W]
+# usage: python3 jointfit.py BATTERY_DIR [STEP] [--dry] [--exposure-only] [--weight=W] [--hold=MOOD,MOOD]
 # One joint fitting step of the shared settings (each mood's exposure, the month palettes) from a battery run (battery.py
 # --seeds ..., the seed<N>/clips.json files): the original's recordings and renders against the clean renders at the same
 # conditions (the 16 conditions at months 1, 4, 7, 10 and 00, 06, 12, 18 h, 40 s after the start).
@@ -12,6 +12,11 @@
 #     is the default). Use it when the band's own brightness, not the gain, is what is out: the gain scales the background
 #     and the band together, so a band that is short of the original at one hour and not at another cannot be reached by
 #     it, and letting the band pull on the gain then moves the background away from the footage for nothing.
+#     --hold=MOOD (comma-separated) keeps that mood out of the fit altogether: its gain stays where it is and its hold
+#     hour is left out of the palette factors (for night, the night factor; for the others, the day grid's top and bottom).
+#     Use it where this fit's observable is a subset of what set those values. The night is that case: the gain and the
+#     night images are read here at 00:00 on the 15th alone, but they also carry 21:30, where the index has two more
+#     conditions and bgfit/ (which fits the images themselves, not a scaling of them) uses all of them.
 #   palettes: what is left of the background's ratio after the exposure, per month, row and channel: a top and a bottom factor
 #     for the day image from the day hours 06, 12 and 18, and a night factor from the bottom row at 00 h. The images are the
 #     painted grids of spec 23, so the day grid's rows are scaled between the two factors by their height and the night grid
@@ -24,6 +29,7 @@ import sys, os, re, json, numpy as np
 from collections import defaultdict
 args = [a for a in sys.argv[1:] if not a.startswith('--')]; dry = '--dry' in sys.argv; exp_only = '--exposure-only' in sys.argv
 wt = next((float(a.split('=')[1]) if '=' in a else 0.5 for a in sys.argv[1:] if a.startswith('--weight')), 0.5)
+held = set(next((a.split('=')[1].split(',') for a in sys.argv[1:] if a.startswith('--hold=')), []))
 d = args[0]; step = float(args[1]) if len(args) > 1 else 0.7
 seeds = [s for s in sorted(os.listdir(d)) if s.startswith('seed')]
 ROWS = {'top': ('top_left', 'top_right'), 'bottom': ('bottom_left', 'bottom_right')}
@@ -45,12 +51,14 @@ exp_f = {}
 for mood, hr in MOOD_HOUR.items():
     bg = np.mean([v for k, v in lr.items() if k[1] == hr and k[2] != 'band'])
     band = np.mean([v for k, v in lr.items() if k[1] == hr and k[2] == 'band'])
-    exp_f[mood] = (np.exp(step * (wt * bg + (1 - wt) * band)), np.exp(bg), np.exp(band))
+    f = 1.0 if mood in held else np.exp(step * (wt * bg + (1 - wt) * band))
+    exp_f[mood] = (f, np.exp(bg), np.exp(band))
 pal = {}
 for mo in months:
-    top = np.array([np.mean([lr[(mo, h, 'top', ch)] - np.log(exp_f[m][0]) / step for m, h in MOOD_HOUR.items() if m != 'night']) for ch in 'RGB'])
-    bot = np.array([np.mean([lr[(mo, h, 'bottom', ch)] - np.log(exp_f[m][0]) / step for m, h in MOOD_HOUR.items() if m != 'night']) for ch in 'RGB'])
-    nig = np.array([lr[(mo, '00', 'bottom', ch)] - np.log(exp_f['night'][0]) / step for ch in 'RGB'])
+    day_moods = [(m, h) for m, h in MOOD_HOUR.items() if m != 'night' and m not in held]
+    top = np.array([np.mean([lr[(mo, h, 'top', ch)] - np.log(exp_f[m][0]) / step for m, h in day_moods]) for ch in 'RGB'])
+    bot = np.array([np.mean([lr[(mo, h, 'bottom', ch)] - np.log(exp_f[m][0]) / step for m, h in day_moods]) for ch in 'RGB'])
+    nig = np.zeros(3) if 'night' in held else np.array([lr[(mo, '00', 'bottom', ch)] - np.log(exp_f['night'][0]) / step for ch in 'RGB'])
     pal[mo] = tuple(np.clip(np.exp(step * x), 0.8, 1.25) for x in (top, bot, nig))   # one step never moves a colour by more
 # The palettes are the painted grids of spec 23 (src/main/scene.js: day BG_GRID_W x BG_GRID_H nodes, night BG_GRID_W x
 # BG_NGRID_H, three numbers each, rows from the top of the image). A battery run only sees the top and the bottom of the
