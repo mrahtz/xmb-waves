@@ -201,8 +201,8 @@ reference conditions. The sparkles yield slightly fewer separate points per
 frame than the original (about 847 against 886 at full size over four hours of
 15 October, after the bounding box was drawn in so that 0.62-0.65 of the full
 pool is inside the picture rather than 0.49; in the fixed battery's own measure
-772 against 801, inside the original's range, with 21 of its 22 sparkle measures
-within range at seed 1), and slightly too many of them move upwards. The out-of-focus discs now come from the far side of the focus range
+777 against 801, inside the original's range, with 20 of its 22 sparkle measures
+within range at seed 1 and at seeds 2 and 3), and slightly too many of them move upwards. The out-of-focus discs now come from the far side of the focus range
 (14-22 a frame at 00, 06 and 12 h against the original's 11-24, but only 5 at
 18 h against 13, and all of them about 10 px wide against 12-22); a bright
 core's halo matches the original's profile from 3 px out to 15 px; and a
@@ -219,9 +219,10 @@ and renders (15 January, April, July and October at four hours, 15 and 29
 October 21:30): each month's day and night image is a painted picture held as
 a coarse grid of colours (version 23), fitted together with the lighting over
 all of them. Where the wave does not cover it, the mean absolute difference
-per channel is about 3.1 levels, against 9.5 before this background and
-10.5-12.3 before the version-19 one; by hour it is 1.1 at midnight, 1.7 at
-dawn, 3.3 at noon, 7.2 at dusk and 1.0 at 21:30.
+per channel is about 2.3 levels, against 3.1 before the latest joint re-tune,
+9.5 before this background and
+10.5-12.3 before the version-19 one; by hour it is 1.2 at midnight, 1.5 at
+dawn, 3.3 at noon, 3.8 at dusk and 0.7 at 21:30.
 The composite's black offset, each mood's exposure and the twelve month palettes are fitted
 together to the original's renders and recordings at four months (January, April, July, October) and four hours
 (`tools/measure/jointfit.py`, with the offset swept around the fit). The offset is a three-way trade:
@@ -230,7 +231,9 @@ night picture's black top wants it near 0.03, and the background away from the b
 offset cuts the dark end where the palettes can only scale colours. At the chosen 0.03 the night band's colour is
 within 0.023 RMS of the original's channel shares, the black top is 0.0195 H from the original's on average
 (0.29-0.35 H there), the band's added light by day is within 0.002 of the original's channel shares, and
-background pixels away from the band differ by about 3.1 levels per channel on average. July's and October's
+background pixels away from the band differ by about 2.3 levels per channel on average (the three band-colour
+and black-top figures were measured before the latest joint re-tune moved each mood's exposure and have not
+been measured again since). July's and October's
 night bands lean towards the background's colour as the original's do, though less (R share 0.29 against 0.24
 in July), and months whose night palette is more coloured than the original's lean where the original's stay neutral.
 The band's brightest places compare left to right as the original's do.
@@ -239,9 +242,13 @@ the same glare chain without any halo (at most one output level). But my brighte
 brighter than the original's brightest part, so by day my background glares by itself in eight months instead of only
 around the turn of the year, as a visible blob over the spot. Spec 5 puts dusk's glare first, and mine still puts day's first.
 Still short: the background's remaining error is hour structure that neither the exposure nor the palettes' level
-can reach - at noon the picture is about 3 levels too bright and at dusk 7 levels too dark, in every month, which
-is the day image's hour curve (the daylight factor and the two lights); and the band carries about 8 levels more
-mean light over the background than the original's (50 against 41), though its peak lands on it.
+can reach - at noon the picture is about 3 levels out, in every month, which
+is the day image's hour curve (the daylight factor and the two lights); and the band carries about 9 levels more
+mean light over the background than the original's (50 against 41), though its peak is within 5.
+At night that excess is the sparkles rather than the band: at 00:00 the brightest point of a band column is now a
+sparkle, not a fold (130 levels over the background against the original's 105), and the band's mean over the
+background is 68 against 43, which is the sparkle lane's own open gap (its brightest points are too bright,
+worst at night). The composite's exposure cannot reach it: sparkles are drawn after the final pass.
 
 Not verifiable from the references available so far: each month's palette
 on its own (the footage shows two-month mixes on the 15th, and November nearly
