@@ -196,35 +196,45 @@ const MOOD_KEYS = [
   'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
-// The composite's black offset (spec 4.5, versions 20 and 24): the same in every mood (the moods set only the gain and the
-// white point). It is a shared setting with three observables pulling against each other, so it is fitted together with each
-// mood's gain and the palettes: the colour the band's added light takes over the dark parts of a night frame
-// (tools/measure/bandcolour.py, which wants it large), how far down a night frame the top stays flat
-// (tools/measure/blackfoot.py, best near 0.03) and the background away from the band (bgcompare, which wants it small,
-// because the offset cuts the dark end and the palettes can only scale colours). 0.03 is the joint best of the four values
-// tried, each with the gains and palettes refitted to convergence; the daytime band stays as near-neutral as the original's.
-let TONE_BLACK = 0.03;
+// The composite's black offset (spec 4.5, versions 20, 24 and 27): the same in every mood (the moods set only the gain and
+// the white point). What it pins down is not the floor on its own but where the dark end of the night background sits
+// relative to the point at which the curve reaches zero (version 27): moving the floor and moving that dark end by the same
+// amount give the same frame pixel for pixel, so this value and the night palettes are one knob. It is fitted on the colour
+// the band's added light takes over the dark parts of a night frame, in version 27's form - the three channel shares taken
+// separately at moments with the band in clearly different places (tools/measure/bandpos.py), with only the months that
+// speak (a channel of the night background cut away under the band: July and October of the footage, whose night
+// backgrounds are strongly coloured) allowed to vote, and the count of qualifying pixels reported beside every share.
+// 0.06 is the best of 0.03, 0.06, 0.09 and 0.12 over 17 speaking moments of six night conditions at three band positions
+// per month (mean |share error| 0.023, against 0.030 at 0.03 and 0.026 at 0.09), and also over the four months' 00 h clips.
+// Version 27 says not to let a whole-frame comparison of the background choose it, because a fit that may only scale the
+// palettes cannot follow the floor and will always prefer the value the build already has; so the background's own fit does
+// not vote here, and each mood's gain is re-fitted after this value moves.
+let TONE_BLACK = 0.06;
 // Glare (spec 5, versions 20 and 24): each mood's bright-pass threshold is fixed, in the composite's output units after its
 // curve, and the same chain runs in every mood. Placed inside the brackets measured on the original's footage at the bright-pass's
 // resolution (tools/measure/brightfoot.py): by day between July's brightest background (which does not glare) and January's and
 // December's (which do); at dawn and dusk above every background and below the dimmest month's brightest fold; at night above the
 // band's brightest folds, so the night is free of halo on the screen.
+// The exposures (the gain of spec 4.5) were re-fitted after the black offset moved to 0.06, which lowered every level in the
+// frame, on the background's level and the band's peak together (tools/measure/jointfit.py --exposure-only, four rounds to
+// convergence). Spec 4.5's order is kept and is not negotiable (version 27): lowest by day, slightly higher at dawn - held
+// to at most 1.10 times the day's, which it reaches - higher again at dusk, highest at night.
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
-    exposure: 1.629, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
+    exposure: 1.976, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
-    exposure: 1.158, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.280, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
-    exposure: 1.087, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.204, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
-    exposure: 1.233, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.382, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
@@ -355,10 +365,15 @@ const WAVE = {
   fresPeak: 0.12, fresZero: 0.5961, fresTail: 0.1403,
   fade: 0.06,                           // fraction of the sheet over which it fades out, linearly, at the ends and edges
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
-  // a neutral tint brightening slightly from left to right (spec 20: measured, the band's brightest places left against right
-  // over 48 clips of the original, matched by my renders at the same conditions): left 0.82 of right, with the mean over
-  // the screen kept at the earlier tint's (0.97) so the band's overall level is unchanged
-  tintL: [0.875, 0.875, 0.875], tintR: [1.067, 1.067, 1.067],
+  // a neutral tint brightening slightly from left to right. Spec 27 replaces the version-20 measurement (a ratio of the
+  // band's brightest places, left against right) with the slope of the band's added light taken as a profile across the
+  // whole width and pooled over everything available (tools/measure/rampprof.py). Pooled over all 38 footage clips, the
+  // slope of the per-column peak is -0.035 +- 0.027 of its own mean across the width (the recordings alone +0.039 +- 0.044,
+  // the lossless renders alone -0.106 +- 0.018, so the two kinds disagree by more than either's scatter); my build's slope
+  // answers to this tint at +0.0062 per 1 % of the left-to-right ratio, so the whole footage range sits between a flat tint
+  // and about +7 %. The spec requires a brightening, so the ratio is the middle of that: left 0.962 of right, with the mean
+  // over the screen kept at the earlier tint's (0.971) so the band's overall level is unchanged.
+  tintL: [0.952, 0.952, 0.952], tintR: [0.990, 0.990, 0.990],
 };
 // (these scalars are let, not const, only so the settings menu can change them live)
 // background (spec 19, 23; original design). The picture starts from a fixed share of the image's own value and each light
