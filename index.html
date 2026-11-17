@@ -148,17 +148,22 @@ function XMBW_SIM() {
     burstP: 0.6, burstN: 12,
     walkers: 1, walkerP: 0.02, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 0.6, reverseP: 0.12,                      // cone: half-angle (rad) of the birth cone, deviation spread evenly up to it
-    speedK: 0.29, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
+    speedK: 0.25, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
-    rampIn: 0.04, rampOut: 0.07,                    // short linear ramps of the life (fraction), the fade-in the quicker
-    // jitter (spec 17): each sparkle's push, one value per axis, is held for long stretches (redrawn jitterRedraw times per
-    // second on average), a small steady acceleration differing from sparkle to sparkle; gravity and friction are weak
-    jitter: 0.004, jitterRedraw: 0.3, gravity: 0.0002, friction: 0.03,  // per second units
+    rampIn: 0.025, rampOut: 0.045,                    // short linear ramps of the life (fraction), the fade-in the quicker
+    // jitter (spec 25): the push, one value per axis, is mostly redrawn every step, but the share jitterHeld of its
+    // strength is drawn once at birth and never changes, so a sparkle's average push is not quite zero: shimmer about a
+    // straight course with a slow one-way bend building up over a long life. Gravity and friction are weak
+    jitter: 0.05, jitterHeld: 0.15, gravity: 0.0002, friction: 0.03,  // per second units
     // spin (spec 17): the same schedule over every sparkle's life: angular velocity per axis = spinA x
     // sin(2 pi x spinCycles[axis] x life fraction + spinPhase[axis])
-    spinA: 2.2, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
-    box: [[-10, 10], [-6, 6], [-3.5, 9]],          // the bounding box: its faces lie outside the view
-    boxFade: 0.8,                                   // sparkles fade out over this distance from the box's faces
+    spinA: 4.0, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
+    // the bounding box: more generous across the width and in depth than along the length, and (spec 25) no farther
+    // outside the picture than it has to be, so a sparkle that has left the picture does not hold its slot for the rest
+    // of its life. Along the length the faces sit just beyond the farthest a sparkle inside the picture ever reaches
+    // (measured with tools/measure/sparkpool.js), so the fade below is still never seen on screen
+    box: [[-4.4, 6.6], [-6, 6], [-3.5, 9]],
+    boxFade: 0.30,                                  // sparkles fade out over this distance from the box's faces
   };
   const SPARK_STRIDE = 11; // prev xyz, cur xyz, facing xyz, opacity, random
 
@@ -385,7 +390,9 @@ function XMBW_SIM() {
       const k = i * 3;
       sp[k] = spPrev[k] = P1[0]; sp[k + 1] = spPrev[k + 1] = P1[1]; sp[k + 2] = spPrev[k + 2] = P1[2];
       sv[k] = dx * speed; sv[k + 1] = dy * speed; sv[k + 2] = dz * speed;
-      sJit[k] = SPARK.jitter * gauss(); sJit[k + 1] = SPARK.jitter * gauss(); sJit[k + 2] = SPARK.jitter * gauss();
+      // the unchanging part of the push, drawn once and kept for the whole life (spec 25)
+      const jh = SPARK.jitter * SPARK.jitterHeld;
+      sJit[k] = jh * gauss(); sJit[k + 1] = jh * gauss(); sJit[k + 2] = jh * gauss();
       sAge[i] = 0;
       sRate[i] = Math.max(SPARK.rateMin, SPARK.rateMean * (1 + SPARK.rateSpread * gauss()));
       // random initial orientation
@@ -414,13 +421,16 @@ function XMBW_SIM() {
     }
 
     function stepSparks() {
-      const fr = SPARK.friction, g = SPARK.gravity, jit = SPARK.jitter, box = SPARK.box;
+      const fr = SPARK.friction, g = SPARK.gravity, box = SPARK.box;
+      // the push's fresh part, redrawn every step: the strength left over once the unchanging part is taken out, so
+      // jitter is the whole push's strength and jitterHeld only moves it between the two parts
+      const jf = SPARK.jitter * Math.sqrt(Math.max(0, 1 - SPARK.jitterHeld * SPARK.jitterHeld));
       for (let i = 0; i < S; i++) {
         if (!alive[i]) continue;
         const k = i * 3;
         spPrev[k] = sp[k]; spPrev[k + 1] = sp[k + 1]; spPrev[k + 2] = sp[k + 2];
-        if (rng() < SPARK.jitterRedraw * DT) { sJit[k] = jit * gauss(); sJit[k + 1] = jit * gauss(); sJit[k + 2] = jit * gauss(); }
-        const ax = sJit[k] - fr * sv[k], ay = sJit[k + 1] - g - fr * sv[k + 1], az = sJit[k + 2] - fr * sv[k + 2];
+        const ax = sJit[k] + jf * gauss() - fr * sv[k], ay = sJit[k + 1] + jf * gauss() - g - fr * sv[k + 1],
+          az = sJit[k + 2] + jf * gauss() - fr * sv[k + 2];
         sv[k] += ax * DT; sv[k + 1] += ay * DT; sv[k + 2] += az * DT;
         sp[k] += sv[k] * DT; sp[k + 1] += sv[k + 1] * DT; sp[k + 2] += sv[k + 2] * DT;
         sAge[i] += sRate[i] * DT;
@@ -728,19 +738,19 @@ const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
     exposure: 1.629, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
-    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
+    focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
     exposure: 1.158, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
-    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
     exposure: 1.087, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
-    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.20, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
     exposure: 1.233, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
-    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.22, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -893,16 +903,55 @@ const BGL = { base: 0.556, spot: 0.243, ovalX: 0.887, ovalY: 0.981, spotW: 0.425
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
-  // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
-  size: 0.010, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
-  turn: 0.3,                       // part of the way every disc is turned towards the camera (fully when close)
-  bright: 0.55, glintSize: 4.5, glintBright: 0.10,
-  // lighting (spec 16 and 17): one point light in the scene in front of the camera, diffuse kd and specular ks with exponent
-  // shin, the highlight tinted by the iridescent map (saturation mapSat everywhere, exponent mapExp = 1 leaves it unchanged),
-  // the sum through 1 - exp(-satGain x); opacity falls as a disc turns towards edge-on, with the power tiltPow of one minus
-  // the cosine
-  light: [1.3, 0.7, -1.5], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.0, mapSat: 0.15, satGain: 1.5, tiltPow: 1.0,
+  // by up to blur times its size and dims a little (dofDim). Spec 25: the focus range sits so that the near side hardly
+  // reaches the field (focusNear is nearer than all but a few sparkles) while the far side, which the mood shifts, lies
+  // inside the field's far end, blurring the farthest sparkles only part of the way along its transition
+  size: 0.0062, blur: 12.0, dofDim: 0.3, nearSoft: 0.72, farSoft: 0.95, focusNear: 2.0,
+  // turn towards the camera (spec 21): none for a disc whose in-focus apparent radius is below turn0 px (at 1080 lines), complete
+  // from turn1 px, so only the few near, large discs face the viewer and the rest pass through edge-on
+  turn0: 2.0, turn1: 2.6,
+  // in focus a crisp edge edge px wide (0: hard, spec 21's hard-edged discs); a disc below minPx px radius is drawn at that
+  // radius, dimmed by its area (0: never, so a disc smaller than a pixel shows only where it covers a pixel's centre)
+  edge: 0, minPx: 0.7,
+  // the glint halo (spec 25): a wide patch (glintSize disc radii) with the light gathered near the middle, falling away
+  // as a power of the distance (core radius glintCore disc radii, power glintFall), so a bright sparkle keeps a narrow
+  // core and carries a faint skirt well out from it
+  bright: 1.00, glintSize: 14.0, glintCore: 1.5, glintFall: 1.05, glintBright: 0.15,
+  // lighting (spec 16, 17 and 21): one point light in the scene in front of the camera, diffuse kd and specular ks with
+  // exponent shin, the highlight tinted at full strength by the iridescent map (below; mapStr scales every lobe's strength,
+  // mapR their radii; exponent mapExp = 1 leaves it unchanged), the sum through 1 - exp(-satGain x); opacity falls as a disc
+  // turns towards edge-on, with the power tiltPow of one minus the cosine
+  light: [1.3, 0.7, -1.5], kd: 0.204, ks: 1.509, shin: 30, mapExp: 1.0, mapStr: 1.20, mapR: 1.0, satGain: 0.629, tiltPow: 6.0,
 };
+// The iridescent map's lobes (spec 21, original design): position in the map (the facing direction's right and up
+// components), radius, strength, and colour at full strength (its brightness included). Between them the map is near-neutral
+// white. The hues come in clusters: pinks and magentas, peach and gold, red-orange, a little violet-blue; no green or cyan.
+const SPARK_LOBES_DEF = [
+  // x,     y,     r,  strength  colour
+  [-0.92, -0.50, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [-0.66, -0.50, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.14, -0.50, 0.154, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [0.12, -0.50, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.90, -0.50, 0.154, 1.5, [1.00, 0.35, 0.65]], // pink
+  [-0.53, -0.20, 0.154, 1.5, [1.00, 0.35, 0.65]], // pink
+  [-0.01, -0.20, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.25, -0.20, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [0.77, -0.20, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.92, 0.10, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.66, 0.10, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.14, 0.10, 0.154, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [0.12, 0.10, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.38, 0.10, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [0.90, 0.10, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.53, 0.40, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.01, 0.40, 0.154, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [0.25, 0.40, 0.154, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [0.77, 0.40, 0.154, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [1.03, 0.40, 0.154, 1.5, [1.00, 0.35, 0.65]], // pink
+];
+const SPARK_LOBES = SPARK_LOBES_DEF.length;
+const SPARK_LOBE_POS = new Float32Array(SPARK_LOBES_DEF.flatMap(l => [l[0], l[1], l[2], l[3]]));
+const SPARK_LOBE_COL = new Float32Array(SPARK_LOBES_DEF.flatMap(l => l[4]));
 let DITHER = 0.85; // output levels, peak
 
 // ---------------------------------------------------------------------------
@@ -1134,22 +1183,30 @@ void main(){
   o = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`;
 
-// Sparkles: flat round discs in 3D, turned by each sparkle's spin (towards the camera when close to it), with depth of
+// Sparkles: flat round discs in 3D, turned by each sparkle's spin (towards the camera when near and large), with depth of
 // field and an iridescent tint, drawn additively straight onto the output after the final pass.
 const VS_SPARK = `#version 300 es
 precision highp float;
 layout(location=0) in vec3 aP0; layout(location=1) in vec3 aP1; layout(location=2) in vec3 aF;
 layout(location=3) in float aOp; layout(location=4) in float aRnd;
 uniform mat4 uVP; uniform vec3 uCam, uCamFwd; uniform float uAlpha, uSizeW, uBlur, uF;
-uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uBright, uDofDim, uTurn;
-uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uMapSat, uSatGain, uTiltPow;
-uniform float uGlint, uExt; uniform vec2 uRes;
+uniform float uFocusNear, uFocusFar, uNearSoft, uFarSoft, uBright, uDofDim, uTurn0, uTurn1;
+uniform vec3 uLight, uRight, uUp; uniform float uKd, uKs, uShin, uMapExp, uMapStr, uMapR, uSatGain, uTiltPow;
+uniform vec4 uLobe[${SPARK_LOBES}]; uniform vec3 uLobeC[${SPARK_LOBES}];
+uniform float uGlint, uExt, uMinPx; uniform vec2 uRes;
 out vec2 vQ; out float vI; out vec3 vC; out float vSoft;
-// iridescent colour map indexed by the facing direction's two screen-plane components (a lit-sphere lookup): the hue
-// turns with the direction's angle and its distance from the centre, at the same moderate saturation everywhere
+// iridescent colour map indexed by the facing direction's two screen-plane components (a lit-sphere lookup), spec 21: a
+// few strongly coloured patches (each a soft lobe with its own colour and brightness) lying in broad near-neutral, almost
+// white regions, with hues in clusters rather than round a wheel. Where one lobe dominates its colour is carried at full
+// strength.
 vec3 iriMap(vec2 q){
-  float h = atan(q.y, q.x) / 6.2831853 + 0.6 * min(length(q), 1.0);
-  return mix(vec3(1.0), 0.5 + 0.5 * cos(6.2831853 * (h + vec3(0.0, 0.33, 0.67))), uMapSat);
+  vec3 acc = vec3(0.0); float W = 0.0;
+  for (int k = 0; k < ${SPARK_LOBES}; k++) {
+    vec2 d = q - uLobe[k].xy; float r = uLobe[k].z * uMapR;
+    float w = uLobe[k].w * uMapStr * exp(-dot(d, d) / (r * r));
+    acc += w * uLobeC[k]; W += w;
+  }
+  return W > 1e-4 ? mix(vec3(1.0), acc / W, min(W, 1.0)) : vec3(1.0);
 }
 void main(){
   vec3 P = mix(aP0, aP1, uAlpha);
@@ -1162,10 +1219,15 @@ void main(){
   float I = uBright * aOp / (1.0 + uDofDim * out_);
   vec3 V = normalize(-d);
   vSoft = clamp(out_, 0.0, 1.0);
-  // the disc's plane: its own facing from the spin, turned a modest part of the way towards the camera at any distance and
-  // fully when close to it, so no disc is ever seen fully edge-on
+  // the disc's plane (spec 21): its own facing from the spin, turned towards the camera only in so far as it is near and
+  // looks large on screen: no turn below an apparent radius of uTurn0 px (at 1080 lines), a full turn from uTurn1 px. The
+  // many far, small discs keep their tumbling orientation and pass through edge-on.
+  // the turn follows how near the sparkle is, measured as the apparent radius its disc would have in focus (spec 21: the
+  // turn grows with nearness and apparent size and falls away with distance), so a far disc blurred wide by the far side
+  // of the focus range is not pulled round
+  float pxRef = uSizeW * uF * 540.0 / max(z, 0.05);
   vec3 N = aF * sign(dot(aF, V) + 1e-6);
-  N = normalize(mix(N, V, max(uTurn, clamp((uFocusNear - z) / uNearSoft, 0.0, 1.0))));
+  N = normalize(mix(N, V, smoothstep(uTurn0, uTurn1, pxRef)));
   float c = dot(N, V);
   // lighting (spec 16 and 17): one point light in front of the camera; a two-sided diffuse term plus a sharp specular
   // highlight tinted by the iridescent map, through a soft saturating curve. No random brightness: the spread and the
@@ -1186,9 +1248,9 @@ void main(){
     vC = 1.0 - exp(-uSatGain * (uKd * diff + uKs * spec * iri));
     vI = I * tilt * uGlint;
   }
-  // a disc smaller than a pixel keeps a one-pixel patch, dimmed by its area
+  // a disc whose radius is below uMinPx pixels is drawn at that radius, dimmed by its area (uMinPx = 0: never)
   float px = Rw * uF * uRes.y / (2.0 * max(z, 0.05));
-  if (px < 0.7) { R *= 0.7 / max(px, 1e-4); vI *= (px * px) / 0.49; }
+  if (px < uMinPx) { R *= uMinPx / max(px, 1e-4); vI *= (px * px) / (uMinPx * uMinPx); }
   vec4 clip = uVP * vec4(P + (Ub * corner.x + Vb * corner.y) * R, 1.0);
   if (z < 0.05) clip = vec4(2.0, 2.0, 2.0, 1.0);
   vQ = corner * uExt;
@@ -1196,17 +1258,20 @@ void main(){
 }`;
 const FS_SPARK = `#version 300 es
 precision highp float;
-in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt;
+in vec2 vQ; in float vI; in vec3 vC; in float vSoft; uniform float uExt, uEdge, uGlintCore, uGlintFall;
 out vec4 o;
 void main(){
   float r = length(vQ); // 1 at the disc's edge; the patch reaches uExt, so the disc is zero well inside it
   float k;
-  if (uExt > 1.5) { // glint pass: a soft round halo, zero before the patch's edge
-    float q = r / uExt;
-    k = 0.45 * exp(-q * q * 6.0) * smoothstep(1.0, 0.8, q);
-  } else { // a flat disc: a crisp, anti-aliased edge in focus, softening out of focus until it fills its patch
-    float e = max(fwidth(r) * 1.2, 0.04 + 0.6 * vSoft);
-    k = 1.0 - smoothstep(1.0 - e, 1.0 + 0.2 * vSoft, r);
+  if (uExt > 1.5) { // glint pass (spec 25): the patch is wide while the light is gathered near the middle, so a bright
+    // sparkle shows a narrow core and a faint skirt reaching well out from it: light falls away as a power of the
+    // distance (core radius uGlintCore disc radii, power uGlintFall), and is tapered to nothing at the patch's edge
+    float q = r / uExt, u = r / uGlintCore;
+    k = pow(1.0 + u * u, -uGlintFall) * smoothstep(1.0, 0.85, q);
+  } else { // a flat disc: in focus a crisp edge uEdge pixels wide (0: a hard edge, each pixel in or out), softening out of
+    // focus until it fills its patch
+    float e = max(fwidth(r) * uEdge, 0.6 * vSoft), e1 = max(0.5 * fwidth(r) * uEdge, 0.2 * vSoft);
+    k = e + e1 > 1e-5 ? 1.0 - smoothstep(1.0 - e, 1.0 + e1, r) : step(r, 1.0);
   }
   o = vec4(vC * vI * k, 1.0);
 }`;
@@ -1581,10 +1646,14 @@ function sparkUniforms(pr, m, cam, st) {
   gl.uniform1f(pr.u.uSizeW, SPARKR.size * m.sparkSize); gl.uniform1f(pr.u.uBlur, SPARKR.blur);
   gl.uniform1f(pr.u.uFocusNear, SPARKR.focusNear); gl.uniform1f(pr.u.uFocusFar, m.focusFar);
   gl.uniform1f(pr.u.uNearSoft, SPARKR.nearSoft); gl.uniform1f(pr.u.uFarSoft, SPARKR.farSoft);
-  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofDim, SPARKR.dofDim); gl.uniform1f(pr.u.uTurn, SPARKR.turn);
+  gl.uniform1f(pr.u.uBright, SPARKR.bright * m.sparkBright); gl.uniform1f(pr.u.uDofDim, SPARKR.dofDim);
+  gl.uniform1f(pr.u.uTurn0, SPARKR.turn0); gl.uniform1f(pr.u.uTurn1, SPARKR.turn1);
+  gl.uniform1f(pr.u.uMinPx, SPARKR.minPx); if (pr.u.uEdge) gl.uniform1f(pr.u.uEdge, SPARKR.edge);
+  if (pr.u.uGlintCore) { gl.uniform1f(pr.u.uGlintCore, SPARKR.glintCore); gl.uniform1f(pr.u.uGlintFall, SPARKR.glintFall); }
   gl.uniform3fv(pr.u.uLight, SPARKR.light); gl.uniform3fv(pr.u.uRight, cam.right); gl.uniform3fv(pr.u.uUp, cam.up);
   gl.uniform1f(pr.u.uKd, SPARKR.kd); gl.uniform1f(pr.u.uKs, SPARKR.ks); gl.uniform1f(pr.u.uShin, SPARKR.shin);
-  gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uMapSat, SPARKR.mapSat); gl.uniform1f(pr.u.uSatGain, SPARKR.satGain);
+  gl.uniform1f(pr.u.uMapExp, SPARKR.mapExp); gl.uniform1f(pr.u.uMapStr, SPARKR.mapStr); gl.uniform1f(pr.u.uMapR, SPARKR.mapR);
+  gl.uniform4fv(pr.u.uLobe, SPARK_LOBE_POS); gl.uniform3fv(pr.u.uLobeC, SPARK_LOBE_COL); gl.uniform1f(pr.u.uSatGain, SPARKR.satGain);
   gl.uniform1f(pr.u.uTiltPow, SPARKR.tiltPow); gl.uniform1f(pr.u.uF, cam.f);
   gl.uniform2f(pr.u.uRes, ow, oh);
 }
@@ -1752,7 +1821,7 @@ function render(opts) {
   return { width: o.w, height: o.h, data };
 }
 
-window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, moodAt, nightWeight, sceneParams,
+window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, LOBES: SPARK_LOBES_DEF, moodAt, nightWeight, sceneParams,
   bg: { BGL, BGW, PALETTES, grid: [BG_GRID_W, BG_GRID_H, BG_NGRID_H], remake: remakeBackgroundImages, colorAt: bgColorAt } } };
 if (SCORE) { canvas.style.display = 'none'; return; }
 
@@ -1935,14 +2004,16 @@ group('Sparkles', [
   field('SPARKR', SPARKR, 'tiltPow', 'edge-on fade', 0.5, 10, 0.1),
   field('SPARKR', SPARKR, 'glintSize', 'glint size', 1, 10, 0.1),
   field('SPARKR', SPARKR, 'glintBright', 'glint brightness', 0, 0.5, 0.005),
-  field('SPARKR', SPARKR, 'turn', 'turn towards camera', 0, 1, 0.01), field('SPARKR', SPARKR, 'mapSat', 'colour map saturation', 0, 1, 0.01),
+  field('SPARKR', SPARKR, 'turn0', 'turn to camera from (px)', 0, 40, 0.1), field('SPARKR', SPARKR, 'turn1', 'turned fully at (px)', 0.1, 60, 0.1),
+  field('SPARKR', SPARKR, 'edge', 'edge width (px)', 0, 3, 0.05), field('SPARKR', SPARKR, 'minPx', 'smallest radius (px)', 0, 2, 0.05),
+  field('SPARKR', SPARKR, 'mapStr', 'colour map strength', 0, 4, 0.01), field('SPARKR', SPARKR, 'mapR', 'colour patch size', 0.1, 3, 0.01),
   sim('SPARK.burstP', 'burst chance', 0, 1, 0.01), sim('SPARK.burstN', 'burst size', 1, 40, 1),
   sim('SPARK.walkerP', 'walker chance', 0, 0.3, 0.005), sim('SPARK.walkStep', 'walker step', 0.005, 0.2, 0.005),
   sim('SPARK.cone', 'birth cone', 0, 1, 0.01), sim('SPARK.reverseP', 'reversed births', 0, 0.5, 0.01),
   sim('SPARK.speedK', 'speed factor', 0, 1, 0.01), sim('SPARK.speedPow', 'speed exponent', 0.1, 1.5, 0.01), sim('SPARK.speedMin', 'minimum speed', 0, 0.2, 0.005),
   sim('SPARK.rateMean', 'ageing rate', 0.02, 0.5, 0.005), sim('SPARK.rateSpread', 'ageing spread', 0, 1, 0.01),
-  sim('SPARK.jitter', 'jitter', 0, 0.05, 0.0005), sim('SPARK.gravity', 'gravity', -0.005, 0.005, 0.0001), sim('SPARK.friction', 'friction', 0, 1, 0.01),
-  sim('SPARK.jitterRedraw', 'jitter redraws per second', 0, 5, 0.01), sim('SPARK.spinA', 'spin', 0, 6, 0.05),
+  sim('SPARK.jitter', 'jitter', 0, 0.3, 0.002), sim('SPARK.gravity', 'gravity', -0.005, 0.005, 0.0001), sim('SPARK.friction', 'friction', 0, 1, 0.01),
+  sim('SPARK.jitterHeld', 'jitter held for life (share)', 0, 1, 0.01), sim('SPARK.spinA', 'spin', 0, 6, 0.05),
 ]);
 let currentMood = null, tunePending = false;
 function paramValue(it) { // the value in effect

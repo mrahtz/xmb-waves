@@ -213,19 +213,19 @@ const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
     exposure: 1.629, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
-    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
+    focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
     exposure: 1.158, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
-    focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
     exposure: 1.087, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
-    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.20, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
     exposure: 1.233, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
-    focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
+    focusFar: 4.22, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
 const MOOD_SCHEDULE = [ // [start, end, from, to]  (from === to: hold)
@@ -378,15 +378,54 @@ const BGL = { base: 0.556, spot: 0.243, ovalX: 0.887, ovalY: 0.981, spotW: 0.425
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows
-  // by up to blur times its size and dims a little (dofDim); only the near side of the focus range is reached
-  size: 0.010, blur: 0.5, dofDim: 0.3, nearSoft: 0.72, farSoft: 1.5, focusNear: 2.59,
-  turn: 0.3,                       // part of the way every disc is turned towards the camera (fully when close)
-  bright: 0.55, glintSize: 4.5, glintBright: 0.10,
-  // lighting (spec 16 and 17): one point light in the scene in front of the camera, diffuse kd and specular ks with exponent
-  // shin, the highlight tinted by the iridescent map (saturation mapSat everywhere, exponent mapExp = 1 leaves it unchanged),
-  // the sum through 1 - exp(-satGain x); opacity falls as a disc turns towards edge-on, with the power tiltPow of one minus
-  // the cosine
-  light: [1.3, 0.7, -1.5], kd: 0.25, ks: 1.5, shin: 40, mapExp: 1.0, mapSat: 0.15, satGain: 1.5, tiltPow: 1.0,
+  // by up to blur times its size and dims a little (dofDim). Spec 25: the focus range sits so that the near side hardly
+  // reaches the field (focusNear is nearer than all but a few sparkles) while the far side, which the mood shifts, lies
+  // inside the field's far end, blurring the farthest sparkles only part of the way along its transition
+  size: 0.0062, blur: 12.0, dofDim: 0.3, nearSoft: 0.72, farSoft: 0.95, focusNear: 2.0,
+  // turn towards the camera (spec 21): none for a disc whose in-focus apparent radius is below turn0 px (at 1080 lines), complete
+  // from turn1 px, so only the few near, large discs face the viewer and the rest pass through edge-on
+  turn0: 2.0, turn1: 2.6,
+  // in focus a crisp edge edge px wide (0: hard, spec 21's hard-edged discs); a disc below minPx px radius is drawn at that
+  // radius, dimmed by its area (0: never, so a disc smaller than a pixel shows only where it covers a pixel's centre)
+  edge: 0, minPx: 0.7,
+  // the glint halo (spec 25): a wide patch (glintSize disc radii) with the light gathered near the middle, falling away
+  // as a power of the distance (core radius glintCore disc radii, power glintFall), so a bright sparkle keeps a narrow
+  // core and carries a faint skirt well out from it
+  bright: 1.00, glintSize: 14.0, glintCore: 1.5, glintFall: 1.05, glintBright: 0.15,
+  // lighting (spec 16, 17 and 21): one point light in the scene in front of the camera, diffuse kd and specular ks with
+  // exponent shin, the highlight tinted at full strength by the iridescent map (below; mapStr scales every lobe's strength,
+  // mapR their radii; exponent mapExp = 1 leaves it unchanged), the sum through 1 - exp(-satGain x); opacity falls as a disc
+  // turns towards edge-on, with the power tiltPow of one minus the cosine
+  light: [1.3, 0.7, -1.5], kd: 0.204, ks: 1.509, shin: 30, mapExp: 1.0, mapStr: 1.20, mapR: 1.0, satGain: 0.629, tiltPow: 6.0,
 };
+// The iridescent map's lobes (spec 21, original design): position in the map (the facing direction's right and up
+// components), radius, strength, and colour at full strength (its brightness included). Between them the map is near-neutral
+// white. The hues come in clusters: pinks and magentas, peach and gold, red-orange, a little violet-blue; no green or cyan.
+const SPARK_LOBES_DEF = [
+  // x,     y,     r,  strength  colour
+  [-0.92, -0.50, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [-0.66, -0.50, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.14, -0.50, 0.154, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [0.12, -0.50, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.90, -0.50, 0.154, 1.5, [1.00, 0.35, 0.65]], // pink
+  [-0.53, -0.20, 0.154, 1.5, [1.00, 0.35, 0.65]], // pink
+  [-0.01, -0.20, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.25, -0.20, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [0.77, -0.20, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.92, 0.10, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.66, 0.10, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.14, 0.10, 0.154, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [0.12, 0.10, 0.154, 1.5, [1.00, 0.62, 0.35]], // peach
+  [0.38, 0.10, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [0.90, 0.10, 0.154, 1.5, [0.55, 0.45, 1.00]], // violet-blue
+  [-0.53, 0.40, 0.154, 1.5, [1.00, 0.72, 0.22]], // gold
+  [-0.01, 0.40, 0.154, 1.5, [1.00, 0.30, 0.12]], // red-orange
+  [0.25, 0.40, 0.154, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [0.77, 0.40, 0.154, 1.5, [0.90, 0.25, 0.95]], // magenta
+  [1.03, 0.40, 0.154, 1.5, [1.00, 0.35, 0.65]], // pink
+];
+const SPARK_LOBES = SPARK_LOBES_DEF.length;
+const SPARK_LOBE_POS = new Float32Array(SPARK_LOBES_DEF.flatMap(l => [l[0], l[1], l[2], l[3]]));
+const SPARK_LOBE_COL = new Float32Array(SPARK_LOBES_DEF.flatMap(l => l[4]));
 let DITHER = 0.85; // output levels, peak
 

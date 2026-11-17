@@ -134,12 +134,19 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   pyramid read from that composite through a colour-keeping bright-pass
   (one weight per pixel from its brightest channel), with blue spread widest.
 - Sparkles are born uniformly over the surface's parameters, mostly in
-  bursts. They leave in a cone around the surface normal, with a held random
-  jitter, light gravity and friction. They ramp in and out linearly, spin,
-  and are sized in scene units with a partial turn towards the camera. They
-  are lit by a point light in front of the camera through an iridescent
-  colour map, with depth of field that grows a disc while keeping most of its
-  brightness, and a camera-facing glint that follows the highlight. They are
+  bursts. They leave in a cone around the surface normal, with a random push
+  that is mostly redrawn each step and a small part of it held for life, light
+  gravity and friction. The box they live in is drawn in to just outside the
+  picture, so a sparkle that has left the picture does not hold its slot. They ramp in and out linearly, spin,
+  and are hard-edged discs sized in scene units; only the near, large ones
+  turn towards the camera, so the rest pass through edge-on and twinkle. They
+  are lit by a point light in front of the camera, the highlight tinted at
+  full strength by an iridescent colour map of coloured patches (pinks,
+  magentas, peach, gold, red-orange, violet-blue) between near-neutral
+  regions, with depth of field whose far side lies inside the field, so
+  the farthest few grow into soft discs while keeping most of their brightness,
+  and a camera-facing glint whose wide patch holds its light near the middle,
+  giving a bright sparkle a sharp core in a faint skirt. They are
   drawn straight onto the output after the final pass.
 - Four moods (night, dawn, day, dusk) each hold a full parameter set
   (shading, camera tilt, exposure and tone curve, glare and sparkles) and
@@ -182,18 +189,32 @@ README).
 
 ## Status
 
-Built to spec version 24 (section 3, the background, to version 23) and tuned against the original's recordings in
-`comparison/original/`, measured with the same tools as my renders (see
-`docs/references/tuning-log.md`). Matched: the band's centre speed and
+Built to spec version 25 (section 3, the background, to version 23) and tuned
+against the original's recordings in `comparison/original/` and the lossless
+reference renders of the footage index, measured with the same tools as my
+renders (see `docs/references/tuning-log.md`). Matched: the band's centre speed and
 height change over time, the sideways drift of the dark partings, the number
 of strands per column, the band's brightness at night, and the sparkles'
-count, brightness, look and motion at noon. The geometry checks of 4.4d
+in-focus size, brightness range, colour (share and strength of the coloured
+minority, its tie to brightness, its hues), twinkle and motion over all 16
+reference conditions. The sparkles yield slightly fewer separate points per
+frame than the original (about 847 against 886 at full size over four hours of
+15 October, after the bounding box was drawn in so that 0.62-0.65 of the full
+pool is inside the picture rather than 0.49; in the fixed battery's own measure
+772 against 801, inside the original's range, with 21 of its 22 sparkle measures
+within range at seed 1), and slightly too many of them move upwards. The out-of-focus discs now come from the far side of the focus range
+(14-22 a frame at 00, 06 and 12 h against the original's 11-24, but only 5 at
+18 h against 13, and all of them about 10 px wide against 12-22); a bright
+core's halo matches the original's profile from 3 px out to 15 px; and a
+sparkle's path bends and wanders as the original's does. The brightest tenth of
+the sparkles is still too bright (peak 55-72 levels against 46-51), which goes
+with the faint end being too thin (11-14 % of the points in the lowest band
+against 16 %). The geometry checks of 4.4d
 (framing, depth, camera below the sheet) and 4.5 (where the sheet sits on the
 shading curves) pass in every mood. Still short of the original: the picture
 changes faster (0.08 correlation after one second against 0.15-0.36), the swell
 crosses a little quickly (20 s against 25-107 s), the band arches less and is
-thinner, its lines stand out more over the band, and the brightest sparkles
-are a little dim. The background is fitted to the original's 19 recordings
+thinner, and its lines stand out more over the band. The background is fitted to the original's 19 recordings
 and renders (15 January, April, July and October at four hours, 15 and 29
 October 21:30): each month's day and night image is a painted picture held as
 a coarse grid of colours (version 23), fitted together with the lighting over

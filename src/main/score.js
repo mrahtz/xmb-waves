@@ -54,7 +54,7 @@ function render(opts) {
   return { width: o.w, height: o.h, data };
 }
 
-window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, moodAt, nightWeight, sceneParams,
+window.XMBW = { ready: Promise.resolve(), render, _internals: { PALETTES, MOODS, WAVE, SPARKR, CAMERA, SIMM, LOBES: SPARK_LOBES_DEF, moodAt, nightWeight, sceneParams,
   bg: { BGL, BGW, PALETTES, grid: [BG_GRID_W, BG_GRID_H, BG_NGRID_H], remake: remakeBackgroundImages, colorAt: bgColorAt } } };
 if (SCORE) { canvas.style.display = 'none'; return; }
 

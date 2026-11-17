@@ -177,14 +177,16 @@ group('Sparkles', [
   field('SPARKR', SPARKR, 'tiltPow', 'edge-on fade', 0.5, 10, 0.1),
   field('SPARKR', SPARKR, 'glintSize', 'glint size', 1, 10, 0.1),
   field('SPARKR', SPARKR, 'glintBright', 'glint brightness', 0, 0.5, 0.005),
-  field('SPARKR', SPARKR, 'turn', 'turn towards camera', 0, 1, 0.01), field('SPARKR', SPARKR, 'mapSat', 'colour map saturation', 0, 1, 0.01),
+  field('SPARKR', SPARKR, 'turn0', 'turn to camera from (px)', 0, 40, 0.1), field('SPARKR', SPARKR, 'turn1', 'turned fully at (px)', 0.1, 60, 0.1),
+  field('SPARKR', SPARKR, 'edge', 'edge width (px)', 0, 3, 0.05), field('SPARKR', SPARKR, 'minPx', 'smallest radius (px)', 0, 2, 0.05),
+  field('SPARKR', SPARKR, 'mapStr', 'colour map strength', 0, 4, 0.01), field('SPARKR', SPARKR, 'mapR', 'colour patch size', 0.1, 3, 0.01),
   sim('SPARK.burstP', 'burst chance', 0, 1, 0.01), sim('SPARK.burstN', 'burst size', 1, 40, 1),
   sim('SPARK.walkerP', 'walker chance', 0, 0.3, 0.005), sim('SPARK.walkStep', 'walker step', 0.005, 0.2, 0.005),
   sim('SPARK.cone', 'birth cone', 0, 1, 0.01), sim('SPARK.reverseP', 'reversed births', 0, 0.5, 0.01),
   sim('SPARK.speedK', 'speed factor', 0, 1, 0.01), sim('SPARK.speedPow', 'speed exponent', 0.1, 1.5, 0.01), sim('SPARK.speedMin', 'minimum speed', 0, 0.2, 0.005),
   sim('SPARK.rateMean', 'ageing rate', 0.02, 0.5, 0.005), sim('SPARK.rateSpread', 'ageing spread', 0, 1, 0.01),
-  sim('SPARK.jitter', 'jitter', 0, 0.05, 0.0005), sim('SPARK.gravity', 'gravity', -0.005, 0.005, 0.0001), sim('SPARK.friction', 'friction', 0, 1, 0.01),
-  sim('SPARK.jitterRedraw', 'jitter redraws per second', 0, 5, 0.01), sim('SPARK.spinA', 'spin', 0, 6, 0.05),
+  sim('SPARK.jitter', 'jitter', 0, 0.3, 0.002), sim('SPARK.gravity', 'gravity', -0.005, 0.005, 0.0001), sim('SPARK.friction', 'friction', 0, 1, 0.01),
+  sim('SPARK.jitterHeld', 'jitter held for life (share)', 0, 1, 0.01), sim('SPARK.spinA', 'spin', 0, 6, 0.05),
 ]);
 let currentMood = null, tunePending = false;
 function paramValue(it) { // the value in effect

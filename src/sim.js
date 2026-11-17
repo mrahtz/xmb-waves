@@ -65,17 +65,22 @@ function XMBW_SIM() {
     burstP: 0.6, burstN: 12,
     walkers: 1, walkerP: 0.02, walkMin: 40, walkMax: 220, walkStep: 0.045, // patches per step
     cone: 0.6, reverseP: 0.12,                      // cone: half-angle (rad) of the birth cone, deviation spread evenly up to it
-    speedK: 0.29, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
+    speedK: 0.25, speedPow: 0.5, speedMin: 0.033, // scene units / s: on screen about as fast as the band's lines rise and fall
     rateMean: 1 / 6.5, rateSpread: 0.30, rateMin: 1 / 14, // life per second
-    rampIn: 0.04, rampOut: 0.07,                    // short linear ramps of the life (fraction), the fade-in the quicker
-    // jitter (spec 17): each sparkle's push, one value per axis, is held for long stretches (redrawn jitterRedraw times per
-    // second on average), a small steady acceleration differing from sparkle to sparkle; gravity and friction are weak
-    jitter: 0.004, jitterRedraw: 0.3, gravity: 0.0002, friction: 0.03,  // per second units
+    rampIn: 0.025, rampOut: 0.045,                    // short linear ramps of the life (fraction), the fade-in the quicker
+    // jitter (spec 25): the push, one value per axis, is mostly redrawn every step, but the share jitterHeld of its
+    // strength is drawn once at birth and never changes, so a sparkle's average push is not quite zero: shimmer about a
+    // straight course with a slow one-way bend building up over a long life. Gravity and friction are weak
+    jitter: 0.05, jitterHeld: 0.15, gravity: 0.0002, friction: 0.03,  // per second units
     // spin (spec 17): the same schedule over every sparkle's life: angular velocity per axis = spinA x
     // sin(2 pi x spinCycles[axis] x life fraction + spinPhase[axis])
-    spinA: 2.2, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
-    box: [[-10, 10], [-6, 6], [-3.5, 9]],          // the bounding box: its faces lie outside the view
-    boxFade: 0.8,                                   // sparkles fade out over this distance from the box's faces
+    spinA: 4.0, spinCycles: [0.9, 1.4, 0.6], spinPhase: [0.3, 2.1, 4.0],
+    // the bounding box: more generous across the width and in depth than along the length, and (spec 25) no farther
+    // outside the picture than it has to be, so a sparkle that has left the picture does not hold its slot for the rest
+    // of its life. Along the length the faces sit just beyond the farthest a sparkle inside the picture ever reaches
+    // (measured with tools/measure/sparkpool.js), so the fade below is still never seen on screen
+    box: [[-4.4, 6.6], [-6, 6], [-3.5, 9]],
+    boxFade: 0.30,                                  // sparkles fade out over this distance from the box's faces
   };
   const SPARK_STRIDE = 11; // prev xyz, cur xyz, facing xyz, opacity, random
 
@@ -302,7 +307,9 @@ function XMBW_SIM() {
       const k = i * 3;
       sp[k] = spPrev[k] = P1[0]; sp[k + 1] = spPrev[k + 1] = P1[1]; sp[k + 2] = spPrev[k + 2] = P1[2];
       sv[k] = dx * speed; sv[k + 1] = dy * speed; sv[k + 2] = dz * speed;
-      sJit[k] = SPARK.jitter * gauss(); sJit[k + 1] = SPARK.jitter * gauss(); sJit[k + 2] = SPARK.jitter * gauss();
+      // the unchanging part of the push, drawn once and kept for the whole life (spec 25)
+      const jh = SPARK.jitter * SPARK.jitterHeld;
+      sJit[k] = jh * gauss(); sJit[k + 1] = jh * gauss(); sJit[k + 2] = jh * gauss();
       sAge[i] = 0;
       sRate[i] = Math.max(SPARK.rateMin, SPARK.rateMean * (1 + SPARK.rateSpread * gauss()));
       // random initial orientation
@@ -331,13 +338,16 @@ function XMBW_SIM() {
     }
 
     function stepSparks() {
-      const fr = SPARK.friction, g = SPARK.gravity, jit = SPARK.jitter, box = SPARK.box;
+      const fr = SPARK.friction, g = SPARK.gravity, box = SPARK.box;
+      // the push's fresh part, redrawn every step: the strength left over once the unchanging part is taken out, so
+      // jitter is the whole push's strength and jitterHeld only moves it between the two parts
+      const jf = SPARK.jitter * Math.sqrt(Math.max(0, 1 - SPARK.jitterHeld * SPARK.jitterHeld));
       for (let i = 0; i < S; i++) {
         if (!alive[i]) continue;
         const k = i * 3;
         spPrev[k] = sp[k]; spPrev[k + 1] = sp[k + 1]; spPrev[k + 2] = sp[k + 2];
-        if (rng() < SPARK.jitterRedraw * DT) { sJit[k] = jit * gauss(); sJit[k + 1] = jit * gauss(); sJit[k + 2] = jit * gauss(); }
-        const ax = sJit[k] - fr * sv[k], ay = sJit[k + 1] - g - fr * sv[k + 1], az = sJit[k + 2] - fr * sv[k + 2];
+        const ax = sJit[k] + jf * gauss() - fr * sv[k], ay = sJit[k + 1] + jf * gauss() - g - fr * sv[k + 1],
+          az = sJit[k + 2] + jf * gauss() - fr * sv[k + 2];
         sv[k] += ax * DT; sv[k + 1] += ay * DT; sv[k + 2] += az * DT;
         sp[k] += sv[k] * DT; sp[k + 1] += sv[k + 1] * DT; sp[k + 2] += sv[k + 2] * DT;
         sAge[i] += sRate[i] * DT;
