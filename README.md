@@ -192,8 +192,9 @@ minority, its tie to brightness, its hues), twinkle and motion over all 16
 reference conditions. The sparkles yield slightly fewer separate points per
 frame than the original (about 847 against 886 at full size over four hours of
 15 October, after the bounding box was drawn in so that 0.62-0.65 of the full
-pool is inside the picture rather than 0.49), and slightly too many of them move
-upwards. The out-of-focus discs now come from the far side of the focus range
+pool is inside the picture rather than 0.49; in the fixed battery's own measure
+772 against 801, inside the original's range, with 21 of its 22 sparkle measures
+within range at seed 1), and slightly too many of them move upwards. The out-of-focus discs now come from the far side of the focus range
 (14-22 a frame at 00, 06 and 12 h against the original's 11-24, but only 5 at
 18 h against 13, and all of them about 10 px wide against 12-22); a bright
 core's halo matches the original's profile from 3 px out to 15 px; and a
