@@ -54,9 +54,11 @@ function gridColour(G, gw, gh, u, v) {
   }
   return o;
 }
-// Background images: day and night for each month, stacked in one texture.
+// Background images: day and night for each month, stacked in one texture. The same values stay in bgImageData, which
+// bgColorAt below reads to give the background's colour outside a render.
+let bgImageData = null;
 function makeBackgroundImages() {
-  const tiles = 24, data = new Float32Array(BG_W * BG_H * tiles * 4);
+  const tiles = 24, data = bgImageData = new Float32Array(BG_W * BG_H * tiles * 4);
   const put = (tile, x, y, c) => { const o = ((tile * BG_H + y) * BG_W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 1; };
   PALETTES.forEach((P, m) => {
     for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
@@ -131,7 +133,9 @@ gl.bufferData(gl.ARRAY_BUFFER, 4096 * SPARK_STRIDE * 4, gl.DYNAMIC_DRAW);
 gl.bindVertexArray(null);
 
 // Render targets. cw x ch: the scene render size; ow x oh: the output size.
-// The wave is drawn into its own buffer at ss times the render size.
+// The wave is drawn into its own buffer at ss times the render size. The buffer holds one half-float intensity, which has
+// ample precision and range for what the band stacks; spec 27 says that this choice - its precision, its range and whether
+// it saturates - changes the finished picture by less than the dither moves it, so it is left as it is.
 let RT = null;
 const MAX_TEX = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 function ensureTargets(cw, ch, ow, oh, ss) {

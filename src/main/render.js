@@ -180,7 +180,9 @@ function buildGlare(m, bgT, bgOn, waveOn) {
     bindTarget(l.b); gl.bindTexture(gl.TEXTURE_2D, l.a.tex); gl.uniform2f(pr.u.uDir, 1 / l.w, 0); quad();
     bindTarget(l.c); gl.bindTexture(gl.TEXTURE_2D, l.b.tex); gl.uniform2f(pr.u.uDir, 0, 1 / l.h); quad();
   }
-  // weighted sum, coarsest to finest (geometric weights)
+  // weighted sum, coarsest to finest (geometric weights, so level i carries glareRatio ** i and the finest level weighs
+  // most - the ordering spec 27 confirms: the coarse levels give the halo its shape and nothing a measure of the finished
+  // frame can see, so a glare that lifts a broad area is a broad bright-pass and not a mis-weighted pyramid)
   pr = PR.combine; gl.useProgram(pr.p); gl.uniform1i(pr.u.uT, 0); gl.uniform1i(pr.u.uCoarse, 1);
   let acc = lv[lv.length - 1].c, wsum = 1, wk = 1;
   for (let i = lv.length - 2; i >= 0; i--) {

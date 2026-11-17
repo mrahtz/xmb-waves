@@ -139,7 +139,10 @@ vec3 bicubicBg(vec2 uv){
        + g1.y * (g0.x * texture(uBg, vec2(p0.x, p1.y)).rgb + g1.x * texture(uBg, vec2(p1.x, p1.y)).rgb);
 }`;
 // Down-filter over the supersampled wave buffer: a box exactly one destination pixel wide (n x n bilinear taps over
-// uWTexel, the destination pixel size in uv, times uWSpread = 1).
+// uWTexel, the destination pixel size in uv, times uWSpread = 1), weighting every supersample of the block alike.
+// Spec 27: neither this weighting nor the buffer's precision or range decides whether the band reads as one fused tube or
+// as distinct ribbons - a plain average and a weighting that leans on one sample differ in grain, not in the width or the
+// separation of anything - so these are left as they are and the band's structure is looked for in the sheet (4.1, 4.4).
 const GLSL_WAVEBOX = `
 uniform sampler2D uWave; uniform vec2 uWTexel; uniform int uWTaps; uniform float uWSpread;
 float waveBox(vec2 uv){
