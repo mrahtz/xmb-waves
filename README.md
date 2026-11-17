@@ -121,14 +121,18 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   saturation and value and the two months are then mixed (next month's
   rising from the bottom). One angle of a warped hour drives a sun-like spot
   whose centre goes round an oval larger than the frame and a mirrored band
-  of light along the bottom edge, which broadens around midday; the two
-  lights' lifts add on top of a fixed share of the image's own colour, and
-  lit areas are brighter and paler. The same
-  angle sets the day image's daylight factor (a morning step times an evening
-  step, each with its own steepness) and, late in the evening and in the small
-  hours, blacks out its top and deepens its colour lower down. The
+  of light along the bottom edge, which broadens in a narrow window about
+  midday; the two lights' lifts add on top of a fixed share of the image's own
+  colour, and lit areas are brighter and paler. Every curve of the clock is a
+  product of one pair of smooth steps, placed where the spot crosses the
+  bottom edge and taken at a gentler or a sharper rate in fixed proportion:
+  the day image's daylight factor (gentle in the morning, sharp in the
+  evening), the fading of the day image up the frame late in the evening and
+  in the small hours (gentle at both ends) and the deepening of its colour up
+  the frame (sharp at both ends), both proportional in the height. The
   night images are only scaled in brightness: lit by the same two lights on
-  an unwarped clock, under an envelope across the night and above a floor.
+  an unwarped clock, under an envelope across the night (two of the same
+  steps), above a floor, and faded up the frame at either end of the night.
 - The composite of background and wave goes through each mood's exposure and
   an extended Reinhard tone curve with a white point. The glare is a bloom
   pyramid read from that composite through a colour-keeping bright-pass
@@ -189,7 +193,7 @@ README).
 
 ## Status
 
-Built to spec version 25 (section 3, the background, to version 23) and tuned
+Built to spec version 28 (sections 4 to 6 to version 25) and tuned
 against the original's recordings in `comparison/original/` and the lossless
 reference renders of the footage index, measured with the same tools as my
 renders (see `docs/references/tuning-log.md`). Matched: the band's centre speed and
@@ -216,13 +220,18 @@ changes faster (0.08 correlation after one second against 0.15-0.36), the swell
 crosses a little quickly (20 s against 25-107 s), the band arches less and is
 thinner, and its lines stand out more over the band. The background is fitted to the original's 19 recordings
 and renders (15 January, April, July and October at four hours, 15 and 29
-October 21:30): each month's day and night image is a painted picture held as
-a coarse grid of colours (version 23), fitted together with the lighting over
-all of them. Where the wave does not cover it, the mean absolute difference
-per channel is about 2.3 levels, against 3.1 before the latest joint re-tune,
-9.5 before this background and
-10.5-12.3 before the version-19 one; by hour it is 1.2 at midnight, 1.5 at
-dawn, 3.3 at noon, 3.8 at dusk and 0.7 at 21:30.
+October 21:30) and to six renders asked for at hours between them (15 October
+04:00, 09:00, 15:00 and 20:00; 15 April 04:00 and 09:00): each month's day and
+night image is a painted picture held as a coarse grid of colours (day 3 x 6,
+night 3 x 7), and every curve of the clock is a product of one pair of smooth
+steps taken at two rates in fixed proportion (version 28), the images, the
+lights and the rates fitted together over all 25 conditions. Where the wave
+does not cover it, the mean absolute difference per channel is about 1.5
+levels, against 2.3 before this background, 3.1 before the joint re-tune that
+preceded it, 9.5 before the version-23 one and 10.5-12.3 before the
+version-19 one; by hour it is 1.3 at midnight, 1.6 at dawn, 1.4 at noon, 2.0
+at dusk and 1.0 at 21:30. The hours in the shoulders of the day, which the
+index does not cover, went from 8.9 levels to 1.1.
 The composite's black offset, each mood's exposure and the twelve month palettes are fitted
 together to the original's renders and recordings at four months (January, April, July, October) and four hours
 (`tools/measure/jointfit.py`, with the offset swept around the fit). The offset is a three-way trade:
@@ -231,19 +240,21 @@ night picture's black top wants it near 0.03, and the background away from the b
 offset cuts the dark end where the palettes can only scale colours. At the chosen 0.03 the night band's colour is
 within 0.023 RMS of the original's channel shares, the black top is 0.0195 H from the original's on average
 (0.29-0.35 H there), the band's added light by day is within 0.002 of the original's channel shares, and
-background pixels away from the band differ by about 2.3 levels per channel on average (the three band-colour
-and black-top figures were measured before the latest joint re-tune moved each mood's exposure and have not
-been measured again since). July's and October's
+background pixels away from the band differ by about 1.5 levels per channel on average (the three band-colour
+and black-top figures were measured before the joint re-tune moved each mood's exposure, and before the
+version-28 background fit moved the palettes again, and have not been measured since; the exposures and the
+black offset were not touched by that fit). July's and October's
 night bands lean towards the background's colour as the original's do, though less (R share 0.29 against 0.24
 in July), and months whose night palette is more coloured than the original's lean where the original's stay neutral.
 The band's brightest places compare left to right as the original's do.
 Each mood's bright-pass threshold sits inside the bracket measured on the original's footage (spec 24), and the night runs
-the same glare chain without any halo (at most one output level). But my brightest day background is the sun spot at the top,
-brighter than the original's brightest part, so by day my background glares by itself in eight months instead of only
-around the turn of the year, as a visible blob over the spot. Spec 5 puts dusk's glare first, and mine still puts day's first.
-Still short: the background's remaining error is hour structure that neither the exposure nor the palettes' level
-can reach - at noon the picture is about 3 levels out, in every month, which
-is the day image's hour curve (the daylight factor and the two lights); and the band carries about 9 levels more
+the same glare chain without any halo (at most one output level). With the version-28 background the day picture's own
+maximum at midday has come down (January 0.76 to 0.69, July 0.69 to 0.67, December 0.77 to 0.76 against the day mood's
+threshold of 0.68), so the background now glares by itself around the turn of the year, as spec 24 says the original does,
+rather than in eight months. Spec 5 puts dusk's glare first, and mine still puts day's first.
+Still short: the background's largest remaining errors are at dusk (2.0 levels) and at midnight, where the bottom edge's
+left-to-right lean runs the wrong way in January and October (2.5 and 3.9 levels across the bottom band) - the night
+image's own painted lean rather than its lighting; and the band carries about 9 levels more
 mean light over the background than the original's (50 against 41), though its peak is within 5.
 At night that excess is the sparkles rather than the band: at 00:00 the brightest point of a band column is now a
 sparkle, not a fold (130 levels over the background against the original's 105), and the band's mean over the
@@ -255,11 +266,13 @@ on its own (the footage shows two-month mixes on the 15th, and November nearly
 alone on 29 October), so the split between a month and the next, the palettes
 of March, June, September and December and the size of the mid-month
 saturation drop are design choices that follow the spec; likewise the look
-between 01:00 and 05:00 and between 18:00 and 21:30, which follows the spec's
-description (section 3, N8). The daylight factor's evening fall is built as its own fitted step (version 23), but
-the footage at 06:00 and 18:00 makes it as shallow as the morning rise rather than steeper, so the asymmetry
-version 23 describes is in the structure and not in the fitted values; the hours that would settle it, between
-18:00 and 21:30, are not in the footage.
+between 01:00 and 03:00 and between 22:00 and 23:30, which follows the spec's
+description (section 3, N8). The day's own light is built as spec 28 says - a
+gentler morning step times a sharper evening one, the two rates in fixed
+proportion - and the footage now reaches into both shoulders (04:00 and
+20:00), but it asks for only a mild difference between the two rates (the
+sharper is 0.81 of the gentler); which end of the day is the sharp one is
+taken from the specification and not fitted.
 
 Performance has been checked only in a software renderer (headless Chromium
 with SwiftShader), where the frame time goes to drawing rather than to the
