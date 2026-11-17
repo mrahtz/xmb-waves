@@ -1,4 +1,4 @@
-# usage: python3 jointfit.py BATTERY_DIR [STEP] [--dry]
+# usage: python3 jointfit.py BATTERY_DIR [STEP] [--dry] [--exposure-only]
 # One joint fitting step of the shared settings (each mood's exposure, the month palettes) from a battery run (battery.py
 # --seeds ..., the seed<N>/clips.json files): the original's recordings and renders against the clean renders at the same
 # conditions (the 16 conditions at months 1, 4, 7, 10 and 00, 06, 12, 18 h, 40 s after the start).
@@ -12,10 +12,11 @@
 #     bottom colours (mid: their mean; glow: as top) from the day hours 06, 12 and 18; the night colour from the bottom row at
 #     00 h. Months without footage get the mean of the four months' factors. Each factor ** STEP, kept to 0.8-1.25 (near-black
 #     channels give unstable ratios).
-# Rewrites src/main/scene.js in place (not with --dry) and prints the factors. STEP defaults to 0.7.
+# Rewrites src/main/scene.js in place (not with --dry) and prints the factors. STEP defaults to 0.7. --exposure-only rewrites
+# only the moods' exposures and leaves the palettes as they are (the palettes' factors are still printed).
 import sys, os, re, json, numpy as np
 from collections import defaultdict
-args = [a for a in sys.argv[1:] if not a.startswith('--')]; dry = '--dry' in sys.argv
+args = [a for a in sys.argv[1:] if not a.startswith('--')]; dry = '--dry' in sys.argv; exp_only = '--exposure-only' in sys.argv
 d = args[0]; step = float(args[1]) if len(args) > 1 else 0.7
 seeds = [s for s in sorted(os.listdir(d)) if s.startswith('seed')]
 ROWS = {'top': ('top_left', 'top_right'), 'bottom': ('bottom_left', 'bottom_right')}
@@ -74,7 +75,7 @@ def scale(txt, key, f, hi=1.0):
 out = []
 for line in s.split('\n'):
     m = re.match(r'  /\*\s*(\d+) ', line)
-    if m and 'top:' in line:
+    if m and 'top:' in line and not exp_only:
         top, bot, nig = pal.get(int(m.group(1)), mean)
         line = scale(line, 'top', top); line = scale(line, 'bottom', bot); line = scale(line, 'mid', (top + bot) / 2)
         line = scale(line, 'glow', top)

@@ -200,7 +200,7 @@ uniform vec3 uTintL, uTintR; uniform float uGlareK, uDitherAmp, uFrame;
 float h12(vec2 p){ vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 void main(){
   vec3 c = vec3(0.0);
-  if (uBgOn == 1) c += bicubicBg(vUv);                               // no tint on the background
+  if (uBgOn == 1) c += bicubicBg(vUv);  // no tint here: the whole top-to-bottom profile is in the background's own colours (spec 24)
   if (uWaveOn == 1) c += waveBox(vUv) * mix(uTintL, uTintR, vUv.x);  // a neutral tint brightening slightly to the right
   c = toneMap(c);
   if (uGlareOn == 1) c += uGlareK * texture(uGlare, vUv).rgb;

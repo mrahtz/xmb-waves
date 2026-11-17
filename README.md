@@ -174,7 +174,7 @@ README).
 
 ## Status
 
-Built to spec version 20 and tuned against the original's recordings in
+Built to spec version 24 and tuned against the original's recordings in
 `comparison/original/`, measured with the same tools as my renders (see
 `docs/references/tuning-log.md`). Matched: the band's centre speed and
 height change over time, the sideways drift of the dark partings, the number
@@ -185,14 +185,19 @@ shading curves) pass in every mood. Still short of the original: the picture
 changes faster (0.08 correlation after one second against 0.15-0.36), the swell
 crosses a little quickly (20 s against 25-107 s), the band arches less and is
 thinner, its lines stand out more over the band, and the brightest sparkles
-are a little dim. The night picture's black top reaches as far down as the original's
-(0.336 H against 0.332 H), and the band's brightest places compare left to right as the original's do.
-By day the band's light at the glare's coarse resolution is about a third short of the original's and the
-day and dusk backgrounds are brighter, so the daytime glare is faint and some months' backgrounds glare by
-themselves (see the tuning log). The palettes and each mood's exposure are fitted together to the
+are a little dim. The composite's black offset is fitted on the colour the band's light takes over the dark parts of a night frame
+(spec 24; twelve months of the original's renders): July's and October's night bands now lean towards the background's colour
+as the original's do, though less (R share 0.28 against 0.24 in July), and months whose night palette is more coloured than the
+original's lean where the original's stay neutral. The night picture's black top now reaches 0.36-0.38 H (the original 0.29-0.35 H).
+The band's brightest places compare left to right as the original's do.
+Each mood's bright-pass threshold sits inside the bracket measured on the original's footage (spec 24), and the night runs
+the same glare chain without any halo. But my brightest day background is the sun spot at the top, about 0.1 brighter than the
+original's brightest part, so by day my background glares by itself in ten months instead of only around the turn of the year,
+as a visible blob over the spot in June and August (see the tuning log). The palettes and each mood's exposure are fitted together to the
 original's renders and recordings at four months (January, April, July, October) and four hours
-(`tools/measure/jointfit.py`; background pixels away from the band differ by about 9.5 levels per channel
-on average, against 11.9 before). Still short: at dawn the background is about 6 levels dark, because the
+(`tools/measure/jointfit.py`). After the offset change of spec 24 each mood's exposure was re-fitted but the palettes
+were not, so the background away from the band now reads darker than the original's (6-44 % by mood) while the band reads slightly
+bright; the palettes want re-fitting to the new offset. Still short: at dawn the background is darkest relative to the original, because the
 exposure keeps the spec's order of the moods (dawn only slightly above day); by day the sun spot at the top
 is too bright and the bottom too dark.
 

@@ -36,28 +36,32 @@ const MOOD_KEYS = [
   'exposure', 'white', 'glareThr', 'glareSigma', 'glareRatio', 'glareStrength',
   'focusFar', 'sparkSize', 'sparkBright', 'glint',
 ];
-// The composite's black offset (spec 4.5, version 20): the same in every mood (the moods set only the gain and the white
-// point). Fitted on the original's night footage: how far down a night frame the top stays flat at the darkest level.
-let TONE_BLACK = 0.02;
-// Glare (spec 5, version 20): each mood's bright-pass threshold is fixed, in the composite's output units after its curve.
-// Fitted with the glare layer switched on and off: the most halo at dusk, less by day (faint), least at dawn; at night the
-// threshold sits well above anything in the picture, so the night has none whatever the strength.
+// The composite's black offset (spec 4.5, versions 20 and 24): the same in every mood (the moods set only the gain and the
+// white point). Fitted on the colour the band's added light takes over the dark parts of a night frame (the background's weak
+// channels are cut away, so the band carries its colour): the original's renders at 00:00 in all twelve months against mine
+// (tools/measure/bandcolour.py), with the daytime band checked to stay as near-neutral as the original's.
+let TONE_BLACK = 0.09;
+// Glare (spec 5, versions 20 and 24): each mood's bright-pass threshold is fixed, in the composite's output units after its
+// curve, and the same chain runs in every mood. Placed inside the brackets measured on the original's footage at the bright-pass's
+// resolution (tools/measure/brightfoot.py): by day between July's brightest background (which does not glare) and January's and
+// December's (which do); at dawn and dusk above every background and below the dimmest month's brightest fold; at night above the
+// band's brightest folds, so the night is free of halo on the screen.
 const MOODS = {
   night: { waveBright: 0.22, base: 1.6, fres: 1.7, sizeK: 0.54,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -3,
-    exposure: 1.454, white: 1.0, glareThr: 1.2, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
+    exposure: 2.495, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
   dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -8,
-    exposure: 1.164, white: 1.0, glareThr: 0.78, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.326, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
   day: { waveBright: 0.15, base: 1.2, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -8,
-    exposure: 1.058, white: 0.9, glareThr: 0.76, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.205, white: 0.9, glareThr: 0.68, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
   dusk: { waveBright: 0.24, base: 1.8, fres: 1.6, sizeK: 0.54,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -8,
-    exposure: 1.207, white: 1.0, glareThr: 0.92, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
+    exposure: 1.422, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 30.0, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
 };
 // Mood schedule (local hours): hold windows and blends between them.
