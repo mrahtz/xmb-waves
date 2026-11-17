@@ -5,6 +5,7 @@
 #   --noise          the index's noise clips (a build: at each clip's own seed and time since start)
 #   --only ID1,ID2   only the conditions whose id (date_hhmm) contains one of these
 #   python3 spark21set.py table DIR1 DIR2 ...      (mean over the conditions of each measure, side by side)
+#   --tool spark25.py  run that tool on each condition instead of spark21.py (the same command line)
 # The conditions are the index's 'render' clips of 10 s (16 of them: four months at 00:00, 06:00, 12:00 and 18:00). Each is
 # measured over FRAMES consecutive frames (60 fps) starting AT frames into the clip; a build is rendered at simulation frame
 # 60 * since_start_s + AT with the clip's date, time and colour.
@@ -51,6 +52,7 @@ def main():
     kind = a[0]
     if '--noise' in a:   # the index's noise clips instead (two conditions, several seeds and times since start each)
         global NOISE; NOISE = True
+    global TOOL; TOOL = opt(a, '--tool', 'spark21.py')
     frames = int(opt(a, '--frames', 60)); at = int(opt(a, '--at', 120)); procs = int(opt(a, '--procs', 8))
     if kind == 'footage': out = a[1]
     else: page, out = a[1], a[2]; seed = int(opt(a, '--seed', 1)); layers = opt(a, '--layers', None)
@@ -62,12 +64,12 @@ def main():
         js = os.path.join(out, cid(c) + '.json')
         if os.path.exists(js): continue
         if kind == 'footage':
-            cmd = [sys.executable, os.path.join(HERE, 'spark21.py'), 'footage', c['path'], str(at), str(frames), '--json', js]
+            cmd = [sys.executable, os.path.join(HERE, TOOL), 'footage', c['path'], str(at), str(frames), '--json', js]
         else:
             w, h = c['size'].split('x')
             o = {'time': c['date'] + 'T' + c['time'], 'seed': c['seed'] if NOISE else seed, 'w': int(w), 'h': int(h), 'theme': c['colour']}
             if layers: o['layers'] = layers
-            cmd = [sys.executable, os.path.join(HERE, 'spark21.py'), 'build', page, json.dumps(o),
+            cmd = [sys.executable, os.path.join(HERE, TOOL), 'build', page, json.dumps(o),
                    str(60 * c['since_start_s'] + at), str(frames), '--json', js]
         jobs.append(cmd)
     with ThreadPoolExecutor(procs) as ex:
