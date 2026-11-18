@@ -195,6 +195,7 @@ camera, the wave settings and literal replacements. `apply.py` takes the same ke
 | `cycle.py` | Band peak and mean brightness over the background, mine beside the reference frames. |
 | `cmp46.py` | Tabulates several statistics files side by side (median and range per measure). |
 | `battery.py`, `battery_frames.py`, `battery_render.js` | The fixed battery (above): footage and clean renders at the same conditions, every measure, `metrics.json`. |
+| `gate.py` | The merge gate's own test from two battery runs at three seeds each: per lane, how many measures lie inside the original's (or the noise clips') range at every seed before and after; the measures that move away from the original by the largest fraction of that measure's own range, which is what the gate tests; and the crossings in and out of range. |
 | `bgremove.py` | Removes the background from reference frames and clip frames. |
 | `scoreset.py`, `scoreset.json` | The background lane's scored set as one footage index: the measured index plus the conditions named in `scoreset.json`, resolved against the requested footage index (above). |
 | `bgtable.py` | The background's pixel error by condition, by month and by hour, from a battery run's `bgpixel.json` (`bgpixel.<region>.{R,G,B}_absmean`, the mean over the three channels, and the mean over the clips of a condition). A second `bgpixel.json` is shown beside the first with the change, which is how a fit's before and after are read. |
