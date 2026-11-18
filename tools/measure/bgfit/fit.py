@@ -15,7 +15,8 @@ while i < len(argv):
 PAGE, OUT = args[0], args[1]; GENS = int(args[2]) if len(args) > 2 else 200; NW = int(args[3]) if len(args) > 3 else 6
 np.random.seed(int(opt.get('seed', 1)))
 META = json.load(open(os.path.join(D, '..', 'work', 'bgfit', 'meta.json')))
-MONTHS = (0, 1, 3, 4, 6, 7, 9, 10)   # the months the footage shows (the 15th of a month shows it mixed with the next)
+MONTHS = tuple(range(12))   # every month (spec 33: every month wants footage of its own month, and the set now has it:
+# the 4th of each month shows it alone, the 15th shows it mixed with the next)
 
 class Worker:
     def __init__(s):
@@ -32,13 +33,15 @@ NDAY, NNIGHT = GW * GH * 3, GW * NGH * 3
 # spec 28: the clock's curves are all products of one pair of steps at two rates in fixed proportion (BGW.stepW and
 # BGW.stepRatio), placed where the spot's centre crosses the bottom edge (so BGL.ovalY places them too); the glow's
 # broadening now has a window (bandWideW) instead of an exponent; the shapings down the frame are proportional in the
-# height (no topPow); the night image has its own shaping (nightTop); and no floor stands in for a step's tail (no dayFloor)
+# height (no topPow); and no floor stands in for a step's tail (no dayFloor). Spec 33: one rate in the height
+# (BGL.heightRate) serves all three falls and only their clocks differ, so there is no topDark, topSat or nightTop to fit;
+# what the saturation's raise needs instead is the ceiling it levels off towards (BGL.satCeil).
 LIGHT = [('BGL', 'base', .25, .9), ('BGL', 'spot', 0, .75), ('BGL', 'ovalX', .55, 1.5), ('BGL', 'ovalY', .5, 1.6),
          ('BGL', 'spotW', .35, 1.5), ('BGL', 'spotH', .3, 1.4), ('BGL', 'glow', 0, .75), ('BGL', 'bandX', 0, .45),
          ('BGL', 'bandW', .35, 1.5), ('BGL', 'bandY', 0, .25), ('BGL', 'bandH', .2, 1.2), ('BGL', 'bandWide', 0, 2),
-         ('BGL', 'bandWideW', .03, .6), ('BGL', 'pale', 0, 2.2), ('BGL', 'midSat', .3, .8), ('BGL', 'topDark', .5, 8),
-         ('BGL', 'topSat', .5, 8), ('BGL', 'nightMix', .3, .8), ('BGL', 'nightBase', 0, .9),
-         ('BGL', 'nightFloor', .3, .8), ('BGL', 'nightTop', 0, 2), ('BGW', 'warp', .2, .9), ('BGW', 'noon', 11.5, 12.5),
+         ('BGL', 'bandWideW', .03, .6), ('BGL', 'pale', 0, 2.2), ('BGL', 'midSat', .3, .8),
+         ('BGL', 'heightRate', .5, 12), ('BGL', 'satCeil', 0, 8), ('BGL', 'nightMix', .3, .8), ('BGL', 'nightBase', 0, .9),
+         ('BGL', 'nightFloor', .1, .8), ('BGW', 'warp', .2, .9), ('BGW', 'noon', 11.5, 12.5),
          ('BGW', 'stepW', .15, 1.2), ('BGW', 'stepRatio', .15, .95)]
 def palspec(months):
     out = []
@@ -122,8 +125,11 @@ import colorsys
 def rows(G, gw, nr):
     return [[sum(G[(j * gw + i) * 3 + c] for i in range(gw)) / gw for c in range(3)] for j in range(nr)]
 def family_pen(b):
-    """keeps each fitted month in its colour family (spec 7): silver (January) near neutral, the others' rows within 20
-    degrees of hue of the starting images' and within a factor 1.5 in value"""
+    """keeps each fitted month in its colour family (spec 7): silver (January) near neutral, the others' rows within 45
+    degrees of hue of the starting images' and within a factor 2 in value. The bands were half this while most months
+    had no footage of their own and their starting images were the only evidence there was; with every month's own
+    footage in the set (spec 33) the footage is the better evidence, and the band only has to keep the month inside the
+    family section 7 names for it."""
     pen = 0
     for mo in BMON:
         P = b['PAL'][str(mo)]; P0 = DEF['PAL'][mo]
@@ -131,10 +137,10 @@ def family_pen(b):
             for r, r0 in zip(rows(P[k], GW, nr), rows(P0[k], GW, nr)):
                 h, sv, v = colorsys.rgb_to_hsv(*r); h0, s0, v0 = colorsys.rgb_to_hsv(*r0)
                 if v0 < 0.02: continue                              # a row the starting image leaves black
-                pen += 20 * max(0, abs(math.log(max(v, 1e-3) / v0)) - math.log(1.5))
+                pen += 20 * max(0, abs(math.log(max(v, 1e-3) / v0)) - math.log(2.0))
                 if mo == 0:
                     pen += 100 * max(0, sv - (0.12 if k == 'day' else 0.35)); continue
-                if sv > 0.1: pen += 0.2 * max(0, abs((h - h0 + 0.5) % 1 - 0.5) * 360 - (20 if k == 'day' else 40))
+                if sv > 0.1: pen += 0.2 * max(0, abs((h - h0 + 0.5) % 1 - 0.5) * 360 - (45 if k == 'day' else 60))
     return pen
 
 def pal_pen(b):
@@ -159,8 +165,10 @@ def pal_pen(b):
     return pen
 
 def rough_pen(b):
-    """the images stay coarse and smooth: the second differences of each grid, across and down, are kept small, so the fit
-    cannot take in the footage's noise or paint in what belongs to the lighting"""
+    """a light hand against the footage's own noise: the second differences of each grid, across and down, are kept small.
+    Spec 33 withdraws the stronger form of this - smoothness is not the test of whether a description is too fine, and the
+    description has to be free to put a bend away from the middle of the width and a knee above the bottom edge - so the
+    weight is a quarter of what it was."""
     s = 0.0; n = 0
     for mo in BMON:
         P = b['PAL'][str(mo)]
@@ -168,7 +176,7 @@ def rough_pen(b):
             G = np.array(P[k]).reshape(nr, GW, 3)
             if GW > 2: d = G[:, :-2] - 2 * G[:, 1:-1] + G[:, 2:]; s += float((d * d).sum()); n += d.size
             if nr > 2: d = G[:-2] - 2 * G[1:-1] + G[2:]; s += float((d * d).sum()); n += d.size
-    return 20 * s / max(n, 1)
+    return 5 * s / max(n, 1)
 
 # How high the night glow climbs (spec 28): read from the footage month by month at the dead of night as a property of
 # the night image - the share of the bottom band's level left at 0.1, 0.2, 0.3 and 0.5 of the height - and asked of the
