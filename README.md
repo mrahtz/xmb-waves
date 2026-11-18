@@ -223,11 +223,12 @@ README).
 
 ## Status
 
-Built to spec version 30 (the sheet and its motion; the background's clock curves, its shaping down the frame
-and its night image to version 28; the composite's floor, the wave tint's ramp and the glare's locality to
+Built to spec version 33 (the background's painted images, its one rate in the height and its night floor; the sheet
+and its motion to version 30; the composite's floor, the wave tint's ramp and the glare's locality to
 version 27; the sparkles to version 25) and tuned against the
 original's footage - the 19 recordings in `comparison/original/`, the 19 lossless
-reference renders of the footage index and the 48 noise clips from 40 s to 30 minutes after the start - measured with
+reference renders of the footage index, the 48 noise clips from 40 s to 30 minutes after the start, and, for the
+background, 134 conditions covering all twelve months - measured with
 the same tools as my renders and with the fixed battery (see `docs/references/tuning-log.md`). The sheet's width is
 folded slack over the whole length: the path the net follows across its width is 6.4 times the straight line between
 its edges (1.04 along the length), the width turns over four times down a screen column, and down that column the
@@ -291,22 +292,36 @@ side of the focus range (14-22 a frame at 00, 06 and 12 h against the original's
 and all of them about 10 px wide against 12-22); a bright core's halo matches the original's profile from 3 px out to
 15 px; and a sparkle's path bends and wanders as the original's does. The brightest tenth of the sparkles is still too
 bright (peak 55-72 levels against 46-51), which goes with the faint end being too thin (11-14 % of the points in the
-lowest band against 16 %). The background is fitted to the original's 19 recordings and renders (15 January, April,
-July and October at four hours, 15 and 29 October 21:30) and to six renders asked for at hours between them (15
-October 04:00, 09:00, 15:00 and 20:00; 15 April 04:00 and 09:00): each month's day and night image is a painted
-picture held as a coarse grid of colours (day 3 x 6, night 3 x 7), and every curve of the clock - the daylight
-factor, the fading of the day image up the frame, the deepening of its colour, the night image's envelope and its
-own fading - is a product of one pair of smooth steps taken at two rates in fixed proportion, placed where the
-travelling spot crosses the bottom edge (version 28); the images, the lights and the two rates were fitted together
-over all 25 conditions. Where the wave does not cover it, the mean absolute difference per channel is about 1.4
-levels (1.48 / 1.58 / 1.15 in R / G / B, the median over the 38 clips; 1.52 as the mean over them, which the spec-30
-sheet moved by 0.01 because the band masks slightly different pixels), against
-1.42 / 1.58 / 1.47 and 1.56 before this background, 1.7 before the joint re-tune that followed the spec-26 sheet,
-2.3 before that sheet, 9.5 before the version-23 background and 10.5-12.3 before the version-19 one; by hour it is
-1.17 at midnight, 1.63 at dawn, 1.43 at noon, 2.12 at dusk and 1.00 at 21:30 (1.07 / 1.55 / 1.74 / 2.26 / 0.76
-before the version-28 background), so noon and dusk have come down and midnight and dawn have gone up by less. The hours in the shoulders of
-the day, which the footage index does not cover and which the six requested renders do, went from 8.9 levels to 1.1
-in the lane's own fit. The composite's black offset, each mood's exposure and the twelve month palettes are fitted together to the
+lowest band against 16 %). The background is fitted to 134 conditions covering all twelve months (version 33:
+every month wants footage of its own month): the 4th and the 15th of each month at 00:00, 06:00, 12:00 and 18:00, the
+hours between them the set reaches (January, July and October on the 4th from 02:00 to 22:00; January, April, July and
+October on the 15th at 03:00, 04:00, 09:00, 15:00, 20:00 and 21:00), 15 and 29 October 21:30, and the index's own 19
+recordings and 19 renders where they fall on those conditions. The 4th of a month is inside the first week, where that
+month's images show alone, so a month's palette can at last be read on its own rather than only in a mid-month mix.
+Each month's day and night image is a painted picture held as a coarse grid of colours, four columns wide so that the
+bend across the width need not sit at the middle, with its rows crowded towards the bottom edge so that the knee just
+above the edge can be held (day 4 x 6, night 4 x 7). Every curve of the clock - the daylight factor, the fading of the
+day image up the frame, the deepening of its colour, the night image's envelope and its own fading - is a product of
+one pair of smooth steps taken at two rates in fixed proportion, placed where the travelling spot crosses the bottom
+edge (version 28). All three falls up the frame - the day image's value shaping, its saturation raise (that same fall
+read the other way up, a rise levelling off towards a ceiling near the top rather than growing without limit) and the
+night image's shaping - fall off at one rate in the height (7.79), differing only in the clock that drives each
+(version 33), and the floor under the night level is applied last, to the whole product, so wherever it binds the night
+picture is flat from the bottom edge to the top. The images, the lights, that rate, the ceiling and the two step rates
+were fitted together over all 134 conditions. Measured month by month where the wave does not cover it, the mean
+absolute difference per channel is 1.93-2.95 levels (mean over the twelve 2.47), against 6.30-28.33 before this round
+(mean 16.50): the merged build was 6.3-11.1 levels in the four months it had been fitted on and 15.9-28.3 in the eight
+it had never seen. On the days that show one month alone it was 20.50 levels against 8.94 on the mixed days, because
+two neighbouring palettes wrong in opposite directions cancel in a mid-month mix and the old set was made of mixes;
+it is now 2.25 against 2.49. By hour the daytime conditions went from 19.3 / 22.3 / 21.7 levels at 06:00 / 12:00 /
+18:00 to 2.6 / 3.2 / 3.0, and the night ones from 6.2 at 00:00 to 1.4. The same comparison on the eighteen conditions
+of the footage index alone - the only ones the old fit ever saw - goes the other way, 1.53 to 2.31 levels, and the
+battery's pixel comparison over its 19 conditions with it (1.48 / 1.58 / 1.15 in R / G / B to 2.45 / 2.06 / 2.63, and
+15 of the lane's 54 measures within the original's range to 12). That is the price of one lighting model having to
+satisfy 134 conditions instead of 25; version 33's own test says where the rest of the fault now lies, and it is not
+the painted pictures: split into the part that stands still over the hours of a month and the part that travels with
+them, the residue was 13.75 standing against 12.41 travelling and is now 1.30 against 2.37, the travelling part the
+larger in every month. The composite's black offset, each mood's exposure and the twelve month palettes are fitted together to the
 original's renders and recordings at four months (January, April, July, October) and four hours
 (`tools/measure/jointfit.py`, with the offset swept around the fit; since the spec-26 sheet the gain is fitted on the
 background alone, `--weight=1.0`, because the band's shortfall by day is its own brightness and the gain cannot reach
@@ -382,13 +397,15 @@ original by more than that measure's own range except six region means of the ba
 at most 0.15 of an output level against a noise range of 0.02-0.05 (`bgpixel.bottom_right.R_mean` 0.13 -> 0.28 the
 largest), while every whole-frame background figure is unchanged within its noise range.
 
-Not verifiable from the references available so far: each month's palette
-on its own (the footage shows two-month mixes on the 15th, and November nearly
-alone on 29 October), so the split between a month and the next, the palettes
-of March, June, September and December and the size of the mid-month
-saturation drop are design choices that follow the spec; likewise the look
-between 01:00 and 03:00 and between 22:00 and 23:30, which follows the spec's
-description (section 3, N8). The day's own light is built as spec 28 says - a
+Not verifiable from the references available so far: the size of the mid-month
+saturation drop (the fit takes it to the lower end of the range it is allowed,
+0.30, and the footage of the 4th and the 15th between them pin the two ends of
+a month rather than the depth of the mix in between); and the look between
+01:00 and 03:00 and between 22:00 and 23:30, which follows the spec's
+description (section 3, N8). Every month's palette is now read on footage of
+its own month, and on days (the 4th) where that month's images show alone, so
+the twelve palettes and the split between a month and the next are no longer
+design choices alone. The day's own light is built as spec 28 says - a
 gentler morning step times a sharper evening one, the two rates in fixed
 proportion - and the footage now reaches into both shoulders (04:00 and
 20:00), but it asks for only a mild difference between the two rates (the
