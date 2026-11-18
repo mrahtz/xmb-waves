@@ -316,7 +316,7 @@ Each mood's own wave brightness is now kept apart from the composite's gain (spe
 observable: the band's added light integrated down each column over the band's extent, divided by the fitted
 background under the band at the same column (`tools/measure/bandlevel.py`, `bandlevelset.py`), per mood against
 footage of that mood over the 15 or 16 clips of each mood hold at five moments each. Compared condition by condition
-it is now 1.007 of the original's at dawn, 1.043 by day and 0.970 at dusk, where before the round it was 1.21, 1.07
+it is now 1.007 of the original's at dawn, 1.041 by day and 0.970 at dusk, where before the round it was 1.21, 1.07
 and 1.51. The night is set on the band's added light itself (1.001 of the original's) rather than on the ratio,
 because the ratio's denominator there - my night background under the band - is 25 levels against the original's 7.9
 in the recordings and scatters from 0.69 to 1.74 of the original's over the noise clips, so the ratio would absorb a
