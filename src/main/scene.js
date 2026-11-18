@@ -273,7 +273,7 @@ const MOODS = {
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -7.7, camLift: 0.2745,
     exposure: 1.385, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
-  dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
+  dawn: { waveBright: 0.2, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -12.7, camLift: 0,
     exposure: 1.220, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
@@ -428,9 +428,24 @@ const WAVE = {
   // (thickness, peaks per column and fill identical to two figures), so the across direction was not short of structure,
   // but it was sampled an order more coarsely than the length. 24 x 24 is 1.5 times the cells of 64 x 6
   samplesAlong: 24, samplesAcross: 24,
-  sheenCut0: 0.2179, sheenCut1: 0.599, // the sheen falls linearly between these size factors (the fused thread profile)
+  // The shapes of the two curves, set by where the sheet has to sit on them (spec 4.5, version 31, which replaces version
+  // 17's form of that check). Version 31 states it against the features of each build's own curves, so it is checked with
+  // the build's own fresZero and fresTail (tools/measure/geomcheck.js): the typical sample must lie above the Fresnel-like
+  // peak on its falling side, more of the sheet must lie beyond the response's half-height point on the falling side than
+  // below the matching point on the rising side, and the sheen's cut-off must remove a substantial share of the sheen's
+  // light rather than a trace. Version 17's shape constraints still hold: the response is exactly zero below fresZero of
+  // the peak, narrow (its width at half height, here 0.48 of the peak's distance from zero, is less than that distance),
+  // and falls above the peak in a long thin tail; the sheen's profile stays flat until well past the size factor at which
+  // the Fresnel-like peak sits (sheenCut0 is 1.5 times fresPeak / the typical viewing cosine of 0.69, against 1.25 before).
+  // Version 31's third warning says one scale cannot satisfy the check, and it could not here: scaling the size factor
+  // slides the sheet along both curves together, so the shapes themselves were moved. From the version-17 values
+  // (fresPeak 0.12, fresTail 0.1403, sheenCut0 0.2179, sheenCut1 0.599), which gave a typical sample at 0.80 to 1.01 of
+  // the peak (below it in three moods of four) and a cut-off that removed 0.06 to 0.13 of the sheen - the "sheet far below
+  // the original's" that version 31 says version 17's check passes comfortably - these give 1.13 to 1.43 of the peak, the
+  // falling-side share above the rising-side one by 0.11 to 0.31, and a cut-off that removes 0.25 to 0.42.
+  sheenCut0: 0.185, sheenCut1: 0.32, // the sheen falls linearly between these size factors (the fused thread profile)
   // the Fresnel-like peak: where it sits in cosine x size factor; zero below fresZero of that; the tail's length above it
-  fresPeak: 0.12, fresZero: 0.5961, fresTail: 0.1403,
+  fresPeak: 0.085, fresZero: 0.5961, fresTail: 0.40,
   fade: 0.06,                           // fraction of the sheet over which it fades out, linearly, at the ends and edges
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
   // a neutral tint brightening slightly from left to right. Spec 27 replaces the version-20 measurement (a ratio of the

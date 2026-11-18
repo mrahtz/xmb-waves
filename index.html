@@ -862,7 +862,7 @@ const MOODS = {
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -7.7, camLift: 0.2745,
     exposure: 1.385, white: 1.0, glareThr: 0.9, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
-  dawn: { waveBright: 0.20, base: 1.8, fres: 1.6, sizeK: 0.6,
+  dawn: { waveBright: 0.2, base: 1.8, fres: 1.6, sizeK: 0.6,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -12.7, camLift: 0,
     exposure: 1.220, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
@@ -1017,9 +1017,24 @@ const WAVE = {
   // (thickness, peaks per column and fill identical to two figures), so the across direction was not short of structure,
   // but it was sampled an order more coarsely than the length. 24 x 24 is 1.5 times the cells of 64 x 6
   samplesAlong: 24, samplesAcross: 24,
-  sheenCut0: 0.2179, sheenCut1: 0.599, // the sheen falls linearly between these size factors (the fused thread profile)
+  // The shapes of the two curves, set by where the sheet has to sit on them (spec 4.5, version 31, which replaces version
+  // 17's form of that check). Version 31 states it against the features of each build's own curves, so it is checked with
+  // the build's own fresZero and fresTail (tools/measure/geomcheck.js): the typical sample must lie above the Fresnel-like
+  // peak on its falling side, more of the sheet must lie beyond the response's half-height point on the falling side than
+  // below the matching point on the rising side, and the sheen's cut-off must remove a substantial share of the sheen's
+  // light rather than a trace. Version 17's shape constraints still hold: the response is exactly zero below fresZero of
+  // the peak, narrow (its width at half height, here 0.48 of the peak's distance from zero, is less than that distance),
+  // and falls above the peak in a long thin tail; the sheen's profile stays flat until well past the size factor at which
+  // the Fresnel-like peak sits (sheenCut0 is 1.5 times fresPeak / the typical viewing cosine of 0.69, against 1.25 before).
+  // Version 31's third warning says one scale cannot satisfy the check, and it could not here: scaling the size factor
+  // slides the sheet along both curves together, so the shapes themselves were moved. From the version-17 values
+  // (fresPeak 0.12, fresTail 0.1403, sheenCut0 0.2179, sheenCut1 0.599), which gave a typical sample at 0.80 to 1.01 of
+  // the peak (below it in three moods of four) and a cut-off that removed 0.06 to 0.13 of the sheen - the "sheet far below
+  // the original's" that version 31 says version 17's check passes comfortably - these give 1.13 to 1.43 of the peak, the
+  // falling-side share above the rising-side one by 0.11 to 0.31, and a cut-off that removes 0.25 to 0.42.
+  sheenCut0: 0.185, sheenCut1: 0.32, // the sheen falls linearly between these size factors (the fused thread profile)
   // the Fresnel-like peak: where it sits in cosine x size factor; zero below fresZero of that; the tail's length above it
-  fresPeak: 0.12, fresZero: 0.5961, fresTail: 0.1403,
+  fresPeak: 0.085, fresZero: 0.5961, fresTail: 0.40,
   fade: 0.06,                           // fraction of the sheet over which it fades out, linearly, at the ends and edges
   filterSpread: 1.0,                    // width of the down-filter over the wave buffer: one output pixel (spec 16)
   // a neutral tint brightening slightly from left to right. Spec 27 replaces the version-20 measurement (a ratio of the
@@ -1299,8 +1314,14 @@ void main(){
   c = toneMap(c);
   // keep the colour: one weight from the brightest channel, a soft knee (zero up to the threshold, rising above it). The
   // threshold is the mood's own, fixed (spec 20); the knee's width is fixed too, so any threshold works, also above 1.
+  // Spec 5 (version 28): the weight follows the excess above the knee alone and is **not** divided by how bright the pixel
+  // is, so what a source contributes grows with its own brightness as well as with its excess - which is what keeps the
+  // glare on the folds, whose crests sit far above the knee, rather than on a background that only grazes it. (Before
+  // version 28 this shader divided by the brightest channel, which is the move that paragraph names.) And the weight is
+  // carried at the picture's own precision, not in floating point, so a source barely above the knee contributes exactly
+  // nothing rather than a trace that a broad area would add up into a visible lift.
   float m = max(c.r, max(c.g, c.b)), e = max(m - uThr, 0.0);
-  o = vec4(c * (e * e / (e + 0.03)) / max(m, 1e-4), 1.0);
+  o = vec4(floor(c * (e * e / (e + 0.03)) * 255.0 + 0.5) / 255.0, 1.0);
 }`;
 const FS_DOWN = `#version 300 es
 precision highp float;
@@ -1649,6 +1670,7 @@ gl.bindVertexArray(null);
 // it saturates - changes the finished picture by less than the dither moves it, so it is left as it is.
 let RT = null;
 const MAX_TEX = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+const GLARE_CELLS = 240; // the glare pyramid's first level, in cells across the picture (spec 5, version 28; see below)
 function ensureTargets(cw, ch, ow, oh, ss) {
   ss = Math.min(ss, MAX_TEX / Math.max(cw, ch)); // the wave buffer must fit the GPU's texture size limit
   const ww = Math.round(cw * ss), wh = Math.round(ch * ss);
@@ -1659,7 +1681,13 @@ function ensureTargets(cw, ch, ow, oh, ss) {
   RT.wave = makeTarget(ww, wh, 'r16f');
   RT.bgA = makeTarget(64, 36, 'rgba16f'); RT.bgB = makeTarget(64, 36, 'rgba16f'); RT.bgFresh = true;
   RT.levels = [];
-  let lw = Math.max(1, Math.ceil(ow / 8)), lh = Math.max(1, Math.ceil(oh / 8));
+  // The glare chain's first level is a coarse grid laid over the picture, fixed in the picture's own coordinates, and not
+  // the output's pixel count divided by a number of pixels (spec 5, version 28): the grid must stay the same as the output
+  // grows, so that the halo keeps the same width as a fraction of the picture instead of tightening into a bright rim.
+  // GLARE_CELLS is the grid's width in cells; the height follows the output's shape, so the cells stay square. 240 cells
+  // is the grid the glare was tuned at (1920 / 8, the earlier divisor at the size everything here is measured at), so
+  // nothing changes at 1920 x 1080 and the halo now holds that width at every other size (tools/measure/glareab.js --sizes).
+  let lw = GLARE_CELLS, lh = Math.max(1, Math.round(GLARE_CELLS * oh / ow));
   while (RT.levels.length < 7) {
     RT.levels.push({ a: makeTarget(lw, lh, 'rgba16f'), b: makeTarget(lw, lh, 'rgba16f'), c: makeTarget(lw, lh, 'rgba16f'), w: lw, h: lh });
     if (lh <= 6) break;
