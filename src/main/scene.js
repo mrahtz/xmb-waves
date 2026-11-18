@@ -406,9 +406,21 @@ function nightShape(a) { return 1 - stepPair(a, stepTurn(), BGW.stepW, BGW.stepW
 // Next month's images rising from the bottom (N7): the centre of the S-shaped step (in screen heights, 0 = bottom) and its
 // half-width for the month's progress p (whole days): nothing before about the 6th, about half and half over the whole
 // screen in the middle (a very broad step), next month's complete at the bottom by about the 22nd and the top by the 26th.
+// Spec 34: where that step sits and how broad it is are fitted from footage like anything else, so the five numbers that
+// place it are in BGL - the centre climbs in a straight line from monC0 (below the bottom edge) to monC1 (above the top
+// edge) between the progresses monP0 and monP1, and the half-width is monW0 away from the middle of the month with a
+// further monWMid over a window monWP of the progress wide.
 function monthStep(p) {
-  const c = -0.2 + 1.4 * Math.min(Math.max((p - 0.2) / 0.65, 0), 1);
-  return [c, 0.15 + 3.0 * Math.exp(-Math.pow((p - 0.5) / 0.1, 2))];
+  const c = BGL.monC0 + (BGL.monC1 - BGL.monC0) * Math.min(Math.max((p - BGL.monP0) / (BGL.monP1 - BGL.monP0), 0), 1);
+  return [c, BGL.monW0 + BGL.monWMid * Math.exp(-Math.pow((p - 0.5) / BGL.monWP, 2))];
+}
+// How far the mid-month lowering of the saturation reaches through the month (spec 34): it is plainly there several days
+// either side of the middle, dies away only gradually towards the month's ends, and even on the first and last days a
+// trace of it survives, so it is a broad bell of breadth midW standing on a floor midTrace rather than a bell that
+// returns to nothing. Its depth is BGL.midSat; this is its breadth, and the two are fitted together against the bottom
+// band's saturation through the days of one month.
+function midMonth(p) {
+  return BGL.midTrace + (1 - BGL.midTrace) * Math.exp(-Math.pow((p - 0.5) / BGL.midW, 2));
 }
 function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
 
@@ -417,11 +429,11 @@ function sceneParams(tp, theme) {
   const hour = hh + mm / 60 + ss / 3600;
   if (theme >= 1 && theme <= 12) { // month n's palette at midday at the start of month n, day mood
     const a = dayAngle(BGW.noon);
-    return { monA: theme - 1, monB: theme % 12, monC: -5, monW: 0.15, mid: 0, night: 0, aday: a, daylight: daylightOf(a),
+    return { monA: theme - 1, monB: theme % 12, monC: -5, monW: 0.15, mid: midMonth(0), night: 0, aday: a, daylight: daylightOf(a),
       topV: shapeVal(a), topS: shapeSat(a), anight: nightAngle(12), nightEnv: 0, nightTop: 0, mood: { ...MOODS.day } };
   }
   const p = (day - 1) / daysInMonth(y, mon), [monC, monW] = monthStep(p), a = dayAngle(hour), an = nightAngle(hour);
-  return { monA: mon - 1, monB: mon % 12, monC, monW, mid: Math.exp(-Math.pow((p - 0.5) / 0.15, 2)), night: nightWeight(hour),
+  return { monA: mon - 1, monB: mon % 12, monC, monW, mid: midMonth(p), night: nightWeight(hour),
     aday: a, daylight: daylightOf(a), topV: shapeVal(a), topS: shapeSat(a), anight: an, nightEnv: nightEnvelope(an),
     nightTop: nightShape(an), mood: moodAt(hour) };
 }
@@ -509,15 +521,25 @@ const WAVE = {
   tintL: [0.952, 0.952, 0.952], tintR: [0.990, 0.990, 0.990],
 };
 // (these scalars are let, not const, only so the settings menu can change them live)
-// background (spec 19, 23, 28; original design). The picture starts from a fixed share of the image's own value and each
-// light adds its own lift on top of that; the two lifts add, and base + spot + glow <= 1 keeps the total from carrying the
-// picture past the image's own colour. Day images: base: the fixed share; spot: the sun-like spot's lift, oval (centre x
+// background (spec 19, 23, 28, 34; original design). The picture starts from a fixed share of the image's own value and
+// each light adds its own lift on top of that; the two lifts add, and nothing is clamped anywhere (spec 34). What keeps
+// the picture from passing the image's own colour is the geometry rather than any clamp: the two lights travel across the
+// width as mirrors of each other, so when either is near the middle of the width the other is at the top edge or below
+// the bottom, and the most the picture is ever carried to is base plus a single light's lift. base + max(spot, glow) < 1
+// therefore holds here with room to spare, and the fit is held to settings where the true maximum of base + the two
+// lights' total over the frame and the whole day stays under 1, so no clamp is ever wanted.
+// That share is one and the same for the day picture and for the night picture (spec 34): both arms start from base and
+// add the same two lifts at the same strengths and widths, and they differ only in the clock that drives their lights and
+// their curves, in the floor under the night level, and in that the day arm's lifts also pale the saturation.
+// Day images: base: the fixed share, shared with the night arm; spot: the sun-like spot's lift, oval (centre x
 // amplitude, centre y amplitude: the centre is on the top edge at midday, crosses the bottom edge towards either end of the
 // warped daylight hours and is 1 - 2 ovalY below the bottom at midnight) and radii; band: the bottom glow's lift, centre x
 // amplitude (mirrored from the spot), half-width, centre height (a little above the bottom edge, spec 28) and half-height;
 // bandWide, bandWideW: how much the glow broadens about the middle of the day and how narrow that window of the clock is
 // (its half-width x (1 + bandWide x exp(-(angle / bandWideW)^2)), the same once more at the dead of night on the night
-// clock); pale: how much paler lit areas get; midSat: the mid-month saturation drop.
+// clock); pale: how much paler lit areas get; midSat: the depth of the mid-month saturation drop, midW and midTrace its
+// breadth and the trace of it that survives the month's ends (spec 34, monthStep and midMonth above, where monC0, monC1,
+// monP0, monP1, monW0, monWMid and monWP place the month handover's step and set how broad it is).
 // heightRate (spec 33): the one rate in the height. Every fall of this kind in the background falls off at it, and only
 // the clock driving each differs - the day image's value shaping (value x exp(-heightRate x shapeVal x height)), the day
 // image's saturation raise (x (1 + satCeil x (1 - exp(-heightRate x shapeSat x height))), the same fall read the other way
@@ -525,13 +547,17 @@ const WAVE = {
 // own shaping up the frame (x exp(-heightRate x nightShape x height)). So there is one rate here for the whole
 // background, fitted where the footage pins it - the day image's value - with the other two following it; satCeil is the
 // ceiling, read from the saturation of a band across the middle of the frame against one at the bottom.
-// Night images: nightMix: their share at full night weight; nightBase: their fixed share; nightFloor: the floor, applied
-// last to the whole of the night level (after the envelope, the shaping and the lighting, spec 33), so wherever it binds
-// the night picture is flat all the way up the frame.
+// Night images: nightMix: their share at full night weight; the unlit share is base, as above. nightFloorF: the floor
+// under the night level, as a share of that unlit share, so the floor always lies below the share the lighting starts
+// from (spec 34) and cannot stand over the whole frame and swallow the light and the shaping with it. It is applied
+// last, to the whole of the night level (after the envelope, the shaping and the lighting, spec 33), so wherever it
+// binds the night picture is flat all the way up the frame - which, the floor being under the share, is only the upper
+// part of the frame towards either end of the night, where the shaping has already brought the level down.
 const BGL = { base: 0.508, spot: 0.195, ovalX: 0.853, ovalY: 0.796, spotW: 0.462, spotH: 0.373,
   glow: 0.149, bandX: 0.437, bandW: 0.491, bandY: 0.044, bandH: 0.316, bandWide: 1.123, bandWideW: 0.037,
-  pale: 1.695, midSat: 0.300, heightRate: 7.794, satCeil: 0.598,
-  nightMix: 0.563, nightBase: 0.201, nightFloor: 0.361 };
+  pale: 1.695, midSat: 0.300, midW: 0.30, midTrace: 0.12, heightRate: 7.794, satCeil: 0.598,
+  monC0: -0.20, monC1: 1.20, monP0: 0.20, monP1: 0.85, monW0: 0.15, monWMid: 3.00, monWP: 0.10,
+  nightMix: 0.563, nightFloorF: 0.710 };
 let BG_EASE = 0.05; // how far the background gradient moves towards its new value each frame
 const SPARKR = {
   // size in scene units (spec 17: set in the scene, so smaller the farther away; no random size); out of focus a disc grows

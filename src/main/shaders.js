@@ -2,7 +2,7 @@ const VS_QUAD = `#version 300 es
 out vec2 vUv;
 void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2); vUv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
 
-// Background gradient for this frame, into a small target (spec 19, 28). Day images: each month's image on its own is
+// Background gradient for this frame, into a small target (spec 19, 28, 34). Day images: each month's image on its own is
 // converted to hue, saturation and value; the value is scaled by the daylight factor, by the two lights (a sun-like spot
 // whose centre goes round an oval larger than the frame, and a band along the bottom edge whose centre is the spot's
 // mirrored, both driven by one angle of the warped hour) and by the clock's shaping down the frame (late evening and small
@@ -11,7 +11,9 @@ void main(){ vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2); vUv =
 // from the bottom). Night images: mixed for the month, then scaled in brightness only, lit by the same two lights on an
 // unwarped clock, under a time envelope, shaped up the frame by their own clock and held above a floor applied last to
 // all of that (spec 33). Even at full night weight the picture is a mix of the night image and the day image. All three
-// falls up the frame use the one rate in the height (spec 33); only their clocks differ.
+// falls up the frame use the one rate in the height (spec 33); only their clocks differ. Both arms start from the same
+// unlit share uBase (spec 34), and nothing here is clamped: the floor lies below that share, and base plus a single
+// light's lift - the most the geometry ever brings together over one place - stays under the image's own colour.
 const GLSL_BGLIGHT = `
 uniform vec4 uOval;   // spot: centre x amplitude, centre y amplitude (its centre is on the top edge at angle 0), radii x, y
 uniform vec4 uBand;   // bottom glow: centre x amplitude, half-width, centre height (a little above the bottom edge), half-height
@@ -31,7 +33,7 @@ const FS_BGGEN = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
 uniform sampler2D uImg, uPrev; uniform float uTiles, uA, uB, uMc, uMw, uNight, uNightMix, uDaylight, uEase;
-uniform float uAday, uAnight, uBase, uPale, uMidSat, uFallV, uRiseS, uSatCeil, uNightBase, uNightEnv, uNightFloor, uNightFall;
+uniform float uAday, uAnight, uBase, uPale, uMidSat, uFallV, uRiseS, uSatCeil, uNightEnv, uNightFloor, uNightFall;
 ${GLSL_BGLIGHT}
 vec3 img(float idx, vec2 uv){
   vec2 q = vec2(uv.x, (idx + clamp(uv.y, 0.5 / ${BG_H}.0, 1.0 - 0.5 / ${BG_H}.0)) / uTiles);
@@ -55,7 +57,7 @@ vec3 hsv2rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)
 // swings to the strongest primary (the negative channels hsv2rgb then gives are cut at zero), so the hue itself turns.
 vec3 processDay(vec3 c, float L, float y){
   vec3 h = rgb2hsv(c);
-  h.z *= uDaylight * min(1.0, uBase + L) * exp(-uFallV * y);
+  h.z *= uDaylight * (uBase + L) * exp(-uFallV * y);
   h.y = max(0.0, h.y * (1.0 - uPale * L)) * (1.0 - uMidSat) * (1.0 + uSatCeil * (1.0 - exp(-uRiseS * y)));
   return max(hsv2rgb(h), vec3(0.0));
 }
@@ -67,11 +69,12 @@ void main(){
   float L = lights(uv, uAday);
   vec3 day = mix(processDay(img(uA * 2.0, iu), L, uv.y), processDay(img(uB * 2.0, iu), L, uv.y), f);
   float Ln = lights(uv, uAnight);
-  // the night level: the envelope times the two lights, shaped up the frame by the one rate in the height on its own
-  // clock, and the floor applied last to the whole of that (spec 33), so wherever the floor binds the night picture is
-  // flat from the bottom edge to the top and the shaping cannot act below it
+  // the night level: the envelope times the same unlit share and the same two lifts as the day arm (spec 34), shaped up
+  // the frame by the one rate in the height on its own clock, and the floor applied last to the whole of that (spec 33),
+  // so wherever the floor binds the night picture is flat from the bottom edge to the top and the shaping cannot act
+  // below it. The floor is below the unlit share, so it binds only well up the frame towards either end of the night.
   vec3 night = mix(img(uA * 2.0 + 1.0, iu), img(uB * 2.0 + 1.0, iu), f)
-    * max(uNightFloor, uNightEnv * min(1.0, uNightBase + Ln) * exp(-uNightFall * uv.y));
+    * max(uNightFloor, uNightEnv * (uBase + Ln) * exp(-uNightFall * uv.y));
   vec3 c = mix(day, night, uNight * uNightMix);
   vec3 prev = texture(uPrev, vUv).rgb;
   o = vec4(mix(prev, c, uEase), 1.0);

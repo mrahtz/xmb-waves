@@ -108,14 +108,14 @@ function bgColorAt(sc, u, v) {
   const f = ease(((sc.monC - v) / sc.monW + 1) / 2), L = bgLightsJS(u, v, sc.aday);
   const proc = (c) => {
     const h = rgb2hsvJS(c[0], c[1], c[2]);
-    const val = h[2] * sc.daylight * Math.min(1, BGL.base + L) * Math.exp(-BGL.heightRate * sc.topV * v);
+    const val = h[2] * sc.daylight * (BGL.base + L) * Math.exp(-BGL.heightRate * sc.topV * v);
     const sat = Math.max(0, h[1] * (1 - BGL.pale * L)) * (1 - BGL.midSat * sc.mid)
       * (1 + BGL.satCeil * (1 - Math.exp(-BGL.heightRate * sc.topS * v)));
     return hsv2rgbJS(h[0], sat, val).map(x => Math.max(0, x));
   };
   const da = proc(bgImageAt(sc.monA * 2, u, v)), db = proc(bgImageAt(sc.monB * 2, u, v));
   const na = bgImageAt(sc.monA * 2 + 1, u, v), nb = bgImageAt(sc.monB * 2 + 1, u, v);
-  const nl = Math.max(BGL.nightFloor, sc.nightEnv * Math.min(1, BGL.nightBase + bgLightsJS(u, v, sc.anight))
+  const nl = Math.max(BGL.base * BGL.nightFloorF, sc.nightEnv * (BGL.base + bgLightsJS(u, v, sc.anight))
     * Math.exp(-BGL.heightRate * sc.nightTop * v));
   const k = sc.night * BGL.nightMix;
   return [0, 1, 2].map(c => (da[c] + (db[c] - da[c]) * f) * (1 - k) + (na[c] + (nb[c] - na[c]) * f) * nl * k);

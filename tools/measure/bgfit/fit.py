@@ -36,12 +36,20 @@ NDAY, NNIGHT = GW * GH * 3, GW * NGH * 3
 # height (no topPow); and no floor stands in for a step's tail (no dayFloor). Spec 33: one rate in the height
 # (BGL.heightRate) serves all three falls and only their clocks differ, so there is no topDark, topSat or nightTop to fit;
 # what the saturation's raise needs instead is the ceiling it levels off towards (BGL.satCeil).
+# Spec 34: one unlit share serves both arms, so there is no nightBase to fit; the floor under the night level is a share
+# of that one share (nightFloorF below 1), so it always lies below it and a night arm cannot be fitted under its own
+# floor; the breadth of the mid-month lowering (midW) and the trace of it that survives the month's ends (midTrace) are
+# fitted beside its depth; and where the month handover's step sits and how broad it is (monC0, monC1, monP0, monP1,
+# monW0, monWMid, monWP) are fitted from footage like anything else.
 LIGHT = [('BGL', 'base', .25, .9), ('BGL', 'spot', 0, .75), ('BGL', 'ovalX', .55, 1.5), ('BGL', 'ovalY', .5, 1.6),
          ('BGL', 'spotW', .35, 1.5), ('BGL', 'spotH', .3, 1.4), ('BGL', 'glow', 0, .75), ('BGL', 'bandX', 0, .45),
          ('BGL', 'bandW', .35, 1.5), ('BGL', 'bandY', 0, .25), ('BGL', 'bandH', .2, 1.2), ('BGL', 'bandWide', 0, 2),
          ('BGL', 'bandWideW', .03, .6), ('BGL', 'pale', 0, 2.2), ('BGL', 'midSat', .3, .8),
-         ('BGL', 'heightRate', .5, 12), ('BGL', 'satCeil', 0, 8), ('BGL', 'nightMix', .3, .8), ('BGL', 'nightBase', 0, .9),
-         ('BGL', 'nightFloor', .1, .8), ('BGW', 'warp', .2, .9), ('BGW', 'noon', 11.5, 12.5),
+         ('BGL', 'midW', .1, .7), ('BGL', 'midTrace', 0, .5),
+         ('BGL', 'monC0', -1.2, .3), ('BGL', 'monC1', .7, 2.2), ('BGL', 'monP0', .02, .45), ('BGL', 'monP1', .55, 1.1),
+         ('BGL', 'monW0', .03, .8), ('BGL', 'monWMid', 0, 5), ('BGL', 'monWP', .04, .4),
+         ('BGL', 'heightRate', .5, 12), ('BGL', 'satCeil', 0, 8), ('BGL', 'nightMix', .3, .8),
+         ('BGL', 'nightFloorF', .05, .95), ('BGW', 'warp', .2, .9), ('BGW', 'noon', 11.5, 12.5),
          ('BGW', 'stepW', .15, 1.2), ('BGW', 'stepRatio', .15, .95)]
 def palspec(months):
     out = []
@@ -61,6 +69,18 @@ def condmonths(t):
     mon = int(t[5:7]); return (mon - 1, mon % 12)
 CONDS = list(range(len(META))) if block in ('light', 'all') else \
     [j for j, c in enumerate(META) if set(condmonths(c['time'])) & set(BMON)]
+# The conditions of the measured footage index weigh more than the rest (--iw, default 3). The set is a mixture of two
+# kinds of reference: the measured index, which holds the only recordings of the original and is what every lane is
+# scored on from round to round, and the renders asked for to reach the months, the days and the hours it cannot (spec
+# 33 and 34 ask for all three). An unweighted mean over the set lets 119 supplementary conditions outvote the 19 the
+# project is judged on, and where one lighting model cannot satisfy both at once it is then fitted quietly away from
+# them. The weight is on the condition, not on the clip.
+MEASURED = set()
+for _c in json.load(open(opt.get('measured', os.path.join('C:' + os.sep, 'xmb-share', 'footage', 'INDEX.json'))))['clips']:
+    if _c['kind'] != 'noise': MEASURED.add(_c['date'] + 'T' + _c['time'])
+IW = float(opt.get('iw', 3))
+CW = np.array([IW if META[j]['time'] in MEASURED else 1.0 for j in CONDS], dtype=float)
+CW /= CW.mean()
 HASLIGHT = block in ('light', 'all')
 start = json.load(open(opt['start']))['p'] if 'start' in opt else {}
 
@@ -84,13 +104,29 @@ def build(x):
         else: src['PAL'][s[1]][s[2]][s[3]] = float(v)
     return {'BGL': src['BGL'], 'BGW': src['BGW'], 'PAL': {str(mo): P for mo, P in enumerate(src['PAL'])}}
 
+# the true largest lift the two lights ever put over one place, over the frame and over the whole turn of the angle
+# (spec 34: nothing is clamped, and what keeps the picture inside the image's own colour is that the two lights are never
+# over the same place; so what has to hold is base + this maximum < 1, and the sum of the two lifts is far too pessimistic
+# a stand-in for it)
+_GX, _GY = np.meshgrid(np.linspace(0, 1, 21), np.linspace(0, 1, 15))
+def max_lift(L):
+    best = 0.0
+    for a in np.linspace(-np.pi, np.pi, 73):
+        sx = (_GX - 0.5 - L['ovalX'] * np.sin(a)) / L['spotW']; sy = (_GY - 1 + L['ovalY'] * (1 - np.cos(a))) / L['spotH']
+        bw = L['bandW'] * (1 + L['bandWide'] * np.exp(-(a / L['bandWideW']) ** 2))
+        gx = (_GX - 0.5 + L['bandX'] * np.sin(a)) / bw; gy = (_GY - L['bandY']) / L['bandH']
+        v = L['spot'] * np.exp(-sx * sx - sy * sy) + L['glow'] * np.exp(-gx * gx - gy * gy)
+        best = max(best, float(v.max()))
+    return best
+
 def light_pen(b):
-    """what the spec asks of the lights themselves (23): the two lifts add and their total cannot carry the picture past
-    the image's own colour; the spot's centre rises past the top edge and is far below the picture at midnight. (Spec 28:
-    the crossing of the bottom edge is where the clock's steps are placed, so it no longer needs asking for; which end of
-    the day is the sharp one is in the structure, not in the fit.)"""
+    """what the spec asks of the lights themselves (23, 34): the two lifts add, nothing is clamped, and the share and the
+    largest total the geometry ever brings together over one place must stay inside the image's own colour - a build that
+    would need a clamp has them too large between them; the spot's centre rises past the top edge and is far below the
+    picture at midnight. (Spec 28: the crossing of the bottom edge is where the clock's steps are placed, so it no longer
+    needs asking for; which end of the day is the sharp one is in the structure, not in the fit.)"""
     L = b['BGL']; pen = 0
-    pen += 50 * max(0, L['base'] + L['spot'] + L['glow'] - 1) + 50 * max(0, L['nightBase'] + L['spot'] + L['glow'] - 1)
+    pen += 50 * max(0, L['base'] + max_lift(L) - 1)
     pen += 30 * max(0, 0.75 - L['ovalY'])                         # far below the picture at midnight
     return pen
 
@@ -106,9 +142,10 @@ def spec_pen(cv, b):
     # the night image at its floor almost everywhere near dusk and dawn, and clear of it in the middle of the night: the
     # enveloped level is compared with the floor at a typical lit place (half of what the two lights can lift) and, at
     # midnight, where they lift most
-    L = b['BGL']; lit = L['nightBase'] + 0.5 * (L['spot'] + L['glow']); full = min(1.0, L['nightBase'] + L['spot'] + L['glow'])
-    for h in (19.0, 4.5): pen += 30 * max(0, A[h]['env'] * lit - L['nightFloor'])
-    pen += 30 * max(0, 1.5 * L['nightFloor'] - A[0.0]['env'] * full)
+    L = b['BGL']; floor = L['base'] * L['nightFloorF']
+    lit = L['base'] + 0.5 * (L['spot'] + L['glow']); full = L['base'] + max_lift(L)
+    for h in (19.0, 4.5): pen += 30 * max(0, A[h]['env'] * lit - floor)
+    pen += 30 * max(0, 1.5 * floor - A[0.0]['env'] * full)
     # (spec 23: which side of the lower part is the brighter at night is partly painted into the month's night image and
     # is read from the footage at 21:30, so it is no longer asked of the picture here; the night light's travel across the
     # night is in the model's own clock)
@@ -209,7 +246,7 @@ def loss(x, w):
     if ROWCONDS and ROWW and 'rows' in r:
         d = [np.asarray(r['rows'][str(j)], dtype=float) - ROWREF[j] for j in ROWCONDS]
         pen += ROWW * float(np.nanmean(np.asarray(d) ** 2))
-    return float(e.mean() + reg + pen), e
+    return float(np.average(e, weights=CW)) + reg + pen, e
 
 def evalall(X):
     res = [None] * len(X); q = list(range(len(X))); lk = threading.Lock()
@@ -238,6 +275,7 @@ if 'explain' in opt:
         rough_pen(b), 5 * np.mean((x0[ispal] - pal0[ispal]) ** 2) if ispal.any() else 0,
         np.sqrt(np.mean(np.asarray(r['regs']) ** 2)), np.sqrt(np.nanmean(rowd ** 2))))
     print('conditions', [META[j]['time'] for j in CONDS])
+    print('measured-index conditions in this block: %d of %d, at weight %g' % (int((CW > CW.min()).sum()), len(CONDS), IW))
     print('per condition', np.round(r['err'], 2))
     for w in WS: w.p.stdin.write('{"quit":1}' + chr(10)); w.p.stdin.flush()
     sys.exit()
@@ -249,7 +287,8 @@ c1 = 2 / ((n + 1.3) ** 2 + mueff); cmu = min(1 - c1, 2 * (mueff - 2 + 1 / mueff)
 damps = 1 + 2 * max(0, math.sqrt((mueff - 1) / (n + 1)) - 1) + cs; chiN = math.sqrt(n) * (1 - 1 / (4 * n) + 1 / (21 * n * n))
 sigma = float(opt.get('sigma', 0.08)); m = z0.copy(); C = np.eye(n); pc = np.zeros(n); ps = np.zeros(n)
 f0, e0 = loss(x0, WS[0]); best = (f0, x0, e0)
-print('n %d lambda %d conditions %d start %.3f  per condition %s' % (n, lam, len(CONDS), f0, np.round(e0, 1)), flush=True)
+print('n %d lambda %d conditions %d (%d of the measured index at weight %g) start %.3f  per condition %s'
+      % (n, lam, len(CONDS), int((CW > CW.min()).sum()), IW, f0, np.round(e0, 1)), flush=True)
 t0 = time.time()
 for g in range(GENS):
     Dg, B = np.linalg.eigh(C); Dg = np.sqrt(np.maximum(Dg, 1e-20))
