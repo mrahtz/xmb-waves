@@ -8,8 +8,14 @@
 //        side of the sheet appears lower on screen than the near side
 //   4.4d depth across the band (spec 22): down each of 24 screen columns, the spread (10th to 90th percentile) of the
 //        distance to the visible sheet, and of its height on screen; the median over columns, against the change from left to right
-//   4.5: over the on-screen sheet (by screen area), the product cosine x size factor relative to the Fresnel-like peak,
-//        and the share whose size factor is beyond the start of the sheen's cut-off; also the viewing cosine (4.4d, v16)
+//   4.5 (version 31): where the sheet sits on this build's own two shading curves, with each bit weighted by how much of
+//        the screen it covers. Three things, each against a feature of the build's own curves rather than in peak units:
+//        the typical (median) product cosine x size factor, which must lie above the Fresnel-like peak on its falling
+//        side; the share of the sheet beyond the response's half-height point on the falling side against the share
+//        below the matching point on its rising side (the first must be the larger); and the share of the sheen's own
+//        light that the cut-off removes, which must be substantial rather than a trace. The half-height points are read
+//        from the build's own fresZero and fresTail, so a build with wider or narrower curves is compared with itself.
+//        Also the distribution of the product and of the viewing cosine (4.4d, v16).
 //   4.4a folded slack across the width (spec 26): by one and the same measure both ways, the length of the path the net
 //        follows across its width against the straight line between the width's edges, and the same along its length;
 //        how many times the width turns over down a column of the screen; and how much of the depth the sheet's width
@@ -23,6 +29,13 @@ const moodTxt = src.match(new RegExp('\\n  ' + moodName + ': \\{[\\s\\S]*?\\},\\
 const num = (t, k) => +t.match(new RegExp('\\b' + k + ': (-?[0-9.]+)'))[1];
 const waveTxt = src.match(/const WAVE = \{[\s\S]*?\n\};/)[0];
 const pitch = num(moodTxt, 'camPitch'), lift = /camLift/.test(moodTxt) ? num(moodTxt, 'camLift') : 0, sizeK = num(moodTxt, 'sizeK'), peak = num(waveTxt, 'fresPeak'), cut0 = num(waveTxt, 'sheenCut0');
+const cut1 = num(waveTxt, 'sheenCut1'), fresZero = num(waveTxt, 'fresZero'), fresTail = num(waveTxt, 'fresTail');
+// the build's own two curves, as the wave shader computes them (x is the product cosine x size factor in peak units)
+const fresResp = x => { const r = Math.min(Math.max((x - fresZero) / (1 - fresZero), 0), 1); return x < 1 ? r * r * (3 - 2 * r) : Math.exp(-(x - 1) / fresTail); };
+const sheenProf = S => S < cut0 ? 1 : (S < cut1 ? 1 - 0.95 * (S - cut0) / (cut1 - cut0) : 0.05 * Math.exp(-(S - cut1) / cut1));
+// the half-height points of this build's own response: on the rising side the smoothstep is half way at r = 0.5, on the
+// falling side the tail has dropped to half at ln 2 tail lengths above the peak
+const xLo = fresZero + 0.5 * (1 - fresZero), xHi = 1 + fresTail * Math.LN2;
 const asp = 16 / 9, cam = cameraFor(pitch, asp, lift), M = XMBW_SIM(), N = M.N, T = M.tunables.SCENE;
 const sim = M.createSim(seed);
 sim.setMood({ envCross: num(moodTxt, 'envCross'), latScale: [num(moodTxt, 'latX'), num(moodTxt, 'latY'), num(moodTxt, 'latZ')], camFwd: cam.fwd });
@@ -35,7 +48,10 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const len = a => Math.hypot(a[0], a[1], a[2]), sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const ev = (s, t) => { const o = [0, 0, 0]; sim.surf(sim.netCur, s, t, o); return o.slice(); };
 const S = N - 3, n = 160, m = 32, h = 1e-3;
-const acc = { farY: [], colD: [], colY: [], ally: [], left: [], free: [], outside: [], dl: [], dr: [], below: [], farLower: [], prod: [], cut: [], cos: [],
+// GEOM_DUMP=file.tsv also writes every sample of the on-screen sheet as cosine, size factor and screen area, so that the
+// version-31 placement check can be worked out for other shapes of the two curves without running the simulation again
+const dump = process.env.GEOM_DUMP ? [] : null;
+const acc = { farY: [], colD: [], colY: [], ally: [], left: [], free: [], outside: [], dl: [], dr: [], below: [], farLower: [], prod: [], cut: [], cos: [], bite: [],
   slackW: [], slackL: [], turns: [], depthUse: [], top: [] };
 for (let f = 0; f < 5; f++) {
   for (let k = 0; k < 600; k++) sim.step();
@@ -43,7 +59,7 @@ for (let f = 0; f < 5; f++) {
   let first = null; for (let a = 0; a <= 400; a++) { const x = scr(view(ev(a / 400 * S, S / 2)))[0]; if (x >= 0 && first === null) first = a / 400; }
   acc.left.push(first === null ? 1 : first); acc.free.push(scr(view(ev(S, S / 2)))[0]);
   // depth: distance to the sheet's points nearest the left and right edges (mid-width); camera height vs mean plane
-  let L = null, R = null, ys = 0, yc = 0, inF = 0, all = 0, wsum = 0, hist = [], pr = 0, cu = 0, co = [];
+  let L = null, R = null, ys = 0, yc = 0, inF = 0, all = 0, wsum = 0, hist = [], pr = 0, cu = 0, co = [], sheenK = 0, sheenC = 0;
   const nearF = [], farF = [], cols = Array.from({ length: 24 }, () => [[], []]);
   for (let a = 0; a < n; a++) for (let b = 0; b < m; b++) {
     const s = (a + 0.5) / n * S, t = (b + 0.5) / m * S, P = ev(s, t); ys += P[1]; yc++;
@@ -59,6 +75,10 @@ for (let f = 0; f < 5; f++) {
     const Nq = cross(Qs, Qt), dist = len(Q), along = Math.abs(Nq[0] * Q[0] + Nq[1] * Q[1] + Nq[2] * Q[2]) / dist;
     const c = along / len(Nq), Sf = along / dist * norm;
     hist.push([c * Sf / peak, area]); if (Sf > cut0) cu += area; co.push([c, area]); wsum += area;
+    if (dump) dump.push([c, Sf, area]);
+    // the sheen's light from this bit is its light per pixel (the size factor times the profile) times the screen area
+    // it covers, so what the cut-off removes over the sheet is 1 - sum(area x S x profile) / sum(area x S)
+    sheenK += area * Sf; sheenC += area * Sf * sheenProf(Sf);
   }
   const pq = (a, q) => { const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(q * b.length))]; };
   for (const [d, y] of cols) acc.ally.push(...y);
@@ -69,7 +89,7 @@ for (let f = 0; f < 5; f++) {
   acc.outside.push(1 - inF / all); acc.dl.push(L ? L[1] : NaN); acc.dr.push(R ? R[1] : NaN);
   acc.below.push(cam.pos[1] - ys / yc);
   const mean = a => a.reduce((p, x) => p + x, 0) / a.length; acc.farLower.push(mean(farF) - mean(nearF)); // > 0: far side lower
-  acc.prod.push(...hist); acc.cut.push(cu / wsum); acc.cos.push(...co);
+  acc.prod.push(...hist); acc.cut.push(cu / wsum); acc.cos.push(...co); acc.bite.push(1 - sheenC / sheenK);
 
   // spec 26, 4.4a: the same measure both ways on the deformed scene net: the path it follows across its width against
   // the straight line between the width's edges, and the path along its length against the straight line end to end
@@ -114,11 +134,19 @@ console.log('4.4d depth across the band: distance spread down a column (p10-p90)
 console.log('aim: the visible sheet height on screen (0 = top), p10 / median / p90 %s / %s / %s', ...[0.1, 0.5, 0.9].map(q => { const b = acc.ally.slice().sort((x, y) => x - y); return b[Math.floor(q * b.length)].toFixed(3); }));
 console.log('4.4d from below: camera height above the sheet mean %s (negative = below); far edge lower on screen than near edge by %s of the height (positive = lower; rows near the two long edges, which in a gathered net need not be the near and far side); by distance, down a column, the farthest quarter of the visible sheet lies %s of the height lower than the nearest quarter (median over columns)',
   avg(acc.below).toFixed(3), avg(acc.farLower).toFixed(3), med(acc.farY).toFixed(3));
-console.log('4.5: cosine x size factor over the Fresnel-like peak: p25 / median / p75 %s / %s / %s; share with size factor beyond the sheen cut-off start %s',
-  wq(acc.prod, 0.25).toFixed(2), wq(acc.prod, 0.5).toFixed(2), wq(acc.prod, 0.75).toFixed(2), avg(acc.cut).toFixed(2));
+{ // spec 4.5 (version 31): the three points, each against this build's own curves, weighted by screen area
+  const tot = acc.prod.reduce((p, x) => p + x[1], 0);
+  const share = f => acc.prod.reduce((p, x) => p + (f(x[0]) ? x[1] : 0), 0) / tot;
+  const above = share(x => x > xHi), below = share(x => x < xLo), xmed = wq(acc.prod, 0.5);
+  console.log('4.5 (v31) where the sheet sits on its own curves: typical product %s of the peak (%s the peak, %s); beyond the falling half-height (%s of the peak) %s of the sheet against %s below the rising one (%s of the peak) (%s); the sheen cut-off removes %s of the sheen light (%s)',
+    xmed.toFixed(2), xmed > 1 ? 'above' : 'BELOW', xmed > 1 ? 'pass' : 'FAIL', xHi.toFixed(2), above.toFixed(2), below.toFixed(2), xLo.toFixed(2),
+    above > below ? 'pass' : 'FAIL', avg(acc.bite).toFixed(2), avg(acc.bite) >= 0.2 ? 'pass' : 'FAIL');
+  console.log('4.5: cosine x size factor over the Fresnel-like peak: p25 / median / p75 %s / %s / %s; share with size factor beyond the sheen cut-off start %s',
+    wq(acc.prod, 0.25).toFixed(2), wq(acc.prod, 0.5).toFixed(2), wq(acc.prod, 0.75).toFixed(2), avg(acc.cut).toFixed(2)); }
 console.log('viewing cosine p10 / p25 / median / p75 / p90 %s / %s / %s / %s / %s', ...[0.1, 0.25, 0.5, 0.75, 0.9].map(q => wq(acc.cos, q).toFixed(2)));
 const pct = (a, q) => { const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(q * b.length))]; };
 console.log('4.4a folded slack: path / straight line across the width %s (p10 %s, p90 %s), along the length %s; the width turns over down a column %s times (median; p10 %s, p90 %s); the drawn surface occupies %s of the depth its across cloth could',
   med(acc.slackW).toFixed(2), pct(acc.slackW, 0.1).toFixed(2), pct(acc.slackW, 0.9).toFixed(2), med(acc.slackL).toFixed(2),
   med(acc.turns).toFixed(1), pct(acc.turns, 0.1).toFixed(0), pct(acc.turns, 0.9).toFixed(0), med(acc.depthUse).toFixed(2));
 console.log('top of the sheet on screen (0 = top row): min over frames %s, median %s', Math.min(...acc.top).toFixed(3), med(acc.top).toFixed(3));
+if (dump) require('fs').writeFileSync(process.env.GEOM_DUMP, dump.map(r => r.join(' ')).join(String.fromCharCode(10)));
