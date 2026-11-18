@@ -45,12 +45,14 @@ function renderFrame(st, outTarget) {
     gl.uniform1f(pr.u.uMc, sc.monC); gl.uniform1f(pr.u.uMw, sc.monW); gl.uniform1f(pr.u.uNight, sc.night);
     setBgLights(pr);
     gl.uniform1f(pr.u.uDaylight, sc.daylight); gl.uniform1f(pr.u.uAday, sc.aday); gl.uniform1f(pr.u.uAnight, sc.anight);
-    // the shapings down the frame: each strength times its own clock (spec 28), per unit height up the frame
-    gl.uniform1f(pr.u.uTopDark, BGL.topDark * sc.topV); gl.uniform1f(pr.u.uTopSat, BGL.topSat * sc.topS);
+    // the shapings down the frame: the one rate in the height times each one's own clock (spec 28, 33), per unit height
+    // up the frame, and the ceiling the saturation's raise approaches near the top
+    gl.uniform1f(pr.u.uFallV, BGL.heightRate * sc.topV); gl.uniform1f(pr.u.uRiseS, BGL.heightRate * sc.topS);
+    gl.uniform1f(pr.u.uSatCeil, BGL.satCeil);
     gl.uniform1f(pr.u.uMidSat, BGL.midSat * sc.mid);
     gl.uniform1f(pr.u.uNightMix, BGL.nightMix); gl.uniform1f(pr.u.uBase, BGL.base); gl.uniform1f(pr.u.uPale, BGL.pale);
     gl.uniform1f(pr.u.uNightBase, BGL.nightBase); gl.uniform1f(pr.u.uNightEnv, sc.nightEnv); gl.uniform1f(pr.u.uNightFloor, BGL.nightFloor);
-    gl.uniform1f(pr.u.uNightTop, BGL.nightTop * sc.nightTop);
+    gl.uniform1f(pr.u.uNightFall, BGL.heightRate * sc.nightTop);
     gl.uniform1f(pr.u.uEase, RT.bgFresh ? 1 : st.ease);
     quad(); RT.bgFresh = false;
     RT.bgA = dst; RT.bgB = src;
