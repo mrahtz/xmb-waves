@@ -62,6 +62,8 @@ if __name__ == '__main__':
     ap.add_argument('--index')
     ap.add_argument('--requested')
     ap.add_argument('--groups', help='only these groups of scoreset.json (comma-separated)')
+    ap.add_argument('--requests', nargs=2, metavar=('DIR', 'JOBID'),
+                    help='write one footage request per missing condition into DIR as JOBID-<n>.json')
     ap.add_argument('--quiet', action='store_true')
     a = ap.parse_args()
     groups = set(a.groups.split(',')) if a.groups else None
@@ -76,4 +78,11 @@ if __name__ == '__main__':
               (a.out, len(out['clips']), ', '.join('%d %s' % (v, k) for k, v in sorted(kinds.items())), len(conds)))
         for g, ks in sorted(got.items()): print('  %-14s %d conditions' % (g, len(ks)))
         if missing: print('  %d conditions have no clip yet' % len(missing))
+    if a.requests and missing:
+        d, job = a.requests
+        for i, w in enumerate(missing, 1):
+            r = {k: w[k] for k in ('kind', 'date', 'time', 'since_start_s', 'seed', 'seconds', 'size', 'aspect', 'colour') if k in w}
+            p = os.path.join(d, '%s-%d.json' % (job, i))
+            with open(p, 'w', newline='\n') as f: json.dump(r, f)
+            print('wrote %s  %s %s' % (p, w['date'], w['time']))
     sys.exit(1 if missing else 0)

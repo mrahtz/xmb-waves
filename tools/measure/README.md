@@ -40,6 +40,7 @@ four unscored. `scoreset.json` names the conditions this lane wants on top of it
 `scoreset.py` resolves each one against the index of the clips made on request and writes one index file:
 
     python3 scoreset.py                                            # -> work/scoreset/INDEX.json
+    python3 scoreset.py --requests C:\xmb-share\requests JOBID      # one footage request per condition with no clip yet
     python3 battery.py --commit main --lanes background --index work/scoreset/INDEX.json --no-clean-noise
     python3 bgfit/prep.py $MEASURE_CACHE --index work/scoreset/INDEX.json
 
