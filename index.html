@@ -940,11 +940,47 @@ let TONE_BLACK = 0.03;
 // band sweeps the night gradient), so the ratio there would absorb a background error into the wave's brightness.
 // Version 31 says the original's wave brightness is lowest by day, a little above that at night, clearly higher at dusk and
 // highest of all at dawn, against gains in the opposite order. By the light these values actually deliver over the sheet
-// (geomcheck.js's dump through the two curves) this build now gives day 0.039 < dusk 0.051 < night 0.054 < dawn 0.056: the
+// (geomcheck.js's dump through the two curves) this build now gives day 0.040 < dusk 0.056 < night 0.059 < dawn 0.062: the
 // day lowest and the dawn highest as version 31 has it, with the night and dusk the other way round and 5 % apart, which
 // is inside what the observable can tell on this build. Before this round the order was day < night < dawn < dusk.
+// Re-fitted for version 36, which says this fit goes stale whenever the sheet or the camera moves and that the figure must
+// be averaged over a stretch long enough that it stops depending on where the stretch starts. How long that is was
+// established rather than assumed (tools/measure/bandlevelwin.py, over every window of a given length): on the longest
+// footage of one condition - the 30 s lossless render of 15 October 12:00 at 240 s - the band's added light over a 10 s
+// window, which is all any clip of the index is, still spreads 8 % between windows, and 4 % over 20 s; on this build at the
+// same condition over 120 s it spreads 46 % over a 10 s window, 19 % over 30 s and 10 % over 60 s, because this band
+// breathes about twice as hard as the original's (frame to frame 17 % against the footage's 8 %), which version 36 says is
+// the sheet's motion showing up in a look measurement and not this value's business. The index's twelve noise clips of a
+// condition, spread over 40 s to 30 minutes, are therefore the stretch this is fitted on: 120 s of one condition sampled
+// across half an hour, whose standard error comes to about 3 %.
+// On that footage the shading change above left the day 37 % over on the ratio (1.374 +- 0.060, nine standard errors),
+// and the other three moods inside one and a half standard errors of matched (night 0.937 +- 0.049 on the added light,
+// dawn 0.995 +- 0.039, dusk 0.963 +- 0.035), so only the day moved: 0.18 -> 0.137, which brings its ratio to 1.003 +-
+// 0.044. Version 36's extension of the first caution - that the denominator carries the background's own gradient and so
+// the band's own placement, and that where the two sides' backgrounds under the band disagree the fit must be made on the
+// added light instead - is reported on both sides by bandlevelset.py compare: the background under the band is 0.97 of
+// the footage's by day, 1.00 at dawn, 0.99 at dusk and 1.09 at night, so the ratio is the measurement in the three
+// daylight moods and the night is still read on the added light.
+// base and fres are the mood's balance between the two shading terms and sizeK its scale of the size factor.
+// The balance keeps spec 4.5's order: by day the Fresnel-like term is clearly the stronger (2.4 against 1.8, a third
+// more), at night the two are close (1.7 against 1.6), and at dawn and dusk the sheen is slightly the stronger (1.8
+// against 1.6). The day's sheen was raised from 1.2 for version 36, which says that sentence is about the two per-mood
+// strengths and not about where the light ends up: with the Fresnel-like response as narrow as it is, most of the sheet's
+// light must still be the sheen's in every mood, the day included, and a build that reads it the other way gets a band of
+// separate strands with the background between them. At 1.2 the day's own figures were that picture exactly - face level
+// 0.001 against the footage's 0.180, fold-to-face 1071 against 5.7, 2.6 partings a column against 0.8 - and the sheen was
+// only 0.62 of the day's sheet light against 0.76 to 0.79 in the other moods; it is now 0.74, and rendering each term
+// alone confirms where each lands (the Fresnel-like term alone gives a face level of 0.00 and 4 to 7 px lines in every
+// mood, the sheen alone fills the night's faces to 0.33). What the balance will not do is buy face level: lowering the
+// day's fres to 1.7 left its face level at 0.001, which is version 36's own pricing of a gain-like move.
+// sizeK is slightly lower at night and at dusk than by day and at dawn, as spec 4.5 asks, and nearly the same in all
+// four moods, as version 36 says the original's is. Night's 0.54 -> 0.585 and dusk's 0.54 -> 0.555 are the re-check
+// version 36 asks for after a change to the shared cut-off: the curve is one curve that every mood reads, the night's
+// faces were already right before the change and overshot after it (face level 0.357 against 0.279, its brightest line
+// 56 px against 23), and raising its scale slides its sheet back up the one curve. The day's would want to go the other
+// way and may not, because spec 4.5's order forbids it; that is where the day's remaining face-level gap sits.
 const MOODS = {
-  night: { waveBright: 0.216, base: 1.6, fres: 1.7, sizeK: 0.54,
+  night: { waveBright: 0.216, base: 1.6, fres: 1.7, sizeK: 0.585,
     latX: 1.00, latY: 0.92, latZ: 1.00, envCross: 0.20, camPitch: -10.0, camLift: 0.2745,
     exposure: 1.385, white: 1.0, glareThr: 0.64, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.6,
     focusFar: 4.38, sparkSize: 1.1, sparkBright: 1.0, glint: 0.30 },
@@ -952,11 +988,11 @@ const MOODS = {
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.25, camPitch: -15.0, camLift: 0,
     exposure: 1.223, white: 1.0, glareThr: 0.7, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.23, sparkSize: 1.1, sparkBright: 1.0, glint: 0.35 },
-  day: { waveBright: 0.18, base: 1.2, fres: 2.4, sizeK: 0.6,
+  day: { waveBright: 0.137, base: 1.8, fres: 2.4, sizeK: 0.6,
     latX: 1.00, latY: 1.00, latZ: 1.00, envCross: 0.28, camPitch: -15.0, camLift: 0,
     exposure: 1.131, white: 0.9, glareThr: 0.72, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.20, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
-  dusk: { waveBright: 0.192, base: 1.8, fres: 1.6, sizeK: 0.54,
+  dusk: { waveBright: 0.192, base: 1.8, fres: 1.6, sizeK: 0.555,
     latX: 1.00, latY: 0.97, latZ: 1.00, envCross: 0.20, camPitch: -15.0, camLift: 0,
     exposure: 1.346, white: 1.0, glareThr: 0.785, glareSigma: 1.5, glareRatio: 0.6, glareStrength: 0.9,
     focusFar: 4.22, sparkSize: 1.0, sparkBright: 1.0, glint: 0.35 },
@@ -1133,7 +1169,21 @@ const WAVE = {
   // the peak (below it in three moods of four) and a cut-off that removed 0.06 to 0.13 of the sheen - the "sheet far below
   // the original's" that version 31 says version 17's check passes comfortably - these give 1.13 to 1.43 of the peak, the
   // falling-side share above the rising-side one by 0.11 to 0.31, and a cut-off that removes 0.25 to 0.42.
-  sheenCut0: 0.185, sheenCut1: 0.32, // the sheen falls linearly between these size factors (the fused thread profile)
+  // Version 36 names the shape of this cut-off as the strongest and cheapest lever on the band's face level and withdraws
+  // version 24's conclusion that no shape of the two responses can tell the band's faces from the picture outside it: the
+  // sheen fills the faces and the Fresnel-like term makes the folds. Read mood by mood (tools/measure/looksweep.py), this
+  // build had version 36's first fault in three moods of four - the folds at the right level and the faces empty, the
+  // fold-to-face ratio far above the original's, more partings and more peaks in a column - and the faint light just
+  // outside the band short in the same three moods (skirt.py), which version 36 says makes the move free of cost there.
+  // So where the fall starts and how long it runs were fitted on that table against the footage's own figures at the four
+  // mood holds, scored against the range the original shows for each measure (lookscore.py): sheenCut0 0.185 -> 0.205 and
+  // sheenCut1 0.32 -> 0.35, which takes the lane's per-mood score from 0.927 to 0.355 ranges. Further than that the dark
+  // moods' bands fuse: at 0.25 / 0.50 the day's face level comes right (0.187 against 0.180) but the night's brightest
+  // line goes to 59 px against the footage's 23 and its broad sheen to 52 against 24, so the cut-off's useful range here
+  // ends well before the day's face level is matched. The night, whose faces were already right, overshoots at the new
+  // shape, and version 36 says to expect that and to re-check the per-mood size scale after it, which is what night's
+  // and dusk's sizeK below do.
+  sheenCut0: 0.205, sheenCut1: 0.35, // the sheen falls linearly between these size factors (the fused thread profile)
   // the Fresnel-like peak: where it sits in cosine x size factor; zero below fresZero of that; the tail's length above it
   fresPeak: 0.085, fresZero: 0.5961, fresTail: 0.40,
   fade: 0.06,                           // fraction of the sheet over which it fades out, linearly, at the ends and edges
