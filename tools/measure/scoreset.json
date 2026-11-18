@@ -1,26 +1,398 @@
 {
  "comment": [
-  "The background lane's scored set: the measured footage index plus conditions asked for at hours and in",
-  "months the index does not cover. Every entry is in the same form as the index's own render clips (the 15th",
-  "of the month, 40 s since the start, 10 s, 1920 x 1080, seed 1, colour 0), so the numbers are comparable",
-  "with the index's. scoreset.py resolves each one to a clip of the requested footage index and writes one",
-  "index file for battery.py --index and bgfit/prep.py --index.",
-  "Groups: 'shoulder' = hours between the four tuning hours, in the months the index covers; 'month' = the",
-  "tuning hours in the eight months the index does not cover; 'month-shoulder' = hours between them there."
+  "The background lane's scored set: the measured footage index plus conditions asked for at hours, on days and in",
+  "months the index does not cover. Every entry is in the same form as the index's own render clips (40 s since the",
+  "start, 10 s, 1920 x 1080, seed 1, colour 0), so the numbers are comparable with the index's. scoreset.py resolves",
+  "each one to a clip of the requested footage index and writes one index file for battery.py --index and",
+  "bgfit/prep.py --index.",
+  "Groups: 'shoulder' = hours between the four tuning hours, in the months the index covers; 'month' = the tuning",
+  "hours in the eight months the index does not cover; 'alone' = the 4th of every month, inside the first week, where",
+  "that month's images show alone and its own palette is all there is to see (spec 33, 34); 'alone-shoulder' = hours",
+  "between them on the 4th, where the footage reaches; 'days' = the days through one month (April) at one fixed",
+  "daytime hour, which is what pins the breadth of the mid-month lowering and where the month handover's step sits,",
+  "neither of which a mid-month day and an end-of-month day can see between them (spec 34); 'midday' = frames an hour",
+  "or so either side of the middle of the day, without which the breadth of the window over which the bottom glow",
+  "broadens cannot be fitted at all (spec 34)."
  ],
- "form": {"kind": "render", "since_start_s": 40, "seconds": 10, "size": "1920x1080", "seed": 1, "colour": 0, "aspect": "16:9"},
+ "form": {
+  "kind": "render",
+  "since_start_s": 40,
+  "seconds": 10,
+  "size": "1920x1080",
+  "seed": 1,
+  "colour": 0,
+  "aspect": "16:9"
+ },
  "extra": [
-  {"group": "shoulder", "date": "2026-01-15", "times": ["04:00:00", "09:00:00", "15:00:00", "20:00:00"]},
-  {"group": "shoulder", "date": "2026-04-15", "times": ["04:00:00", "09:00:00", "15:00:00", "20:00:00"]},
-  {"group": "shoulder", "date": "2026-07-15", "times": ["04:00:00", "09:00:00", "15:00:00", "20:00:00"]},
-  {"group": "shoulder", "date": "2026-10-15", "times": ["04:00:00", "09:00:00", "15:00:00", "20:00:00"]},
-  {"group": "month", "date": "2026-02-15", "times": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"]},
-  {"group": "month", "date": "2026-03-15", "times": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"]},
-  {"group": "month", "date": "2026-05-15", "times": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"]},
-  {"group": "month", "date": "2026-06-15", "times": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"]},
-  {"group": "month", "date": "2026-08-15", "times": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"]},
-  {"group": "month", "date": "2026-09-15", "times": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"]},
-  {"group": "month", "date": "2026-11-15", "times": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"]},
-  {"group": "month", "date": "2026-12-15", "times": ["00:00:00", "06:00:00", "12:00:00", "18:00:00"]}
+  {
+   "group": "shoulder",
+   "date": "2026-01-15",
+   "times": [
+    "04:00:00",
+    "09:00:00",
+    "15:00:00",
+    "20:00:00"
+   ]
+  },
+  {
+   "group": "shoulder",
+   "date": "2026-04-15",
+   "times": [
+    "04:00:00",
+    "09:00:00",
+    "15:00:00",
+    "20:00:00"
+   ]
+  },
+  {
+   "group": "shoulder",
+   "date": "2026-07-15",
+   "times": [
+    "04:00:00",
+    "09:00:00",
+    "15:00:00",
+    "20:00:00"
+   ]
+  },
+  {
+   "group": "shoulder",
+   "date": "2026-10-15",
+   "times": [
+    "04:00:00",
+    "09:00:00",
+    "15:00:00",
+    "20:00:00"
+   ]
+  },
+  {
+   "group": "month",
+   "date": "2026-02-15",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "month",
+   "date": "2026-03-15",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "month",
+   "date": "2026-05-15",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "month",
+   "date": "2026-06-15",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "month",
+   "date": "2026-08-15",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "month",
+   "date": "2026-09-15",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "month",
+   "date": "2026-11-15",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "month",
+   "date": "2026-12-15",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-01-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-02-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-03-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-04-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-05-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-06-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-07-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-08-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-09-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-10-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-11-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone",
+   "date": "2026-12-04",
+   "times": [
+    "00:00:00",
+    "06:00:00",
+    "12:00:00",
+    "18:00:00"
+   ]
+  },
+  {
+   "group": "alone-shoulder",
+   "date": "2026-01-04",
+   "times": [
+    "03:00:00",
+    "09:00:00",
+    "15:00:00",
+    "21:00:00"
+   ]
+  },
+  {
+   "group": "alone-shoulder",
+   "date": "2026-07-04",
+   "times": [
+    "03:00:00",
+    "09:00:00",
+    "15:00:00",
+    "21:00:00"
+   ]
+  },
+  {
+   "group": "alone-shoulder",
+   "date": "2026-10-04",
+   "times": [
+    "03:00:00",
+    "21:00:00"
+   ]
+  },
+  {
+   "group": "alone-shoulder",
+   "date": "2026-10-04",
+   "times": [
+    "09:00:00",
+    "15:00:00"
+   ],
+   "form": {
+    "seconds": 6
+   }
+  },
+  {
+   "group": "days",
+   "date": "2026-04-01",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "days",
+   "date": "2026-04-03",
+   "times": [
+    "12:00:00"
+   ],
+   "form": {
+    "seconds": 6
+   }
+  },
+  {
+   "group": "days",
+   "date": "2026-04-06",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "days",
+   "date": "2026-04-08",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "days",
+   "date": "2026-04-10",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "days",
+   "date": "2026-04-13",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "days",
+   "date": "2026-04-18",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "days",
+   "date": "2026-04-22",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "days",
+   "date": "2026-04-26",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "days",
+   "date": "2026-04-28",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "days",
+   "date": "2026-04-30",
+   "times": [
+    "12:00:00"
+   ]
+  },
+  {
+   "group": "midday",
+   "date": "2026-10-15",
+   "times": [
+    "11:00:00",
+    "13:00:00"
+   ],
+   "form": {
+    "seconds": 6
+   }
+  }
  ]
 }

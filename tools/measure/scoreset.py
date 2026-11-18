@@ -25,12 +25,14 @@ def key(c):
 
 
 def wanted(spec, groups=None):
-    """the conditions scoreset.json names, as clip dicts without a path"""
+    """the conditions scoreset.json names, as clip dicts without a path. An entry may carry a "form" of its own, whose
+    keys override the set's; some conditions were asked for by earlier rounds in a slightly different form (6 s rather
+    than 10 s, say) and are taken as they are rather than asked for again."""
     out = []
     for e in spec['extra']:
         if groups is not None and e.get('group') not in groups: continue
         for t in e['times']:
-            c = dict(spec['form']); c.update(date=e['date'], time=t, group=e.get('group'))
+            c = dict(spec['form']); c.update(e.get('form', {})); c.update(date=e['date'], time=t, group=e.get('group'))
             out.append(c)
     return out
 

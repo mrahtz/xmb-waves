@@ -43,11 +43,15 @@ function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(
 function bindTarget(t) { gl.bindFramebuffer(gl.FRAMEBUFFER, t ? t.fb : null); }
 
 // A painted picture read from its grid of colours (spec 23): separable smooth interpolation between the nodes, so the
-// picture is smooth everywhere (the weights flatten at each node) and no edge or band can show. v = 0 at the top.
-function gridColour(G, gw, gh, u, v) {
-  const x = u * (gw - 1), y = v * (gh - 1);
-  const i0 = Math.min(Math.max(Math.floor(x), 0), gw - 2), j0 = Math.min(Math.max(Math.floor(y), 0), gh - 2);
-  const fx = ease(x - i0), fy = ease(y - j0), o = [0, 0, 0];
+// picture is smooth everywhere (the weights flatten at each node) and no edge or band can show. v = 0 at the top. The
+// columns are evenly spaced across the width; the rows sit at the uneven heights ys (crowded towards the bottom edge,
+// spec 33), so the gap a node's influence spans is shorter low down.
+function gridColour(G, gw, gh, ys, u, v) {
+  const x = u * (gw - 1);
+  const i0 = Math.min(Math.max(Math.floor(x), 0), gw - 2);
+  let j0 = 0;
+  while (j0 < gh - 2 && v > ys[j0 + 1]) j0++;
+  const fx = ease(x - i0), fy = ease((v - ys[j0]) / (ys[j0 + 1] - ys[j0])), o = [0, 0, 0];
   for (const [di, dj, w] of [[0, 0, (1 - fx) * (1 - fy)], [1, 0, fx * (1 - fy)], [0, 1, (1 - fx) * fy], [1, 1, fx * fy]]) {
     const b = ((j0 + dj) * gw + i0 + di) * 3;
     for (let c = 0; c < 3; c++) o[c] += w * G[b + c];
@@ -63,8 +67,8 @@ function makeBackgroundImages() {
   PALETTES.forEach((P, m) => {
     for (let y = 0; y < BG_H; y++) for (let x = 0; x < BG_W; x++) {
       const u = (x + 0.5) / BG_W, v = (y + 0.5) / BG_H; // v = 0 at the top
-      put(m * 2, x, y, gridColour(P.day, BG_GRID_W, BG_GRID_H, u, v));
-      put(m * 2 + 1, x, y, gridColour(P.night, BG_GRID_W, BG_NGRID_H, u, v));
+      put(m * 2, x, y, gridColour(P.day, BG_GRID_W, BG_GRID_H, BG_GRID_ROWS, u, v));
+      put(m * 2 + 1, x, y, gridColour(P.night, BG_GRID_W, BG_NGRID_H, BG_NGRID_ROWS, u, v));
     }
   });
   return makeTex(BG_W, BG_H * tiles, gl.RGBA16F, gl.RGBA, gl.FLOAT, gl.LINEAR, data);
@@ -104,14 +108,15 @@ function bgColorAt(sc, u, v) {
   const f = ease(((sc.monC - v) / sc.monW + 1) / 2), L = bgLightsJS(u, v, sc.aday);
   const proc = (c) => {
     const h = rgb2hsvJS(c[0], c[1], c[2]);
-    const val = h[2] * sc.daylight * Math.min(1, BGL.base + L) * Math.exp(-BGL.topDark * sc.topV * v);
-    const sat = Math.max(0, h[1] * (1 - BGL.pale * L)) * (1 - BGL.midSat * sc.mid) * Math.exp(BGL.topSat * sc.topS * v);
+    const val = h[2] * sc.daylight * (BGL.base + L) * Math.exp(-BGL.heightRate * sc.topV * v);
+    const sat = Math.max(0, h[1] * (1 - BGL.pale * L)) * (1 - BGL.midSat * sc.mid)
+      * (1 + BGL.satCeil * (1 - Math.exp(-BGL.heightRate * sc.topS * v)));
     return hsv2rgbJS(h[0], sat, val).map(x => Math.max(0, x));
   };
   const da = proc(bgImageAt(sc.monA * 2, u, v)), db = proc(bgImageAt(sc.monB * 2, u, v));
   const na = bgImageAt(sc.monA * 2 + 1, u, v), nb = bgImageAt(sc.monB * 2 + 1, u, v);
-  const nl = Math.max(BGL.nightFloor, sc.nightEnv * Math.min(1, BGL.nightBase + bgLightsJS(u, v, sc.anight)))
-    * Math.exp(-BGL.nightTop * sc.nightTop * v);
+  const nl = Math.max(BGL.base * BGL.nightFloorF, sc.nightEnv * (BGL.base + bgLightsJS(u, v, sc.anight))
+    * Math.exp(-BGL.heightRate * sc.nightTop * v));
   const k = sc.night * BGL.nightMix;
   return [0, 1, 2].map(c => (da[c] + (db[c] - da[c]) * f) * (1 - k) + (na[c] + (nb[c] - na[c]) * f) * nl * k);
 }
