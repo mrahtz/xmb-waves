@@ -633,6 +633,55 @@ the two sparkle count measures that sat just outside their range come inside (`c
 original's 838). Within the look lane 69 of its 126 measure-seeds move towards the original and 47 away; the largest
 of those away is the width of all peaks (12.0 -> 14.3 px against the original's 10.5, a quarter of its range).
 
+The version-36 look round went in behind the gate, which was run again on the merge itself (the whole battery, all
+four lanes, three seeds, `battery.py` on the merge commit and on `main`, `gate.py` between the two) and reads as the
+lane's own run does: 123 of the 168 measures inside the original's range at every seed against `main`'s 121, 122 and
+122 (motion 47 of 50, look 42 of 42, sparkles 17 -> 19, background 15 of 54), no measure crossing from inside its
+range to outside it, four sparkle measure-seeds crossing in, and the largest move away from the original outside this
+lane 0.32 of that measure's range (`bgpixel.middle_centre.R_mean` 1.056 -> 1.069 levels, where the range is the noise
+clips' 0.040 and the whole move is 0.013 of a level), then 0.06 in the motion lane (`motion.parting_right_share`) and
+0.04 in the sparkle lane (`sparkles.tracks`); inside the lane the largest is 0.25 (`wave.peak_width_all_median`). The
+band's light is the merge's own gain: its peak over the background goes from 75.4 levels on `main` to 79.6 (the
+original's 98.8) and its mean from 30.3 to 34.0 (41.2). The background away from the band is untouched - 1.325 levels
+a channel on both sides over the 19 conditions and by hour 0.82 / 1.39 / 1.65 / 1.47 / 1.10 at 00 / 06 / 12 / 18 h and
+21:30, every figure within 0.001 of `main`'s (`bgtable.py` on the battery's `bgpixel.json`) - as a change to the
+sheet's shading must be.
+
+The joint re-tune after this merge found the shared settings at the fit's fixed point. One step of `jointfit.py
+--weight=1.0 --hold=night` (step 0.7) moves the three daylight gains by at most 0.1 % and the twelve palette grids by
+at most 2.7 % (July's bottom row in red, 0.973; every other factor within 2 %), and taking it leaves the background
+away from the band 0.001 levels a channel better (1.325 -> 1.324) with the band's peak unmoved (79.589 -> 79.589);
+eight steps run in a row give 1.324, 1.326, 1.323, 1.314, 1.334, 1.332, 1.333, 1.336, a plateau whose spread (0.022)
+is well below the measure's own noise (0.043-0.093 between two noise clips of one condition). Nothing is taken: every
+gain and all twelve palettes are kept where the background lane's round left them. The two alternatives are the same
+refusals as before, measured again on this sheet: letting the band pull on the gain (`--weight=0.5`) takes the
+background from 1.325 to 2.020 levels a channel in one step and dawn from 1.39 to 3.46 for 5.2 levels of band peak,
+and to 3.212 levels over five steps for 21.8 levels of peak; letting the fit have the night leaves midnight where it
+is (0.816 -> 0.814) and takes 21:30 from 1.10 to 1.45. The camera needs nothing: the band's place on the screen is
+`main`'s (centre 0.4505 H on both, lowest 0.3292 -> 0.3287, highest 0.6718, thickness 0.1787 H), so the aim the motion
+lane fitted still stands. And the floor stays at 0.03, with all three of its readings taken again on this build, whose
+night band is brighter than `main`'s: the night black top is 0.305 H (`blackfoot.py` at the four 00:00 conditions,
+0.169-0.327 by month, lift 0.5) against the original's 0.330 (0.272-0.336 over the same eight clips), and a build
+re-tuned to convergence at 0.045 (seven `jointfit.py --weight=1.0 --hold=night` steps) reads 0.359 and overshoots in
+all four months; the night band's colour (`bandpos.py` over 30 moments of the six night conditions) is 0.0166 mean
+absolute share error per channel at 0.03 against 0.0210 at that re-tuned 0.045 build, where `main` read 0.0157, so the
+new night shading moves this reading by 0.0009 and not its direction; and the background away from the band is 1.325
+levels a channel at 0.03 against 1.762 at 0.045. Version 36's two ceilings were read on both sides of the merge by one
+sweep of the 15th of all twelve months at the four mood holds (`wavetop.js --sweep`, `ceilings.py`, 1280 x 720): the
+wave alone reaches 158 of 255 at night, 115 at dawn, 93 by day and 102 at dusk against `main`'s 154 / 115 / 101 / 100,
+the background alone never reaches the top level (its highest is 198, December at dusk, on both), and on neither build
+does a clipped pixel of any of the 48 conditions survive dropping the wave and the sparkles.
+
+What this merge does not settle, from the round's own measurer (their figures, not re-measured here): seventeen of the
+battery's 19 scored conditions sit at 40 s after the start, so the battery's "42 of 42" is one pose of the cloth, and
+over the index's twelve noise clips per mood hold - 40 s to 30 minutes - only 134 of 168 of the same look readings lie
+inside the footage's range. Those that fail are one family: over minutes this band keeps fewer, broader strands
+(3.1-3.6 peaks a column against 4.2-4.3; 6 or more peaks in 2-5 % of columns against 11-17 %) and a thinner, far less
+variable body (0.133-0.136 H in every mood against 0.157-0.213), and its level reverses by mood (8-12 % high at night
+and dawn, a seventh short by day) where the 40 s pose reads a fifth dim everywhere. The night's faint skirt is also
+over the original's own spread 1-10 and 11-25 rows outside the band. Those are the look lane's next round and the
+sheet's motion behind it, not this merge's.
+
 Not verifiable from the references available so far: the depth of the mid-month
 saturation drop still sits at the lower end of the range it is allowed (0.30),
 though its breadth and the trace of it that survives the month's ends are now
