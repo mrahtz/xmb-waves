@@ -31,6 +31,25 @@ are fixed. A change to what it measures raises `BATTERY_VERSION` in `battery.py`
 
 Needs ffmpeg/ffprobe, Node.js with Playwright, and Python 3 with numpy, scipy, Pillow and OpenCV.
 
+### The background lane's scored set (`scoreset.py`, `scoreset.json`)
+
+The measured footage index covers four months (January, April, July and October on the 15th) at four hours
+(00, 06, 12 and 18) with 21:30 on 15 and 29 October, which leaves eight months and every hour between the
+four unscored. `scoreset.json` names the conditions this lane wants on top of it, all in the index's own form
+(the 15th of the month, 40 s since the start, 10 s, 1920 x 1080, seed 1, colour 0, a `render` clip), and
+`scoreset.py` resolves each one against the index of the clips made on request and writes one index file:
+
+    python3 scoreset.py                                            # -> work/scoreset/INDEX.json
+    python3 battery.py --commit main --lanes background --index work/scoreset/INDEX.json --no-clean-noise
+    python3 bgfit/prep.py $MEASURE_CACHE --index work/scoreset/INDEX.json
+
+The measured index is copied through unchanged, noise clips included, so the lane's own numbers stay
+comparable; the extra clips are matched exactly (kind, date, time, time since the start, length, size, seed,
+colour, frame rate), so the set does not depend on what else any job has asked for. A condition with no clip
+is reported and left out, and the exit status is non-zero, so a later job can see what is still missing.
+The set is 67 conditions: the index's 19, the four shoulder hours (04, 09, 15 and 20) in the four months the
+index covers, and the four tuning hours in the eight months it does not.
+
 **What it renders.** It reads every clip in the footage index (`--index`, default
 `C:\xmb-share\footage\INDEX.json`) that is not marked `"heldout": true`: recordings, renders and noise clips.
 For each clip it renders the build through score mode (spec section 9) in headless Chromium **on the GPU**
@@ -176,6 +195,9 @@ camera, the wave settings and literal replacements. `apply.py` takes the same ke
 | `cmp46.py` | Tabulates several statistics files side by side (median and range per measure). |
 | `battery.py`, `battery_frames.py`, `battery_render.js` | The fixed battery (above): footage and clean renders at the same conditions, every measure, `metrics.json`. |
 | `bgremove.py` | Removes the background from reference frames and clip frames. |
+| `scoreset.py`, `scoreset.json` | The background lane's scored set as one footage index: the measured index plus the conditions named in `scoreset.json`, resolved against the requested footage index (above). |
+| `bgtable.py` | The background's pixel error by condition, by month and by hour, from a battery run's `bgpixel.json` (`bgpixel.<region>.{R,G,B}_absmean`, the mean over the three channels, and the mean over the clips of a condition). A second `bgpixel.json` is shown beside the first with the change, which is how a fit's before and after are read. |
+| `bgnight.py` | Spec 3 (N6, N8): the lowest part of a night frame across the width, footage and build by one and the same method. Both sides are the battery's own background estimate (the temporal median of the 1 fps frames at 480 x 270, the wave masked out), read over the pixels neither side masks. Per condition, over the lowest tenth of the rows: the column profile (gaps interpolated, smoothed by 8 px at 480 wide, divided by its own mean), where it is brightest (a parabola through the three samples at the maximum, as a fraction of the width), its contrast `(max - min) / mean` and its tilt `(right half - left half) / mean`. It then prints the same readings as a curve over the hours of the night month by month, and marks a profile whose contrast is under 0.12, where the band is nearly flat and the position of its brightest place means little: a peak position read one condition at a time cannot tell a light that never shows from an image painted with the wrong lean. |
 | `blackfoot.py` | Night frames (spec 4.5, version 20): how far down the frame the top stays flat at the darkest level, on the temporal median of a clip's frames, as a fraction of the height. |
 | `bandcolour.py`, `bandcolour_render.js` | Spec 4.5 (version 24): the colour of the band's added light, the observable for the composite's black offset. Per frame, a 9 px horizontal median removes the sparkles; the background under the band (bgremove's light above 3 levels, grown by 15 rows) is interpolated per column and channel from the rows just outside it and subtracted; the added light is summed per channel over the band's pixels whose background is dark (largest channel under 10 levels) and over all of them. Prints each channel's share. On my renders it agrees with the exact added light (`--exact`, frames rendered with and without the wave) to 0.003. `bandcolour_render.js` renders the frames (raw RGB) on the GPU. |
 | `brightfoot.py`, `brightmax.js` | Spec 5 (version 24): both sides of the bright-pass threshold. `brightfoot.py` measures a final frame (footage or my full renders, the same code) at the bright-pass's resolution (8 x 8 block means, largest channel, sparkles removed by a 9 px horizontal median): the band's maximum and the background's maximum away from the band, with its position. `brightmax.js` renders my composite with and without the wave (no glare, sparkles or dither) and returns both maxima per condition with the mood's threshold. |
@@ -224,9 +246,11 @@ The background's settings and the months' painted images (spec section 3, versio
 footage's backgrounds with real GPU renders.
 
     MEASURE_CACHE=DIR python3 battery.py --lanes background --footage-only   # the footage's bgest.npz files
-    python3 bgfit/prep.py DIR [--index INDEX.json]   # targets in work/bgfit/: per condition the mean of the clips'
+    python3 bgfit/prep.py DIR [--index INDEX.json[,INDEX2.json]]   # targets in work/bgfit/: per condition the mean of the clips'
                                        # background estimates at 240 x 135, and where none of them shows the wave;
-                                       # --index names the conditions to keep (a shared cache holds many more)
+                                       # --index names the clips to keep, by the battery's own clip id, so another
+                                       # job's render of the same moment at another seed or length cannot slip in
+                                       # (a shared cache holds every clip any job has ever measured)
     python3 bgfit/fit.py PAGE OUT.json [GENS] [WORKERS] [--start OUT0.json] [--block light|all|MONTHS] [--sigma 0.06]
                                        #   [--seed N] [--regions W] [--rows W] [--explain 1]
     python3 bgfit/unseen.py OUT.json FINAL.json   # the months the footage never shows: the fitted months' mean change
