@@ -318,7 +318,17 @@ sheet moved by 0.01 because the band masks slightly different pixels), against
 1.17 at midnight, 1.63 at dawn, 1.43 at noon, 2.12 at dusk and 1.00 at 21:30 (1.07 / 1.55 / 1.74 / 2.26 / 0.76
 before the version-28 background), so noon and dusk have come down and midnight and dawn have gone up by less. The hours in the shoulders of
 the day, which the footage index does not cover and which the six requested renders do, went from 8.9 levels to 1.1
-in the lane's own fit. The composite's black offset, each mood's exposure and the twelve month palettes are fitted together to the
+in the lane's own fit. The lane's whole scored set is now one index (`tools/measure/scoreset.py`): the measured
+index's 19 conditions, the 16 shoulder hours in the four months it covers, and the four tuning hours in the eight
+months it never shows, all resolved against the renders asked for, 67 conditions in all. Measured on it, the covered
+months hold 1.25-2.04 levels a channel and the shoulder hours 1.40-2.21, and the eight uncovered months were the
+lane's largest gap by far at 11-29. The palettes of the four of them that no condition of the measured index can
+reach - March, June, September and December, since the 15th of a month mixes it with the next - have now been fitted
+against that set and applied (`bgfit/newmonths.sh`, one block per month, two rounds of 700 generations each): over
+the 67 conditions the error goes from 9.41 to 5.84 levels a channel, every one of the 35 conditions in the covered
+months is unchanged to +-0.000 levels, and no condition of the set gets worse. The other four uncovered months
+(February, May, August and November) cannot be had this way, because their own blocks' conditions include the 15th
+of January, April, July and October, whose mix shows them. The composite's black offset, each mood's exposure and the twelve month palettes are fitted together to the
 original's renders and recordings at four months (January, April, July, October) and four hours
 (`tools/measure/jointfit.py`, with the offset swept around the fit; since the spec-26 sheet the gain is fitted on the
 background alone, `--weight=1.0`, because the band's shortfall by day is its own brightness and the gain cannot reach
@@ -355,8 +365,11 @@ background's colour as the original's do, though less (R share 0.29 against 0.24
 palette is more coloured than the original's lean where the original's stay neutral. The wave's own light cannot drive the picture to white in any mood (spec 27): rendered alone it reaches 80 of 255 by
 day, 98 at dawn, 92 at dusk and 107 at night (72, 102, 134 and 106 before this round), and after the version-31 fit of
 the moods' wave brightness the composite no longer reaches the top output level at dusk at all (the share of the frame
-there 0.0013 -> 0.00000, the maximum 255 -> 242); where the finished frame still clips - by day and at dawn, in the
-months whose background is too bright on its own - it is the background and not the band. At the four dusk conditions
+there 0.0013 -> 0.00000, the maximum 255 -> 242); where the finished frame still clipped it was the background and
+not the band, and the last of that went with this round's palettes - over all twelve months and the four mood holds
+(`wavetop.js`, 1280 x 720, the same moment on both sides) the composite reached the top output level only in August
+by day, over 0.0098 of the frame, and now reaches it in no month and no mood (August by day 255 -> 247, with the
+September palette the mid-August frame reads). At the four dusk conditions
 the footage covers, the share of band pixels at the top level is 0.0024, the footage's own 0.0024, where it was 0.038.
 
 Each mood's own wave brightness is now kept apart from the composite's gain (spec 31) and fitted on that section's
@@ -464,11 +477,32 @@ the same eight clips), the same reading as before this merge, so the floor stays
 observable asks for still belongs to the night images themselves, which `bgfit/` can move and a palette scaling
 cannot.
 
+The background lane's round after that merge changed no pixel of the build: it added the lane's scored set, the
+background error by hour and month, the night bottom read as a curve and the fit of the four unshown months
+described above, which it left unapplied. The merge gate was therefore vacuous and passed exactly - the merged
+build's page is main's page byte for byte, and all 168 measures are identical at all three seeds (122 inside the
+original's range, motion 47 of 50, look 42 of 42, sparkles 18 of 22, background 15 of 54). The joint re-tune after
+it took that fit, which is the one thing in the round that moves a level, and found everything else at its fixed
+point again: one step of `jointfit.py --weight=1.0 --hold=night` (step 0.7) moves the four gains by 0.1 % and the
+twelve grids by at most 1.6 %, and taking it leaves the background away from the band 0.005 levels a channel worse
+(1.516 -> 1.521 over the 38 clips) with the band's peak unmoved (77.28 -> 77.33), so every gain and the eight
+palettes the index can see are kept; the two alternatives (the band pulling on the gain, and letting the fit have
+the night) are the same refusals as last round, on the same build. The four fitted palettes do not reach the
+measured index at all: with them applied the whole battery is identical to main's at all three seeds, every one of
+the 19 scored conditions is unchanged to +-0.000 levels, and the background away from the band stays at 1.516
+levels a channel (by hour 1.17 / 1.63 / 1.43 / 2.11 / 1.00). The camera needs nothing (the band's place is main's to
+four figures) and the floor stays at 0.03: read again on this build, the night black top is 0.261 H
+(`blackfoot.py` at the four 00:00 conditions, 0.2556-0.2685 by month, lift 0.5 levels; 0.2718 H and 0.2667-0.2815
+at lift 1) against the original's 0.3296 and 0.3440 by the same code over the same eight clips, so what the
+observable asks for is still the night images' own dark end and not a deeper floor.
+
 Not verifiable from the references available so far: each month's palette
 on its own (the footage shows two-month mixes on the 15th, and November nearly
-alone on 29 October), so the split between a month and the next, the palettes
-of March, June, September and December and the size of the mid-month
-saturation drop are design choices that follow the spec; likewise the look
+alone on 29 October), so the split between a month and the next and the size
+of the mid-month saturation drop are design choices that follow the spec. The
+palettes of March, June, September and December, which no condition of the
+measured index reaches, are no longer chosen but fitted against renders asked
+for in those months (above); likewise the look
 between 01:00 and 03:00 and between 22:00 and 23:30, which follows the spec's
 description (section 3, N8). The day's own light is built as spec 28 says - a
 gentler morning step times a sharper evening one, the two rates in fixed
