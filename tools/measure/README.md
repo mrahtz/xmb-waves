@@ -255,6 +255,12 @@ footage's backgrounds with real GPU renders.
                                        #   [--seed N] [--regions W] [--rows W] [--explain 1]
     python3 bgfit/unseen.py OUT.json FINAL.json   # the months the footage never shows: the fitted months' mean change
     python3 bgfit/applyfit.py FINAL.json           # writes BGL, BGW and the PALETTES block into src/main/scene.js
+    python3 bgfit/merge.py BASE.json OUT.json 2=fitA.json 5=fitB.json ...   # take each run's own months into one result
+    BLOCKS="2 5 8 11" bash bgfit/newmonths.sh PAGE PREFIX WORKERS ROUNDS [GENS] [START.json]
+                                       # fit only the palettes of months the covered conditions do not show: one
+                                       # month per block, all blocks at once (their parameters and conditions are
+                                       # disjoint), merged after each round. bgfit/fits/ holds results kept for
+                                       # the record, each with the conditions and the start it was fitted from.
     python3 bgfit/regrid.py GW GH NGH              # changes how coarse the images' grids are, keeping the same pictures
     python3 bgfit/view.py PAGE sheet.png           # footage beside the build's background, per condition
     python3 bgfit/curve.py PAGE [OUT.json|-] [DATE]   # the picture over the day: brightness, top/bottom, saturation
