@@ -643,9 +643,10 @@ clips' 0.040 and the whole move is 0.013 of a level), then 0.06 in the motion la
 0.04 in the sparkle lane (`sparkles.tracks`); inside the lane the largest is 0.25 (`wave.peak_width_all_median`). The
 band's light is the merge's own gain: its peak over the background goes from 75.4 levels on `main` to 79.6 (the
 original's 98.8) and its mean from 30.3 to 34.0 (41.2). The background away from the band is untouched - 1.325 levels
-a channel on both sides over the 19 conditions and by hour 0.82 / 1.39 / 1.65 / 1.47 / 1.10 at 00 / 06 / 12 / 18 h and
-21:30, every figure within 0.001 of `main`'s (`bgtable.py` on the battery's `bgpixel.json`) - as a change to the
-sheet's shading must be.
+a channel on both sides as the mean over the 19 conditions (the 1.353 above is the same quantity taken as the
+battery's own median per channel) and by hour 0.82 / 1.39 / 1.65 / 1.47 / 1.10 at 00 / 06 / 12 / 18 h and 21:30, every
+figure within 0.001 of `main`'s (`bgtable.py` on the battery's `bgpixel.json`) - as a change to the sheet's shading
+must be.
 
 The joint re-tune after this merge found the shared settings at the fit's fixed point. One step of `jointfit.py
 --weight=1.0 --hold=night` (step 0.7) moves the three daylight gains by at most 0.1 % and the twelve palette grids by
