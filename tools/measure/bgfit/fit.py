@@ -44,11 +44,17 @@ NDAY, NNIGHT = GW * GH * 3, GW * NGH * 3
 LIGHT = [('BGL', 'base', .25, .9), ('BGL', 'spot', 0, .75), ('BGL', 'ovalX', .55, 1.5), ('BGL', 'ovalY', .5, 1.6),
          ('BGL', 'spotW', .35, 1.5), ('BGL', 'spotH', .3, 1.4), ('BGL', 'glow', 0, .75), ('BGL', 'bandX', 0, .45),
          ('BGL', 'bandW', .35, 1.5), ('BGL', 'bandY', 0, .25), ('BGL', 'bandH', .2, 1.2), ('BGL', 'bandWide', 0, 2),
-         ('BGL', 'bandWideW', .03, .6), ('BGL', 'pale', 0, 2.2), ('BGL', 'midSat', .3, .8),
+         # the window over which the glow broadens: its lower bound was 0.03 and the fit sat on it once frames an hour
+         # either side of the middle of the day were in the set (spec 34: no hour a usual set holds can see how narrow
+         # the window is), so it is opened downwards and the footage allowed to say
+         ('BGL', 'bandWideW', .012, .6), ('BGL', 'pale', 0, 2.2), ('BGL', 'midSat', .3, .8),
          ('BGL', 'midW', .1, .7), ('BGL', 'midTrace', 0, .5),
          ('BGL', 'monC0', -1.2, .3), ('BGL', 'monC1', .7, 2.2), ('BGL', 'monP0', .02, .45), ('BGL', 'monP1', .55, 1.1),
          ('BGL', 'monW0', .03, .8), ('BGL', 'monWMid', 0, 5), ('BGL', 'monWP', .04, .4),
-         ('BGL', 'heightRate', .5, 12), ('BGL', 'satCeil', 0, 8), ('BGL', 'nightMix', .3, .8),
+         # the one rate in the height is held above 2: below that the fall takes almost nothing out anywhere in the
+         # frame, which is the mechanism in name only, and spec 33 warns that a rate the footage does not pin is free
+         # to drift to a value at which its mechanism does nothing at all
+         ('BGL', 'heightRate', 2.0, 12), ('BGL', 'satCeil', 0, 8), ('BGL', 'nightMix', .3, .8),
          ('BGL', 'nightFloorF', .05, .95), ('BGW', 'warp', .2, .9), ('BGW', 'noon', 11.5, 12.5),
          ('BGW', 'stepW', .15, 1.2), ('BGW', 'stepRatio', .15, .95)]
 def palspec(months):
@@ -78,8 +84,15 @@ CONDS = list(range(len(META))) if block in ('light', 'all') else \
 MEASURED = set()
 for _c in json.load(open(opt.get('measured', os.path.join('C:' + os.sep, 'xmb-share', 'footage', 'INDEX.json'))))['clips']:
     if _c['kind'] != 'noise': MEASURED.add(_c['date'] + 'T' + _c['time'])
-IW = float(opt.get('iw', 3))
-CW = np.array([IW if META[j]['time'] in MEASURED else 1.0 for j in CONDS], dtype=float)
+# The hours between the four tuning hours weigh more for the same reason, and a stronger one: the set holds 120
+# conditions at 00:00, 06:00, 12:00 and 18:00 and 16 between them, and it is the hours between that pin the curves of
+# the clock and the falls up the frame (spec 28 and 33 both say so, and a build fitted without them puts its
+# asymmetry on the wrong curve or leaves a fall at a strength that does nothing). At equal weight per condition they
+# are an eighth of the set and are simply traded away.
+IW = float(opt.get('iw', 3)); SW = float(opt.get('sw', 3))
+TUNING_HOURS = ('00', '06', '12', '18')
+CW = np.array([max(IW if META[j]['time'] in MEASURED else 1.0,
+                   SW if META[j]['time'][11:13] not in TUNING_HOURS else 1.0) for j in CONDS], dtype=float)
 CW /= CW.mean()
 HASLIGHT = block in ('light', 'all')
 start = json.load(open(opt['start']))['p'] if 'start' in opt else {}
@@ -139,12 +152,18 @@ def spec_pen(cv, b):
     pen += 5 * (max(0, 1.5 - mn[1]) + max(0, mn[1] - 3.0))            # the minimum about 02:00
     pen += 20 * max(0, a(3.0) / noon - 0.45) + 20 * max(0, 0.75 - a(6.0) / noon)   # steep rise 03:00-06:00
     pen += 20 * max(0, 0.6 - a(19.0) / noon) + 20 * max(0, a(22.0) / noon - 0.3)   # fades 19:00-22:00
-    # the night image at its floor almost everywhere near dusk and dawn, and clear of it in the middle of the night: the
-    # enveloped level is compared with the floor at a typical lit place (half of what the two lights can lift) and, at
-    # midnight, where they lift most
+    # Where the floor binds, as version 34 puts it: it lies below the unlit share the lighting starts from, so wherever
+    # either light reaches the lit level is above it by itself and the floor has nothing to do there; what it acts on is
+    # the upper part of the frame towards either end of the night, where the level's own shaping has already brought the
+    # level down. So the floor is asked to bind well up the frame at 19:00 and at 04:30 and to have nothing to do along
+    # the bottom in the middle of the night, where the travelling glow must show (spec 33). (Version 19's "at its floor
+    # almost everywhere near dusk and dawn" is kept in the first of these through the envelope, which is what brings the
+    # level down there; it is no longer asked of the bottom row, which version 34 says the floor does not reach.)
     L = b['BGL']; floor = L['base'] * L['nightFloorF']
     lit = L['base'] + 0.5 * (L['spot'] + L['glow']); full = L['base'] + max_lift(L)
-    for h in (19.0, 4.5): pen += 30 * max(0, A[h]['env'] * lit - floor)
+    for h in (19.0, 4.5):
+        up = math.exp(-L['heightRate'] * A[h]['ntop'] * 0.7)          # 0.7 of the way up the frame
+        pen += 30 * max(0, A[h]['env'] * lit * up - floor)
     pen += 30 * max(0, 1.5 * floor - A[0.0]['env'] * full)
     # (spec 23: which side of the lower part is the brighter at night is partly painted into the month's night image and
     # is read from the footage at 21:30, so it is no longer asked of the picture here; the night light's travel across the
@@ -175,6 +194,10 @@ def family_pen(b):
                 h, sv, v = colorsys.rgb_to_hsv(*r); h0, s0, v0 = colorsys.rgb_to_hsv(*r0)
                 if v0 < 0.02: continue                              # a row the starting image leaves black
                 pen += 20 * max(0, abs(math.log(max(v, 1e-3) / v0)) - math.log(2.0))
+                # a row the image leaves nearly black says nothing about a colour family: three values of a few
+                # thousandths have a hue and a saturation arithmetically and none that any eye or measure can see, and
+                # at this weight such a row can be worth more to the fit than several levels of error over the frame
+                if max(v, v0) < 0.08: continue
                 if mo == 0:
                     pen += 100 * max(0, sv - (0.12 if k == 'day' else 0.35)); continue
                 if sv > 0.1: pen += 0.2 * max(0, abs((h - h0 + 0.5) % 1 - 0.5) * 360 - (45 if k == 'day' else 60))
