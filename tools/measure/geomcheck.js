@@ -18,6 +18,14 @@
 //        light that the cut-off removes, which must be substantial rather than a trace. The half-height points are read
 //        from the build's own fresZero and fresTail, so a build with wider or narrower curves is compared with itself.
 //        Also the distribution of the product and of the viewing cosine (4.4d, v16).
+//   4.5 (version 36): which of the two terms lands where. The share of the sheet's light that the sheen term delivers,
+//        each bit weighted by the screen area it covers, over the whole visible sheet and over its most face-on and most
+//        edge-on third by the viewing cosine. Version 36 says most of the sheet's light is the sheen's in every mood, the
+//        day included, and that the sheen is what fills the faces while the Fresnel-like term is concentrated in the
+//        folds; "by day the Fresnel-like term is clearly the stronger" is about the two per-mood strengths and not about
+//        where the light ends up. The three placement figures above are also printed per moment, because version 36 says
+//        they wobble from moment to moment by about as much as the whole spread between the original's moods, so a
+//        mood-to-mood difference smaller than that wobble is not worth chasing.
 //   4.4a folded slack across the width (spec 26): by one and the same measure both ways, the length of the path the net
 //        follows across its width against the straight line between the width's edges, and the same along its length;
 //        how many times the width turns over down a column of the screen; and how much of the depth the sheet's width
@@ -32,6 +40,7 @@ const num = (t, k) => +t.match(new RegExp('\\b' + k + ': (-?[0-9.]+)'))[1];
 const waveTxt = src.match(/const WAVE = \{[\s\S]*?\n\};/)[0];
 const pitch = num(moodTxt, 'camPitch'), lift = /camLift/.test(moodTxt) ? num(moodTxt, 'camLift') : 0, sizeK = num(moodTxt, 'sizeK'), peak = num(waveTxt, 'fresPeak'), cut0 = num(waveTxt, 'sheenCut0');
 const cut1 = num(waveTxt, 'sheenCut1'), fresZero = num(waveTxt, 'fresZero'), fresTail = num(waveTxt, 'fresTail');
+const baseK = num(moodTxt, 'base'), fresK = num(moodTxt, 'fres');   // the mood's two strengths (its balance)
 // the build's own two curves, as the wave shader computes them (x is the product cosine x size factor in peak units)
 const fresResp = x => { const r = Math.min(Math.max((x - fresZero) / (1 - fresZero), 0), 1); return x < 1 ? r * r * (3 - 2 * r) : Math.exp(-(x - 1) / fresTail); };
 const sheenProf = S => S < cut0 ? 1 : (S < cut1 ? 1 - 0.95 * (S - cut0) / (cut1 - cut0) : 0.05 * Math.exp(-(S - cut1) / cut1));
@@ -54,7 +63,7 @@ const S = N - 3, n = 160, m = 32, h = 1e-3;
 // version-31 placement check can be worked out for other shapes of the two curves without running the simulation again
 const dump = process.env.GEOM_DUMP ? [] : null;
 const acc = { farY: [], colD: [], colY: [], ally: [], left: [], free: [], outside: [], dl: [], dr: [], below: [], farLower: [], prod: [], cut: [], cos: [], bite: [],
-  slackW: [], slackL: [], turns: [], depthUse: [], top: [], pxLeft: [], pxRight: [] };
+  slackW: [], slackL: [], turns: [], depthUse: [], top: [], pxLeft: [], pxRight: [], terms: [], moment: [] };
 for (let f = 0; f < 5; f++) {
   for (let k = 0; k < 600; k++) sim.step();
   // framing: the along-length fraction (at mid-width) where the sheet first enters the screen; the free end's screen x
@@ -90,6 +99,9 @@ for (let f = 0; f < 5; f++) {
     const c = along / len(Nq), Sf = along / dist * norm;
     hist.push([c * Sf / peak, area]); if (Sf > cut0) cu += area; co.push([c, area]); wsum += area;
     if (dump) dump.push([c, Sf, area]);
+    // version 36: the light each term puts on the screen from this bit - its light per pixel times the area it covers -
+    // kept with the bit's viewing cosine, so that the two can be compared over the most face-on and most edge-on sheet
+    acc.terms.push([Sf, area * Sf * baseK * sheenProf(Sf), area * Sf * fresK * fresResp(c * Sf / peak), c]);
     // the sheen's light from this bit is its light per pixel (the size factor times the profile) times the screen area
     // it covers, so what the cut-off removes over the sheet is 1 - sum(area x S x profile) / sum(area x S)
     sheenK += area * Sf; sheenC += area * Sf * sheenProf(Sf);
@@ -104,6 +116,13 @@ for (let f = 0; f < 5; f++) {
   acc.below.push(cam.pos[1] - ys / yc);
   const mean = a => a.reduce((p, x) => p + x, 0) / a.length; acc.farLower.push(mean(farF) - mean(nearF)); // > 0: far side lower
   acc.prod.push(...hist); acc.cut.push(cu / wsum); acc.cos.push(...co); acc.bite.push(1 - sheenC / sheenK);
+  { // version 36: this moment's own three placement figures, so that the wobble between moments can be compared with
+    // the spread between moods (the mood-to-mood figures below are means over the moments)
+    const tot = hist.reduce((p, x) => p + x[1], 0);
+    const sh = f => hist.reduce((p, x) => p + (f(x[0]) ? x[1] : 0), 0) / tot;
+    const a = hist.slice().sort((x, y) => x[0] - y[0]); let cc = 0, xm = a[a.length - 1][0];
+    for (const x of a) { cc += x[1]; if (cc >= 0.5 * tot) { xm = x[0]; break; } }
+    acc.moment.push([xm, sh(x => x > xHi) - sh(x => x < xLo), 1 - sheenC / sheenK]); }
 
   // spec 26, 4.4a: the same measure both ways on the deformed scene net: the path it follows across its width against
   // the straight line between the width's edges, and the path along its length against the straight line end to end
@@ -158,7 +177,32 @@ console.log('4.4d from below: camera height above the sheet mean %s (negative = 
     xmed.toFixed(2), xmed > 1 ? 'above' : 'BELOW', xmed > 1 ? 'pass' : 'FAIL', xHi.toFixed(2), above.toFixed(2), below.toFixed(2), xLo.toFixed(2),
     above > below ? 'pass' : 'FAIL', avg(acc.bite).toFixed(2), avg(acc.bite) >= 0.2 ? 'pass' : 'FAIL');
   console.log('4.5: cosine x size factor over the Fresnel-like peak: p25 / median / p75 %s / %s / %s; share with size factor beyond the sheen cut-off start %s',
-    wq(acc.prod, 0.25).toFixed(2), wq(acc.prod, 0.5).toFixed(2), wq(acc.prod, 0.75).toFixed(2), avg(acc.cut).toFixed(2)); }
+    wq(acc.prod, 0.25).toFixed(2), wq(acc.prod, 0.5).toFixed(2), wq(acc.prod, 0.75).toFixed(2), avg(acc.cut).toFixed(2));
+  // version 36: the same three figures moment by moment, and their spread between moments
+  const mm = k => { const v = acc.moment.map(r => r[k]); return [Math.min(...v), Math.max(...v)]; };
+  console.log('4.5 (v36) between the %d moments: typical product %s to %s (spread %s), falling minus rising share %s to %s (%s), cut-off bite %s to %s (%s)',
+    acc.moment.length, ...mm(0).map(v => v.toFixed(2)), (mm(0)[1] - mm(0)[0]).toFixed(2),
+    ...mm(1).map(v => v.toFixed(2)), (mm(1)[1] - mm(1)[0]).toFixed(2), ...mm(2).map(v => v.toFixed(2)), (mm(2)[1] - mm(2)[0]).toFixed(2)); }
+{ // spec 4.5 (version 36): which of the two terms lands where, weighted by the screen area each bit covers. The sheet is
+  // split by the **size factor**, which version 36 names as what distinguishes a near, face-on bit of sheet (the faces,
+  // the top third here) from a far or foreshortened one (the folds and the turns, the bottom third); the viewing cosine's
+  // own terciles are printed beside it, with the caution that the two are not independent here - the size factor carries
+  // a factor of the cosine, so the product that indexes the Fresnel-like response grows as the square of the cosine and
+  // that term can put nothing at all on sheet that is close to edge-on.
+  const t = acc.terms;
+  const q = (k) => { const v = t.map(r => r[k]).sort((a, b) => a - b); return [v[Math.floor(v.length / 3)], v[Math.floor(2 * v.length / 3)]]; };
+  const [sLo, sHi] = q(0), [cLo, cHi] = q(3);
+  const sum = f => t.reduce((p, r) => f(r) ? [p[0] + r[1], p[1] + r[2]] : p, [0, 0]);
+  const shr = ([s, f]) => s / Math.max(s + f, 1e-12);
+  const all = sum(() => true), big = sum(r => r[0] >= sHi), small = sum(r => r[0] <= sLo);
+  const faceC = sum(r => r[3] >= cHi), foldC = sum(r => r[3] <= cLo);
+  console.log('4.5 (v36) which term lands where (balance base %s / fres %s): the sheen is %s of the sheet\'s light (%s); over the third of the sheet with the largest size factor (>= %s), the near face-on sheet, %s, over the third with the smallest (<= %s) %s; of the sheen\'s own light %s lies in the large-size third and of the Fresnel-like term\'s %s does',
+    baseK.toFixed(2), fresK.toFixed(2), shr(all).toFixed(2), shr(all) > 0.5 ? 'pass' : 'FAIL (version 36: most of the sheet\'s light is the sheen\'s in every mood)',
+    sHi.toFixed(3), shr(big).toFixed(2), sLo.toFixed(3), shr(small).toFixed(2),
+    (big[0] / Math.max(all[0], 1e-12)).toFixed(2), (big[1] / Math.max(all[1], 1e-12)).toFixed(2));
+  console.log('4.5 (v36) by the viewing cosine instead: the sheen is %s of the light over the most face-on third (cosine >= %s) and %s over the most edge-on third (<= %s); the Fresnel-like term puts %s of its light in the edge-on third and %s in the face-on third',
+    shr(faceC).toFixed(2), cHi.toFixed(2), shr(foldC).toFixed(2), cLo.toFixed(2),
+    (foldC[1] / Math.max(all[1], 1e-12)).toFixed(2), (faceC[1] / Math.max(all[1], 1e-12)).toFixed(2)); }
 console.log('viewing cosine p10 / p25 / median / p75 / p90 %s / %s / %s / %s / %s', ...[0.1, 0.25, 0.5, 0.75, 0.9].map(q => wq(acc.cos, q).toFixed(2)));
 const pct = (a, q) => { const b = a.slice().sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(q * b.length))]; };
 console.log('4.4a folded slack: path / straight line across the width %s (p10 %s, p90 %s), along the length %s; the width turns over down a column %s times (median; p10 %s, p90 %s); the drawn surface occupies %s of the depth its across cloth could',

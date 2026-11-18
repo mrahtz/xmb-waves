@@ -64,18 +64,29 @@ def main():
                 print('%-10s %-6s' % (m, k) + row)
         return
     if a[0] == 'compare':  # a build against footage, condition by condition (so that the background's own level cancels)
+        # Version 36 extends the first of version 31's five cautions: the denominator is the fitted background under the
+        # band, so it carries the background's own top-to-bottom gradient and the ratio inherits where the band happens
+        # to sit. So the build's own background under the band is printed beside the footage's at the same conditions,
+        # and the ratio of the band's added light on its own is printed beside the ratio of the ratio: where the two
+        # denominators agree the ratio is the measurement, and where they do not the added light is, with the difference
+        # in the denominator reported beside it.
         F, B = json.load(open(a[1])), json.load(open(a[2]))
-        print('%-6s %4s %14s %14s %14s' % ('mood', 'n', 'build/footage', 'col build', 'col footage'))
+        print('%-6s %4s %16s %16s %10s %10s %7s' %
+              ('mood', 'n', 'ratio build/foot', 'added build/foot', 'bg build', 'bg foot', 'bg b/f'))
         for m in ('night', 'dawn', 'day', 'dusk'):
-            rs, bs, fs = [], [], []
+            rs, ads, bb, bf = [], [], [], []
             for i, mm in F['mood'].items():
                 if mm != m: continue
                 j = i if i in B['clips'] else next((k for k in B['clips'] if k.split('_', 1)[1] == i.split('_', 1)[1]), None)
                 if j is None: continue
-                rs.append(B['clips'][j]['col'] / F['clips'][i]['col']); bs.append(B['clips'][j]['col']); fs.append(F['clips'][i]['col'])
+                rs.append(B['clips'][j]['col'] / F['clips'][i]['col'])
+                ads.append(B['clips'][j]['add'] / F['clips'][i]['add'])
+                bb.append(B['clips'][j]['bg']); bf.append(F['clips'][i]['bg'])
             if not rs: continue
-            print('%-6s %4d %8.3f +- %.3f %14.2f %14.2f'
-                  % (m, len(rs), np.median(rs), np.std(rs, ddof=1) / np.sqrt(len(rs)), np.mean(bs), np.mean(fs)))
+            print('%-6s %4d %10.3f +- %.3f %10.3f +- %.3f %10.2f %10.2f %7.2f'
+                  % (m, len(rs), np.median(rs), np.std(rs, ddof=1) / np.sqrt(len(rs)),
+                     np.median(ads), np.std(ads, ddof=1) / np.sqrt(len(ads)),
+                     np.mean(bb), np.mean(bf), np.mean(bb) / max(np.mean(bf), 1e-6)))
         return
     kind = a[0]
     moods = opt(a, '--moods', 'night,dawn,day,dusk').split(',')
