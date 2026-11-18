@@ -503,6 +503,50 @@ four figures) and the floor stays at 0.03: read again on this build, the night b
 at lift 1) against the original's 0.3296 and 0.3440 by the same code over the same eight clips, so what the
 observable asks for is still the night images' own dark end and not a deeper floor.
 
+The version-35 background went in behind the gate and the shared settings were then re-fitted on it. The gate's own
+test - that no other lane moves away from the original by more than that measure's own range - passes with room to
+spare: over all 168 measures at three seeds the largest move away from the original outside this lane is 0.50 of that
+measure's range (`wave.lines_25pct_count`, 0 -> 1 of a range of 2, at one seed), then 0.42
+(`wave.fold_over_face_p90`, whose range is enormous), and the worst in the motion and sparkle lanes are 0.11 and 0.06.
+One measure outside the lane crossed from inside its range to just outside it, by two sparkles
+(`sparkles.count_median` 739 -> 737 against the original's 801, the noise clips reaching 739; 0.01 of the range).
+Of the 168 measures, 125 lie inside the original's range at every one of the three seeds against main's 122 (motion
+47 of 50, look 42 of 42, sparkles 17 of 22, background 19 of 54). Through the fixed battery the background away from
+the band goes from 1.516 levels a channel on main to 1.419 on the merge, and by hour from 1.17 / 1.63 / 1.43 / 2.11 /
+1.00 at 00 / 06 / 12 / 18 h and 21:30 to 0.82 / 1.37 / 2.02 / 1.49 / 1.09: midnight, dawn and dusk come down and noon
+goes up, which is the lane's own reading of its fit. Unlike the last three rounds the joint re-tune after the merge
+was not at the fit's fixed point, because the painted images moved: `jointfit.py --weight=1.0 --hold=night` (step 0.7)
+takes the background from 1.419 to 1.344 levels a channel in one step and 1.325 in two, and then stops - ten steps run
+in a row give 1.344, 1.325, 1.330, 1.325, 1.311, 1.325, 1.322, 1.329, 1.325, 1.328, a plateau whose spread (0.018) is
+below the measure's own noise (0.043-0.093 between two noise clips of one condition). Two steps are taken. They move
+the three daylight gains by 0.2-0.3 % (day 1.128 -> 1.131, dawn 1.220 -> 1.223, dusk 1.343 -> 1.346; the night's 1.385
+is held out of the fit) and the twelve palette grids by at most 2.6 %, leave the band's peak over the background where
+it was (75.27 -> 75.44 levels, against 77.28 on main) and bring noon from 2.02 to 1.65 levels a channel, the hour the
+merge had made worse. What they cost is the signed level: the whole-frame signed mean goes from -0.087 to +0.142
+levels, where one step leaves it at +0.039 and main sits at +0.156, and five signed region means at the top of the
+frame that happened to land inside their +-0.03 level noise band on the merge fall just outside it again, which is why
+the lane's count reads 15 of 54 after the re-tune rather than 19. The absolute error is the figure every round quotes
+and the signed one is a tenth of a level either way, so the second step is kept; if the lane would rather hold the
+signed mean near zero, one step is the build to take. The two alternatives are still the wrong trades, measured again
+on this background: letting the band pull on the gain (`--weight=0.5`) takes the background from 1.419 to 1.949 levels
+a channel and dawn from 1.37 to 3.34 for 6.9 levels of band peak, and letting the fit have the night leaves midnight
+where it is (0.817 -> 0.816) and takes 21:30 from 1.09 to 1.45. The camera needs nothing: the band's place on the
+screen is main's to three figures (centre 0.450 H against 0.451, lowest 0.329, highest 0.672, thickness 0.179 H, all
+unmoved by the background), so the aim the motion lane fitted still stands. And the floor is no longer a trade. The
+remedy version 27 named - a background fit that lets the dark end of the night images move rather than scaling them -
+is what this lane's round did, and on the result all three of the floor's readings prefer 0.03: the night black top is
+0.305 H (`blackfoot.py` at the four 00:00 conditions, 0.169-0.327 by month, lift 0.5) against the original's 0.330
+(0.272-0.336 over the same eight clips) where main read 0.261, and a build re-tuned to convergence at 0.045 (seven
+`jointfit.py --weight=1.0 --hold=night` steps) reads 0.357 and overshoots in all four months; the night band's colour
+(`bandpos.py` over 30 moments of the six night conditions) is 0.0157 mean absolute share error per channel at 0.03
+against 0.0218 at 0.045, where on the version-28 images it was 0.0200 and 0.0143 - the direction has turned over; and
+the background away from the band is 1.325 levels a channel at 0.03 against 1.762 at 0.045. The night background under
+the band, which used to be 25 levels against the original's 7.9, is now 6.8 against 6.4 over the same 30 moments, so
+version 31's ratio for the night is no longer absorbing a background error. Spec 27's ceiling still holds after the
+re-tune: over the twelve months and the four mood holds the composite of background and wave reaches 241 of 255 at
+most (September at dawn) and the top output level in none of the 48, and the wave alone reaches 77 by day, 100 at
+dawn, 92 at dusk and 86 at night (`wavetop.js`, 1280 x 720).
+
 Not verifiable from the references available so far: the depth of the mid-month
 saturation drop still sits at the lower end of the range it is allowed (0.30),
 though its breadth and the trace of it that survives the month's ends are now
