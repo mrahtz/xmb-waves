@@ -145,6 +145,7 @@ gl.bindVertexArray(null);
 // it saturates - changes the finished picture by less than the dither moves it, so it is left as it is.
 let RT = null;
 const MAX_TEX = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+const GLARE_CELLS = 240; // the glare pyramid's first level, in cells across the picture (spec 5, version 28; see below)
 function ensureTargets(cw, ch, ow, oh, ss) {
   ss = Math.min(ss, MAX_TEX / Math.max(cw, ch)); // the wave buffer must fit the GPU's texture size limit
   const ww = Math.round(cw * ss), wh = Math.round(ch * ss);
@@ -155,7 +156,13 @@ function ensureTargets(cw, ch, ow, oh, ss) {
   RT.wave = makeTarget(ww, wh, 'r16f');
   RT.bgA = makeTarget(64, 36, 'rgba16f'); RT.bgB = makeTarget(64, 36, 'rgba16f'); RT.bgFresh = true;
   RT.levels = [];
-  let lw = Math.max(1, Math.ceil(ow / 8)), lh = Math.max(1, Math.ceil(oh / 8));
+  // The glare chain's first level is a coarse grid laid over the picture, fixed in the picture's own coordinates, and not
+  // the output's pixel count divided by a number of pixels (spec 5, version 28): the grid must stay the same as the output
+  // grows, so that the halo keeps the same width as a fraction of the picture instead of tightening into a bright rim.
+  // GLARE_CELLS is the grid's width in cells; the height follows the output's shape, so the cells stay square. 240 cells
+  // is the grid the glare was tuned at (1920 / 8, the earlier divisor at the size everything here is measured at), so
+  // nothing changes at 1920 x 1080 and the halo now holds that width at every other size (tools/measure/glareab.js --sizes).
+  let lw = GLARE_CELLS, lh = Math.max(1, Math.round(GLARE_CELLS * oh / ow));
   while (RT.levels.length < 7) {
     RT.levels.push({ a: makeTarget(lw, lh, 'rgba16f'), b: makeTarget(lw, lh, 'rgba16f'), c: makeTarget(lw, lh, 'rgba16f'), w: lw, h: lh });
     if (lh <= 6) break;

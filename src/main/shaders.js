@@ -188,8 +188,14 @@ void main(){
   c = toneMap(c);
   // keep the colour: one weight from the brightest channel, a soft knee (zero up to the threshold, rising above it). The
   // threshold is the mood's own, fixed (spec 20); the knee's width is fixed too, so any threshold works, also above 1.
+  // Spec 5 (version 28): the weight follows the excess above the knee alone and is **not** divided by how bright the pixel
+  // is, so what a source contributes grows with its own brightness as well as with its excess - which is what keeps the
+  // glare on the folds, whose crests sit far above the knee, rather than on a background that only grazes it. (Before
+  // version 28 this shader divided by the brightest channel, which is the move that paragraph names.) And the weight is
+  // carried at the picture's own precision, not in floating point, so a source barely above the knee contributes exactly
+  // nothing rather than a trace that a broad area would add up into a visible lift.
   float m = max(c.r, max(c.g, c.b)), e = max(m - uThr, 0.0);
-  o = vec4(c * (e * e / (e + 0.03)) / max(m, 1e-4), 1.0);
+  o = vec4(floor(c * (e * e / (e + 0.03)) * 255.0 + 0.5) / 255.0, 1.0);
 }`;
 const FS_DOWN = `#version 300 es
 precision highp float;

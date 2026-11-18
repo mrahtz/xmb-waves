@@ -142,7 +142,12 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   that falls with the first power of distance: a sheen that stays flat and
   then fades where the size factor is large, and a Fresnel-like glow indexed
   by the viewing cosine times the size factor (nothing below a threshold, a
-  smooth rise to a peak, then an exponential tail). A linear fade softens the
+  smooth rise to a peak, then an exponential tail). The two curves' shapes are
+  set by where the sheet has to sit on them: the typical bit of sheet lies
+  above the Fresnel-like peak on its falling side, and the sheen's cut-off
+  takes a quarter to two fifths of the sheen's light off the bits that appear
+  large on screen, which is what keeps the faces between the folds
+  see-through. A linear fade softens the
   sheet's long edges. Every cell is drawn additively into a supersampled
   single-channel buffer, then filtered down one output pixel wide.
 - The background is made per frame from a small day image and night image
@@ -164,9 +169,14 @@ and `window.XMBW.render(opts)` (see section 9 of the spec).
   an unwarped clock, under an envelope across the night (two of the same
   steps), above a floor, and faded up the frame at either end of the night.
 - The composite of background and wave goes through each mood's exposure and
-  an extended Reinhard tone curve with a white point. The glare is a bloom
+  an extended Reinhard tone curve with a white point; each mood also has its
+  own wave brightness, which multiplies the wave and not the background. The
+  glare is a bloom
   pyramid read from that composite through a colour-keeping bright-pass
-  (one weight per pixel from its brightest channel), with blue spread widest.
+  (one weight per pixel from its brightest channel, not divided by how bright
+  the pixel is and carried at the picture's own precision), with blue spread
+  widest. The pyramid's first level is a fixed coarse grid over the picture,
+  so the halo keeps its width as a fraction of the picture at any output size.
 - Sparkles are born uniformly over the surface's parameters, mostly in
   bursts. They leave in a cone around the surface normal, with a random push
   that is mostly redrawn each step and a small part of it held for life, light
@@ -223,9 +233,12 @@ README).
 
 ## Status
 
-Built to spec version 33 (the background's painted images, its one rate in the height and its night floor; the sheet
-and its motion to version 30; the composite's floor, the wave tint's ramp and the glare's locality to
-version 27; the sparkles to version 25) and tuned against the
+Built to spec version 35 (the background's painted images, its one rate in the height, its night floor, one unlit
+share for both arms with nothing clamped, and the breadth of the mid-month lowering and of the month handover fitted;
+where the sheet sits on the two shading curves, the mood's own wave brightness apart from the composite's gain, and the
+glare chain sized from the picture rather than from the output to version 31; the sheet and its motion to version 30;
+the composite's floor, the wave tint's ramp and the glare's locality to version 27; the sparkles to version 25) and
+tuned against the
 original's footage - the 19 recordings in `comparison/original/`, the 19 lossless
 reference renders of the footage index, the 48 noise clips from 40 s to 30 minutes after the start, and, for the
 background, 134 conditions covering all twelve months - measured with
@@ -355,47 +368,139 @@ fitted with `tools/measure/bgfit/`, which costs the background nothing because t
 At 0.03 the band's added light by day is within 0.002 of the original's channel shares, and
 background pixels away from the band differ by about 1.5 levels per channel on average. July's and October's night bands lean towards the
 background's colour as the original's do, though less (R share 0.29 against 0.24 in July), and months whose night
-palette is more coloured than the original's lean where the original's stay neutral. The wave's own light cannot
-drive the picture to white in any mood (spec 27): rendered alone it reaches 61 of 255 by day, 84 at dawn, 110 at dusk
-and 137 at night, and on the finished frames the share of pixels at 255 is 0.000075 against the footage's 0.0001
-(measured at the larger floor the look lane fitted, and not re-measured since the floor was held at 0.03).
+palette is more coloured than the original's lean where the original's stay neutral. The wave's own light cannot drive the picture to white in any mood (spec 27): rendered alone it reaches 80 of 255 by
+day, 98 at dawn, 92 at dusk and 107 at night (72, 102, 134 and 106 before this round), and after the version-31 fit of
+the moods' wave brightness the composite no longer reaches the top output level at dusk at all (the share of the frame
+there 0.0013 -> 0.00000, the maximum 255 -> 242); where the finished frame still clipped it was the background and
+not the band, and the last of that went with this round's palettes - over all twelve months and the four mood holds
+(`wavetop.js`, 1280 x 720, the same moment on both sides) the composite reached the top output level only in August
+by day, over 0.0098 of the frame, and now reaches it in no month and no mood (August by day 255 -> 247, with the
+September palette the mid-August frame reads). At the four dusk conditions
+the footage covers, the share of band pixels at the top level is 0.0024, the footage's own 0.0024, where it was 0.038.
+
+Each mood's own wave brightness is now kept apart from the composite's gain (spec 31) and fitted on that section's
+observable: the band's added light integrated down each column over the band's extent, divided by the fitted
+background under the band at the same column (`tools/measure/bandlevel.py`, `bandlevelset.py`), per mood against
+footage of that mood over the 15 or 16 clips of each mood hold at five moments each. Compared condition by condition
+it is now 1.007 of the original's at dawn, 1.041 by day and 0.970 at dusk, where before the round it was 1.21, 1.07
+and 1.51. The night is set on the band's added light itself (1.001 of the original's) rather than on the ratio,
+because the ratio's denominator there - my night background under the band - is 25 levels against the original's 7.9
+in the recordings and scatters from 0.69 to 1.74 of the original's over the noise clips, so the ratio would absorb a
+background error into the wave. By the light the two shading terms deliver over the sheet, the per-mood wave
+brightness runs day 0.039 < dusk 0.051 < night 0.054 < dawn 0.056 against spec 31's day < night < dusk < dawn: the day
+lowest and the dawn highest as stated, with the night and dusk 5 % apart and the other way round, which is inside what
+the observable can tell here. The gains are unchanged and keep the spec's order and spacing (day 1.128, dawn 1.220,
+dusk 1.343, night 1.385); refitted on the background alone they want x 1.001 in the three daylight moods, and with the
+band allowed to pull, the fit now wants day x 1.110 against dawn x 1.040, so it no longer asks for the push on the
+dawn gain that spec 27 refuses (at main it wanted day x 1.126 against dusk x 0.985).
+
+The two shading curves' shapes were moved to satisfy spec 31's check of where the sheet sits on them, which the
+version-17 shapes failed in almost every mood (the typical bit of sheet at 0.80 to 1.01 of the Fresnel-like peak, and
+a cut-off that removed 0.06 to 0.13 of the sheen); no scale of the size factor can satisfy it, as version 31 warns,
+so the shapes themselves changed (fresPeak 0.12 -> 0.085, fresTail 0.1403 -> 0.40, sheenCut0 0.2179 -> 0.185,
+sheenCut1 0.599 -> 0.32). The typical sample now lies at 1.13 to 1.43 of the peak on its falling side, more of the
+sheet lies beyond the response's falling half-height than below its rising one in every mood, and the cut-off removes
+0.25 to 0.41 of the sheen's light; version 17's own rules still hold (the response's width at half height is 0.48 of
+the peak's distance from zero, and the sheen stays flat until 1.50 times the size factor at which the peak sits). The
+three figures still differ more between moods than version 31 expects, and what separates them is the night camera's
+lift rather than any look value.
+
 The wave tint's left-to-right ramp is fitted on the slope of the band's added light taken as a profile across the
-whole width (`tools/measure/rampprof.py`, version 27, replacing version 20's ratio of the brightest places), but the
-value in the build was fitted before the spec-26 sheet and is now the wrong way: pooled over the 19 conditions the
-slope of the column peak is -0.44 against the footage's -0.035 +- 0.027 (the recordings +0.039, the lossless renders
--0.106), where the tint this build had before the merge gives -0.30. The tint answers to this at about +0.006 per
-1 % of the left-to-right ratio, so closing the gap would need the left about 0.6 of the right - far outside the
-"brightening slightly" the spec asks for - which puts the remaining slope in the sheet's shape rather than the tint,
-the same place as the band's height profile. Each mood's bright-pass threshold sits inside the bracket measured on the
-original's footage (spec 24), and the night runs the same glare chain without any halo (at most one output level). My
-brightest day background is still the sun spot at the top, brighter than the original's brightest part, so by day my
-background glares by itself in eight months of twelve instead of only around the turn of the year, as a visible blob
-over the spot; but with the version-28 background and the re-tune after it the two months spec 24 names now fall on
-the right sides of the day threshold of 0.68 - January passes at 0.686 and July does not at 0.671 - where before
-January fell 0.025 short. At dawn the background passes in 2 months of 12 and at dusk in 3 (7 and 6 before), and at
-night in none. Where the background stays under the
-line the halo is local as version 27 asks (the glare changes a few per cent of a day frame by at most four levels);
-where it passes, it lifts a broad part of the frame, which version 27 says to read as a broad bright-pass feed and
-not as a mis-weighted pyramid. Spec 5 puts dusk's glare first, and mine still puts day's first. Still short: the background's remaining error
-is hour structure that neither the exposure nor the palettes' level can reach, though the spec-26 sheet and the
-re-tune after it have more than halved it at the two hours where it was largest. The band's light is now the open
-question, and it is the wave's own brightness by mood rather than the composite's gain, which scales the background
-with it: at noon the band's peak over the background is 56 against the original's 81 and its mean 23 against 33, while
-at dusk it is 99 and 53 against 103 and 45. The night, where the band used to carry 68 levels of mean light against
-the original's 43 because the brightest point of a column was a sparkle rather than a fold, now reads 43 against 43
-and 90 against 106 at the peak. The spec-30 aim took about 8 levels off the band's peak over the whole set (93 to 85,
-the original's 99) and left its mean where it was (42 against 41), the band having moved to a place on the screen
-where the sheet is a little farther from the camera. On the sheet's own look, the lines are thinner than the original's (4.7 px against
-5.5-7.4) and stand less above the band (1.27 against 1.38-1.88), while the broad sheen and the brightest line, which
-were about twice as wide as the original's, came in with the spec-30 sheet to 37.5 px against 21-26 and 42.7 against
-15-27: the per-mood sheen and wave brightness have not been refitted to this sheet, and neither has the wave tint.
-Of the fixed battery's 168 measures, 123 lie inside the original's range at every one of the three seeds
-(motion 49 of 50, look 40 of 42, sparkles 19 of 22, background 15 of 54, where 42 of that lane's 54 are the pixel
-comparison whose original is zero by construction). Before this merge the same counts were 111, 113 and 112
-(motion 44, look 37, sparkles 17/19/17, background 13/13/14). Nothing in the three other lanes moved away from the
-original by more than that measure's own range except six region means of the background's pixel comparison, each by
-at most 0.15 of an output level against a noise range of 0.02-0.05 (`bgpixel.bottom_right.R_mean` 0.13 -> 0.28 the
-largest), while every whole-frame background figure is unchanged within its noise range.
+whole width (`tools/measure/rampprof.py`, version 27, replacing version 20's ratio of the brightest places) and was
+re-run on this shading, as version 28 asks. Pooled over all 38 clips the original gives sum -0.952 +- 0.051, column
+peak -0.035 +- 0.027 and band height -0.581 +- 0.096; this build gives -0.353 +- 0.123, -0.544 +- 0.064 and
++0.350 +- 0.059. The peak form wants the tint flatter and the sum form wants it steeper, because my band's height
+across the width runs the other way from the original's, so no tint satisfies both: the tint is left as it is (left
+0.952 of right 0.990, the slight brightening the spec asks for) and the residual belongs to the sheet's shape.
+
+The glare chain's first level is now a fixed 240-cell grid laid over the picture rather than the output's width over
+8 (spec 28), so the halo keeps its width as a fraction of the picture: at 1280 x 720 and 2560 x 1440 it is 0.1125 and
+0.1104 of the height at a tenth of its peak, where the old chain gave 0.192 and 0.144 with the peak growing from 1.36
+to 2.00 levels. Nothing changes at 1920 x 1080, where everything here is measured. The bright-pass weight is no longer
+divided by the pixel's brightest channel and is carried at the picture's own precision (spec 28), so a source that
+only grazes the knee now contributes nothing at all. Each mood's threshold sits inside the bracket the original's
+footage allows: the night's is the lowest of the four (0.64, where footage allows 0.60 to 0.68) and the night band
+reaches only 0.46-0.51 in every month, so the night is free of halo with a margin and not by an unreachable
+threshold as before (it was 0.9, the highest of the four); the day's is 0.72, re-read from version 28's correction
+that the background glares by itself in the last weeks before the turn of the year and not around it, so that
+January's day background (0.698-0.702 on footage) does not pass and the dimmest day band (0.744) does. On this build
+January's background now produces no glare at all and November's and December's do. My brightest day background is
+still the sun spot at the top, brighter than the original's brightest part, so by day my background passes the
+threshold by itself in 6 months of 12 (8 before) and lifts a broad part of the frame in August, June and November,
+which version 27 says to read as a bright-pass feed that is wrong and not as a mis-weighted pyramid; at dawn it
+passes in 2 months and at dusk in 3, and at night in none. The day halo swings from nothing at all in April and
+September to a visible lift in August, which is the swing version 28 asks for. Spec 5 puts dusk's glare first and
+mine now puts dawn's first: my dusk band's peak sits below the original's while its added light matches, so less of
+it clears a threshold placed where the footage puts it. The month-by-month glare totals and both sides of the bright-pass in this paragraph were read on the look lane's branch, before the spec-30 sheet was merged into it, and have not been read again on the merged build; the band's light moved with that sheet (below), so the margins by mood will have moved with it.
+
+Still short: the background's remaining error is hour structure that neither the exposure nor the palettes' level can
+reach. On the sheet's own look every one of the look lane's measures is now inside the original's range, measured on
+the merged build: the typical line 7.1 px (the original 6.6, range 5.5-7.4), the broad sheen 22.8 (23.7, 21.0-26.1),
+the brightest line 19.0 (19.5, 15.0-27.0) and the line's peak over the band 1.70 (1.63, 1.38-1.88), all four of which
+were outside it before; the faces between the folds carry 0.236 of the column maximum (0.236) and the fill above 40 %
+is 0.327 (0.341). What is left of the band is its light: on the merged sheet the band's peak over the background is
+77 levels against the original's 99 (range 73-112) and its mean 32 against 41 (27-52), both still inside the
+original's own variation but both farther from it than on either parent (main 85 and 42, the lane's branch 85 and 37).
+Version 31's own observable says the same and says where it belongs: the band's added light down a column over the
+fitted background under it, pooled over the index's 15 or 16 clips of each mood hold (`bandlevelset.py compare`, the
+same code on footage and on renders), is 0.853 of the original's at dawn, 0.917 by day and 0.885 at dusk, with the
+night's added light at 0.936, where the lane's fit on its own sheet gave 1.007, 1.041, 0.970 and 1.001. At the single
+moment nearly all the recordings and renders show (40 s after the start) the three day moods are within 2-7 % (dawn
+1.073, day 0.983, dusk 0.998) and it is the later moments that carry the shortfall. The mood's own wave brightness was
+fitted before the spec-30 sheet, which moved the band to a place where the sheet is farther from the camera: refitting
+it on this sheet is the look lane's next step, and the joint re-tune did not take it, because version 31 keeps that
+setting apart from the composite's gain and the gain is the one this fit may move.
+
+Of the fixed battery's 168 measures, 122 lie inside the original's range at every one of the three seeds (motion 47 of
+50, look 42 of 42, sparkles 18 of 22, background 15 of 54, where 42 of that lane's 54 are the pixel comparison whose
+original is zero by construction). Before this merge the same count was 123 at every seed (motion 49, look 40,
+sparkles 19, background 15). Every one of the look lane's own 42 measures is now inside the range at every seed, where
+40 were before; the merge gained `wave.line_width_median` (4.67 -> 7.09 px, the original 6.61) and
+`wave.line_peak_over_band_median` (1.27 -> 1.70, the original 1.63). Three measures of the other two lanes crossed
+from inside their range to just outside it, each by a small fraction of that measure's own range, and nothing moved
+away from the original by more than its range (the merge gate's test): the picture's correlation with itself five
+seconds on (-0.121 -> -0.044 against the original's -0.284, the noise clips reaching -0.051; 0.16 of the range), how
+differently neighbouring strands move (7.86 -> 6.40 px/s against 8.45, the noise clips reaching 6.44; 0.38 of the
+range) and the sparkles' ninetieth-percentile count (800 -> 767 against 838, the noise clips reaching 770; 0.15 of the
+range). All three follow from the shading: crisper, better separated lines with see-through faces change what the
+flow and the strand-to-strand measures find, and they are the price of the four look measures that came inside.
+
+The joint re-tune after this merge found the shared settings at the fit's fixed point again. One step of
+`jointfit.py --weight=1.0 --hold=night` (step 0.7) moves the four gains by 0.1 % and the twelve palette grids by at
+most 1.6 %, and taking it leaves the background away from the band 0.005 levels a channel worse (1.516 -> 1.521 over
+the 38 clips, against 0.05 between two noise clips of one condition) with the band's peak unmoved (77.28 -> 77.33), so
+every gain and all twelve palettes are kept. The merge itself changed that figure by 0.001 levels (main 1.517), and by
+hour it is 1.17 at midnight, 1.63 at dawn, 1.43 at noon, 2.11 at dusk and 1.00 at 21:30, all within 0.004 of main's:
+the glare chain's new first level and its unnormalised bright-pass do not reach the background away from the band at
+1920 x 1080. The two alternatives were measured again on this build and are still the wrong trades: letting the band
+pull on the gain (`--weight=0.5`) takes the background from 1.516 to 1.976 levels a channel, and dawn from 1.62 to
+2.96, for 5.8 levels of band peak; letting the fit have the night takes 00:00 from 1.173 to 1.088 and 21:30 from 0.995
+to 1.860. The camera needs nothing: the merge leaves the band's place on the screen untouched to four figures (centre
+0.4509 H, lowest 0.3292, highest 0.6713, top lit row 0.1111, all identical to main's), so the aim the motion lane
+fitted still stands. The floor was re-read rather than re-fitted: on the merged build the night black top is 0.273 H
+(`blackfoot.py` at the four 00:00 conditions, 0.2667-0.2815 by month) against the original's 0.332 (0.291-0.352 over
+the same eight clips), the same reading as before this merge, so the floor stays at 0.03 and the lowering the
+observable asks for still belongs to the night images themselves, which `bgfit/` can move and a palette scaling
+cannot.
+
+The background lane's round after that merge changed no pixel of the build: it added the lane's scored set, the
+background error by hour and month, the night bottom read as a curve and the fit of the four unshown months
+described above, which it left unapplied. The merge gate was therefore vacuous and passed exactly - the merged
+build's page is main's page byte for byte, and all 168 measures are identical at all three seeds (122 inside the
+original's range, motion 47 of 50, look 42 of 42, sparkles 18 of 22, background 15 of 54). The joint re-tune after
+it took that fit, which is the one thing in the round that moves a level, and found everything else at its fixed
+point again: one step of `jointfit.py --weight=1.0 --hold=night` (step 0.7) moves the four gains by 0.1 % and the
+twelve grids by at most 1.6 %, and taking it leaves the background away from the band 0.005 levels a channel worse
+(1.516 -> 1.521 over the 38 clips) with the band's peak unmoved (77.28 -> 77.33), so every gain and the eight
+palettes the index can see are kept; the two alternatives (the band pulling on the gain, and letting the fit have
+the night) are the same refusals as last round, on the same build. The four fitted palettes do not reach the
+measured index at all: with them applied the whole battery is identical to main's at all three seeds, every one of
+the 19 scored conditions is unchanged to +-0.000 levels, and the background away from the band stays at 1.516
+levels a channel (by hour 1.17 / 1.63 / 1.43 / 2.11 / 1.00). The camera needs nothing (the band's place is main's to
+four figures) and the floor stays at 0.03: read again on this build, the night black top is 0.261 H
+(`blackfoot.py` at the four 00:00 conditions, 0.2556-0.2685 by month, lift 0.5 levels; 0.2718 H and 0.2667-0.2815
+at lift 1) against the original's 0.3296 and 0.3440 by the same code over the same eight clips, so what the
+observable asks for is still the night images' own dark end and not a deeper floor.
 
 Not verifiable from the references available so far: the size of the mid-month
 saturation drop (the fit takes it to the lower end of the range it is allowed,
