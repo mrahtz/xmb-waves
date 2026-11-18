@@ -313,8 +313,8 @@ absolute difference per channel is 1.93-2.95 levels (mean over the twelve 2.47),
 (mean 16.50): the merged build was 6.3-11.1 levels in the four months it had been fitted on and 15.9-28.3 in the eight
 it had never seen. On the days that show one month alone it was 20.50 levels against 8.94 on the mixed days, because
 two neighbouring palettes wrong in opposite directions cancel in a mid-month mix and the old set was made of mixes;
-it is now 2.25 against 2.49. By hour the daytime conditions went from 19.3 / 22.3 / 21.7 levels at 06:00 / 12:00 /
-18:00 to 2.6 / 3.2 / 3.0, and the night ones from 6.2 at 00:00 to 1.4. The same comparison on the eighteen conditions
+it is now 2.15 against 2.55. By hour the daytime conditions went from 19.3 / 22.3 / 21.7 levels at 06:00 / 12:00 /
+18:00 to 2.7 / 3.2 / 2.9, and the night ones from 6.2 at 00:00 to 1.3. The same comparison on the eighteen conditions
 of the footage index alone - the only ones the old fit ever saw - goes the other way, 1.53 to 2.31 levels, and the
 battery's pixel comparison over its 19 conditions with it (1.48 / 1.58 / 1.15 in R / G / B to 2.45 / 2.06 / 2.63, and
 15 of the lane's 54 measures within the original's range to 12). That is the price of one lighting model having to
